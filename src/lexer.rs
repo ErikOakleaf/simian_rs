@@ -9,14 +9,72 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
-        Lexer { input, position: 0, read_position: 0, char: '\0' }
+        let mut lexer = Lexer {
+            input: input,
+            position: 0,
+            read_position: 0,
+            char: 0,
+        };
+        lexer.read_char();
+
+        lexer
+    }
+
+    pub fn next_token(&mut self) -> Token<'_> {
+        let mut token: Token = Token {
+            token_type: TokenType::Illegal,
+            literal: "",
+        };
+
+        match self.char {
+            b'=' => {
+                token.token_type = TokenType::Assign;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b';' => {
+                token.token_type = TokenType::Semicolon;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b',' => {
+                token.token_type = TokenType::Comma;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b'+' => {
+                token.token_type = TokenType::Plus;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b'(' => {
+                token.token_type = TokenType::LParen;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b')' => {
+                token.token_type = TokenType::RParen;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b'{' => {
+                token.token_type = TokenType::LBrace;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            b'}' => {
+                token.token_type = TokenType::RBrace;
+                token.literal = &self.input[self.position..self.position + 1];
+            },
+            0 => {
+                token.token_type = TokenType::EOF;
+                token.literal = "";
+            },
+            _ => {}
+        }
+
+        self.read_char();
+        token
     }
 
     fn read_char(&mut self) {
         if self.read_position >= self.input.len() {
             self.char = 0;
         } else {
-            self.char = self.input[self.read_position]
+            self.char = self.input.as_bytes()[self.read_position]
         }
         self.position = self.read_position;
         self.read_position += 1;
