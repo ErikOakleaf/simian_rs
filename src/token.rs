@@ -4,8 +4,6 @@ pub enum TokenType {
     EOF,
     Ident,
     Int,
-    Assign,
-    Plus,
     Comma,
     Semicolon,
     LParen,
@@ -14,6 +12,15 @@ pub enum TokenType {
     RBrace,
     Function,
     Let,
+    // Operators
+    Assign,
+    Plus,
+    Minus,
+    Bang,
+    Asterisk,
+    Slash,
+    LT,
+    GT,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -27,16 +27,40 @@ impl<'a> Lexer<'a> {
                 TokenType::Assign,
                 &self.input[self.position..self.position + 1],
             ),
+            b'+' => Token::new(
+                TokenType::Plus,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'-' => Token::new(
+                TokenType::Minus,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'!' => Token::new(
+                TokenType::Bang,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'/' => Token::new(
+                TokenType::Slash,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'*' => Token::new(
+                TokenType::Asterisk,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'<' => Token::new(
+                TokenType::LT,
+                &self.input[self.position..self.position + 1],
+            ),
+            b'>' => Token::new(
+                TokenType::GT,
+                &self.input[self.position..self.position + 1],
+            ),
             b';' => Token::new(
                 TokenType::Semicolon,
                 &self.input[self.position..self.position + 1],
             ),
             b',' => Token::new(
                 TokenType::Comma,
-                &self.input[self.position..self.position + 1],
-            ),
-            b'+' => Token::new(
-                TokenType::Plus,
                 &self.input[self.position..self.position + 1],
             ),
             b'(' => Token::new(
@@ -127,7 +151,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_next_token_basic() {
+    fn test_next_token_1() {
         let input = "=+(){},;";
         let mut lexer = Lexer::new(input);
 
@@ -155,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_next_token_source() {
+    fn test_next_token_2() {
         let input = "let five = 5;
                     let ten = 10;
                     let add = fn(x, y) {
@@ -199,6 +223,81 @@ mod tests {
             (TokenType::Comma, ","),
             (TokenType::Ident, "ten"),
             (TokenType::RParen, ")"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::EOF, ""),
+        ];
+
+        for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
+            let tok = lexer.next_token();
+            assert_eq!(
+                tok.token_type, *expected_type,
+                "tests[{}] token type wrong",
+                i
+            );
+            assert_eq!(tok.literal, *expected_literal, "tests[{}] literal wrong", i);
+        }
+    }
+
+    #[test]
+    fn test_next_token_3() {
+        let input = "let five = 5;
+                    let ten = 10;
+                    let add = fn(x, y) {
+                    x + y;
+                    };
+                    let result = add(five, ten);
+                    !-/*5;
+                    5 < 10 > 5;";
+        let mut lexer = Lexer::new(input);
+
+        let tests = vec![
+            (TokenType::Let, "let"),
+            (TokenType::Ident, "five"),
+            (TokenType::Assign, "="),
+            (TokenType::Int, "5"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Let, "let"),
+            (TokenType::Ident, "ten"),
+            (TokenType::Assign, "="),
+            (TokenType::Int, "10"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Let, "let"),
+            (TokenType::Ident, "add"),
+            (TokenType::Assign, "="),
+            (TokenType::Function, "fn"),
+            (TokenType::LParen, "("),
+            (TokenType::Ident, "x"),
+            (TokenType::Comma, ","),
+            (TokenType::Ident, "y"),
+            (TokenType::RParen, ")"),
+            (TokenType::LBrace, "{"),
+            (TokenType::Ident, "x"),
+            (TokenType::Plus, "+"),
+            (TokenType::Ident, "y"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::RBrace, "}"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Let, "let"),
+            (TokenType::Ident, "result"),
+            (TokenType::Assign, "="),
+            (TokenType::Ident, "add"),
+            (TokenType::LParen, "("),
+            (TokenType::Ident, "five"),
+            (TokenType::Comma, ","),
+            (TokenType::Ident, "ten"),
+            (TokenType::RParen, ")"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Bang, "!"),
+            (TokenType::Minus, "-"),
+            (TokenType::Slash, "/"),
+            (TokenType::Asterisk, "*"),
+            (TokenType::Int, "5"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Int, "5"),
+            (TokenType::LT, "<"),
+            (TokenType::Int, "10"),
+            (TokenType::GT, ">"),
+            (TokenType::Int, "5"),
             (TokenType::Semicolon, ";"),
             (TokenType::EOF, ""),
         ];
