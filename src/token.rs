@@ -10,8 +10,16 @@ pub enum TokenType {
     RParen,
     LBrace,
     RBrace,
-    Function,
+
+    //Keywords
     Let,
+    Function,
+    True,
+    False,
+    If,
+    Else,
+    Return,
+
     // Operators
     Assign,
     Plus,
@@ -21,6 +29,8 @@ pub enum TokenType {
     Slash,
     LT,
     GT,
+    EQ,
+    NotEQ,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -36,8 +46,13 @@ impl<'a> Token<'a> {
 
     pub fn lookup_identifier(ident: &str) -> TokenType {
         match ident {
-            "fn" => {TokenType::Function}
             "let" => {TokenType::Let}
+            "fn" => {TokenType::Function}
+            "true" => {TokenType::True}
+            "false" => {TokenType::False}
+            "if" => {TokenType::If}
+            "else" => {TokenType::Else}
+            "return" => {TokenType::Return}
             _ => {TokenType::Ident} 
         }
     }

@@ -23,20 +23,36 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
 
         let token = match self.char {
-            b'=' => Token::new(
-                TokenType::Assign,
-                &self.input[self.position..self.position + 1],
-            ),
+            b'=' => {
+                if self.peek_char() == b'=' {
+                    let literal = &self.input[self.position..self.position + 2];
+                    self.read_char();
+                    Token::new(TokenType::EQ, literal)
+                } else {
+                    Token::new(
+                        TokenType::Assign,
+                        &self.input[self.position..self.position + 1],
+                    )
+                }
+            }
+            b'!' => {
+                if self.peek_char() == b'=' {
+                    let literal = &self.input[self.position..self.position + 2];
+                    self.read_char();
+                    Token::new(TokenType::NotEQ, literal)
+                } else {
+                    Token::new(
+                        TokenType::Bang,
+                        &self.input[self.position..self.position + 1],
+                    )
+                }
+            }
             b'+' => Token::new(
                 TokenType::Plus,
                 &self.input[self.position..self.position + 1],
             ),
             b'-' => Token::new(
                 TokenType::Minus,
-                &self.input[self.position..self.position + 1],
-            ),
-            b'!' => Token::new(
-                TokenType::Bang,
                 &self.input[self.position..self.position + 1],
             ),
             b'/' => Token::new(
@@ -47,14 +63,8 @@ impl<'a> Lexer<'a> {
                 TokenType::Asterisk,
                 &self.input[self.position..self.position + 1],
             ),
-            b'<' => Token::new(
-                TokenType::LT,
-                &self.input[self.position..self.position + 1],
-            ),
-            b'>' => Token::new(
-                TokenType::GT,
-                &self.input[self.position..self.position + 1],
-            ),
+            b'<' => Token::new(TokenType::LT, &self.input[self.position..self.position + 1]),
+            b'>' => Token::new(TokenType::GT, &self.input[self.position..self.position + 1]),
             b';' => Token::new(
                 TokenType::Semicolon,
                 &self.input[self.position..self.position + 1],
@@ -131,6 +141,14 @@ impl<'a> Lexer<'a> {
         self.read_position += 1;
     }
 
+    fn peek_char(&self) -> u8 {
+        if self.read_position >= self.input.len() {
+            0
+        } else {
+            self.input.as_bytes()[self.read_position]
+        }
+    }
+
     fn is_letter(char: u8) -> bool {
         (char >= b'a' && char <= b'z') || (char >= b'A' && char <= b'Z') || char == b'_'
     }
@@ -151,103 +169,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_next_token_1() {
-        let input = "=+(){},;";
-        let mut lexer = Lexer::new(input);
-
-        let tests = vec![
-            (TokenType::Assign, "="),
-            (TokenType::Plus, "+"),
-            (TokenType::LParen, "("),
-            (TokenType::RParen, ")"),
-            (TokenType::LBrace, "{"),
-            (TokenType::RBrace, "}"),
-            (TokenType::Comma, ","),
-            (TokenType::Semicolon, ";"),
-            (TokenType::EOF, ""),
-        ];
-
-        for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
-            let tok = lexer.next_token();
-            assert_eq!(
-                tok.token_type, *expected_type,
-                "tests[{}] token type wrong",
-                i
-            );
-            assert_eq!(tok.literal, *expected_literal, "tests[{}] literal wrong", i);
-        }
-    }
-
-    #[test]
-    fn test_next_token_2() {
+    fn test_next_token() {
         let input = "let five = 5;
                     let ten = 10;
+
                     let add = fn(x, y) {
                     x + y;
                     };
-                    let result = add(five, ten);";
-        let mut lexer = Lexer::new(input);
-        let tests = vec![
-            (TokenType::Let, "let"),
-            (TokenType::Ident, "five"),
-            (TokenType::Assign, "="),
-            (TokenType::Int, "5"),
-            (TokenType::Semicolon, ";"),
-            (TokenType::Let, "let"),
-            (TokenType::Ident, "ten"),
-            (TokenType::Assign, "="),
-            (TokenType::Int, "10"),
-            (TokenType::Semicolon, ";"),
-            (TokenType::Let, "let"),
-            (TokenType::Ident, "add"),
-            (TokenType::Assign, "="),
-            (TokenType::Function, "fn"),
-            (TokenType::LParen, "("),
-            (TokenType::Ident, "x"),
-            (TokenType::Comma, ","),
-            (TokenType::Ident, "y"),
-            (TokenType::RParen, ")"),
-            (TokenType::LBrace, "{"),
-            (TokenType::Ident, "x"),
-            (TokenType::Plus, "+"),
-            (TokenType::Ident, "y"),
-            (TokenType::Semicolon, ";"),
-            (TokenType::RBrace, "}"),
-            (TokenType::Semicolon, ";"),
-            (TokenType::Let, "let"),
-            (TokenType::Ident, "result"),
-            (TokenType::Assign, "="),
-            (TokenType::Ident, "add"),
-            (TokenType::LParen, "("),
-            (TokenType::Ident, "five"),
-            (TokenType::Comma, ","),
-            (TokenType::Ident, "ten"),
-            (TokenType::RParen, ")"),
-            (TokenType::Semicolon, ";"),
-            (TokenType::EOF, ""),
-        ];
 
-        for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
-            let tok = lexer.next_token();
-            assert_eq!(
-                tok.token_type, *expected_type,
-                "tests[{}] token type wrong",
-                i
-            );
-            assert_eq!(tok.literal, *expected_literal, "tests[{}] literal wrong", i);
-        }
-    }
-
-    #[test]
-    fn test_next_token_3() {
-        let input = "let five = 5;
-                    let ten = 10;
-                    let add = fn(x, y) {
-                    x + y;
-                    };
                     let result = add(five, ten);
                     !-/*5;
-                    5 < 10 > 5;";
+                    5 < 10 > 5;
+
+                    if (5 < 10) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+
+                    10 == 10;
+                    10 != 9;
+                    ";
+
         let mut lexer = Lexer::new(input);
 
         let tests = vec![
@@ -298,6 +241,31 @@ mod tests {
             (TokenType::Int, "10"),
             (TokenType::GT, ">"),
             (TokenType::Int, "5"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::If, "if"),
+            (TokenType::LParen, "("),
+            (TokenType::Int, "5"),
+            (TokenType::LT, "<"),
+            (TokenType::Int, "10"),
+            (TokenType::RParen, ")"),
+            (TokenType::LBrace, "{"),
+            (TokenType::Return, "return"),
+            (TokenType::True, "true"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::RBrace, "}"),
+            (TokenType::Else, "else"),
+            (TokenType::LBrace, "{"),
+            (TokenType::Return, "return"),
+            (TokenType::False, "false"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::RBrace, "}"),
+            (TokenType::Int, "10"),
+            (TokenType::EQ, "=="),
+            (TokenType::Int, "10"),
+            (TokenType::Semicolon, ";"),
+            (TokenType::Int, "10"),
+            (TokenType::NotEQ, "!="),
+            (TokenType::Int, "9"),
             (TokenType::Semicolon, ";"),
             (TokenType::EOF, ""),
         ];
