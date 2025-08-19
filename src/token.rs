@@ -34,14 +34,14 @@ pub enum TokenType {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Token<'a> {
+pub struct Token {
     pub token_type: TokenType,
-    pub literal: &'a str,
+    pub literal: String,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, literal: &'a str) -> Self {
-        Token {token_type: token_type, literal: literal } 
+impl Token {
+    pub fn new(token_type: TokenType, literal: &str) -> Self {
+        Token {token_type: token_type, literal: literal.to_string() } 
     } 
 
     pub fn lookup_identifier(ident: &str) -> TokenType {

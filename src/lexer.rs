@@ -19,7 +19,7 @@ impl<'a> Lexer<'a> {
         lexer
     }
 
-    pub fn next_token(&mut self) -> Token<'_> {
+    pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
         let token = match self.char {

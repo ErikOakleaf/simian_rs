@@ -1,46 +1,46 @@
 use crate::token::Token;
 
-pub enum Node<'a> {
-    Statement(Statement<'a>),
-    Expression(Expression<'a>),
+pub enum Node {
+    Statement(Statement),
+    Expression(Expression),
 }
 
-pub enum Statement<'a> {
-    Let(LetStatement<'a>),
+pub enum Statement {
+    Let(LetStatement),
     Return,
 }
 
-pub enum Expression<'a> {
-    Identifier(Identifier<'a>),
+pub enum Expression {
+    Identifier(Identifier),
 }
 
 trait AstNode {
-    fn token_literal(&self) -> &str;
+    fn token_literal(&self) -> String;
 }
 
 // Statements
 
-pub struct LetStatement<'a> {
-    token: Token<'a>,
-    identifier: Token<'a>,
-    expression: Box<Expression<'a>>,
+pub struct LetStatement {
+    token: Token,
+    identifier: Token,
+    expression: Box<Expression>,
 }
 
 
-impl<'a> AstNode for LetStatement<'a> {
-    fn token_literal(&self) -> &str {
-        self.token.literal
+impl<'a> AstNode for LetStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
     }
 }
 
 // Expressions
 
-pub struct Identifier<'a> {
-    token: Token<'a>,
+pub struct Identifier {
+    token: Token,
 }
 
-impl<'a> AstNode for Identifier<'a> {
-    fn token_literal(&self) -> &str {
-        self.token.literal
+impl AstNode for Identifier {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
     }
 }
