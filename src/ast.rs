@@ -7,22 +7,21 @@ pub enum Node {
 
 pub enum Statement {
     Let(LetStatement),
-    Return,
 }
 
 pub enum Expression {
     Identifier(Identifier),
 }
 
-trait AstNode {
+pub trait AstNode {
     fn token_literal(&self) -> String;
 }
 
 // Statements
 
 pub struct LetStatement {
-    token: Token,
-    identifier: Token,
+    pub token: Token,
+    pub name: Identifier,
     expression: Box<Expression>,
 }
 
@@ -36,11 +35,17 @@ impl<'a> AstNode for LetStatement {
 // Expressions
 
 pub struct Identifier {
-    token: Token,
+    pub token: Token,
 }
 
 impl AstNode for Identifier {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+}
+
+// Program
+
+pub struct Program {
+    pub statements: Vec<Statement>,
 }
