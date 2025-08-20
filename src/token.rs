@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenType {
     Illegal,
     EOF,
@@ -33,7 +33,7 @@ pub enum TokenType {
     NotEQ,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub literal: String,
@@ -41,19 +41,22 @@ pub struct Token {
 
 impl Token {
     pub fn new(token_type: TokenType, literal: &str) -> Self {
-        Token {token_type: token_type, literal: literal.to_string() } 
-    } 
+        Token {
+            token_type: token_type,
+            literal: literal.to_string(),
+        }
+    }
 
     pub fn lookup_identifier(ident: &str) -> TokenType {
         match ident {
-            "let" => {TokenType::Let}
-            "fn" => {TokenType::Function}
-            "true" => {TokenType::True}
-            "false" => {TokenType::False}
-            "if" => {TokenType::If}
-            "else" => {TokenType::Else}
-            "return" => {TokenType::Return}
-            _ => {TokenType::Ident} 
+            "let" => TokenType::Let,
+            "fn" => TokenType::Function,
+            "true" => TokenType::True,
+            "false" => TokenType::False,
+            "if" => TokenType::If,
+            "else" => TokenType::Else,
+            "return" => TokenType::Return,
+            _ => TokenType::Ident,
         }
     }
 }

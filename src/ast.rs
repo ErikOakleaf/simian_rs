@@ -22,7 +22,6 @@ pub trait AstNode {
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
-    expression: Box<Expression>,
 }
 
 
