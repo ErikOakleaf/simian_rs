@@ -49,6 +49,8 @@ impl<'a> Parser<'a> {
         Ok(program)
     }
 
+    // Parse statements
+
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         match self.current_token.token_type {
             TokenType::Let => self.parse_let_statement(),
@@ -98,6 +100,8 @@ impl<'a> Parser<'a> {
 
         Ok(Statement::Return(statement))
     }
+
+    // Parse expressions
 
     // Helper functions
 
@@ -157,8 +161,15 @@ mod tests {
                     Ok(())
                 }
             }
-            _ => {
-                panic!("Statement is not a return statement");
+            Statement::Return(return_statement) => Err(ParseError::ExpectedToken {
+                expected: TokenType::Let,
+                got: return_statement.token.clone(),
+            }),
+            Statement::Expression(expression_statement) => {
+                return Err(ParseError::ExpectedToken {
+                    expected: TokenType::Let,
+                    got: expression_statement.token.clone(),
+                });
             }
         }
     }
@@ -188,8 +199,17 @@ mod tests {
                         return Err(ParseError::UnexpectedToken(return_statement.token.clone()));
                     }
                 }
-                _ => {
-                    panic!("Statement is not a return statement");
+                Statement::Let(let_statement) => {
+                    return Err(ParseError::ExpectedToken {
+                        expected: TokenType::Return,
+                        got: let_statement.token.clone(),
+                    });
+                }
+                Statement::Expression(expression_statement) => {
+                    return Err(ParseError::ExpectedToken {
+                        expected: TokenType::Return,
+                        got: expression_statement.token.clone(),
+                    });
                 }
             }
         }
