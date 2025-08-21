@@ -7,6 +7,7 @@ pub enum Node {
 
 pub enum Statement {
     Let(LetStatement),
+    Return(ReturnStatement),
 }
 
 pub enum Expression {
@@ -24,8 +25,18 @@ pub struct LetStatement {
     pub name: Identifier,
 }
 
-
 impl<'a> AstNode for LetStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+pub struct ReturnStatement {
+    pub token: Token,
+    pub return_value: Expression,
+}
+
+impl<'a> AstNode for ReturnStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }

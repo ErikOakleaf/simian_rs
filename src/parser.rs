@@ -1,7 +1,7 @@
 use std::thread::current;
 
 use crate::{
-    ast::{AstNode, LetStatement, Program, Statement, Identifier},
+    ast::{AstNode, Expression, Identifier, LetStatement, Program, ReturnStatement, Statement},
     lexer::Lexer,
     token::{Token, TokenType},
 };
@@ -9,7 +9,7 @@ use crate::{
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken(Token),
-    ExpectedToken(TokenType, Token),
+    ExpectedToken { expected: TokenType, got: Token },
 }
 
 pub struct Parser<'a> {
@@ -34,6 +34,8 @@ impl<'a> Parser<'a> {
         self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
 
+    // Parsing functions
+
     pub fn parse_program(&mut self) -> Result<Program, ParseError> {
         let mut program = Program { statements: vec![] };
 
@@ -50,7 +52,8 @@ impl<'a> Parser<'a> {
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         match self.current_token.token_type {
             TokenType::Let => self.parse_let_statement(),
-            _ => Err(ParseError::UnexpectedToken(self.current_token.clone()))
+            TokenType::Return => self.parse_return_statement(),
+            _ => Err(ParseError::UnexpectedToken(self.current_token.clone())),
         }
     }
 
@@ -68,18 +71,45 @@ impl<'a> Parser<'a> {
 
         let statement = LetStatement {
             token: statement_token,
-            name: Identifier {token: identifier_token},
+            name: Identifier {
+                token: identifier_token,
+            },
         };
 
         Ok(Statement::Let(statement))
     }
+
+    fn parse_return_statement(&mut self) -> Result<Statement, ParseError> {
+        let statement_token = self.current_token.clone();
+        self.next_token();
+
+        // TODO - Skipping expression until hitting semicolon
+        while self.current_token.token_type != TokenType::Semicolon {
+            self.next_token();
+        }
+
+        // TODO - Use identifier as expression for now just to have something
+        let statement = ReturnStatement {
+            token: statement_token,
+            return_value: Expression::Identifier(Identifier {
+                token: self.current_token.clone(),
+            }),
+        };
+
+        Ok(Statement::Return(statement))
+    }
+
+    // Helper functions
 
     fn expect_peek(&mut self, expected: TokenType) -> Result<(), ParseError> {
         if self.peek_token.token_type == expected {
             self.next_token();
             Ok(())
         } else {
-            Err(ParseError::UnexpectedToken(self.peek_token.clone()))
+            Err(ParseError::ExpectedToken {
+                expected: expected,
+                got: self.peek_token.clone(),
+            })
         }
     }
 }
@@ -91,7 +121,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_let_statements() -> Result<(), String> {
+    fn test_let_statements() -> Result<(), ParseError> {
         let input = "let x = 5;
                     let y = 10;
                     let foobar = 838383;";
@@ -99,7 +129,7 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let mut parser = Parser::new(&mut lexer);
 
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse_program()?;
 
         assert_eq!(
             program.statements.len(),
@@ -118,19 +148,52 @@ mod tests {
         Ok(())
     }
 
-    fn test_let_statement(statement: &Statement, name: &str) -> Result<(), String> {
+    fn test_let_statement(statement: &Statement, name: &str) -> Result<(), ParseError> {
         match statement {
-           Statement::Let(let_statement)  => {
-                
+            Statement::Let(let_statement) => {
                 if let_statement.name.token_literal() != name {
-                    Err(format!("LetStatement identifier mismatch: expected '{}', got '{}'", name, let_statement.name.token_literal()))
+                    Err(ParseError::UnexpectedToken(let_statement.token.clone()))
                 } else {
                     Ok(())
                 }
             }
             _ => {
-                 Err("Statment Is not let statement".into())
+                panic!("Statement is not a return statement");
             }
         }
+    }
+
+    #[test]
+    fn test_return_statements() -> Result<(), ParseError> {
+        let input = "return 5;
+                    return 10;
+                    return 993322;";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+
+        let program = parser.parse_program()?;
+
+        assert_eq!(
+            program.statements.len(),
+            3,
+            "program contains {} statements not 3",
+            program.statements.len()
+        );
+
+        for statement in &program.statements {
+            match statement {
+                Statement::Return(return_statement) => {
+                    if return_statement.token_literal() != "return" {
+                        return Err(ParseError::UnexpectedToken(return_statement.token.clone()));
+                    }
+                }
+                _ => {
+                    panic!("Statement is not a return statement");
+                }
+            }
+        }
+
+        Ok(())
     }
 }
