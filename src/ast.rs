@@ -32,9 +32,9 @@ pub enum Statement {
 }
 
 pub enum Expression {
-    Identifier(Identifier),
-    IntegerLiteral(IntegerLiteral),
-    Prefix(Prefix),
+    Identifier(IdentifierExpression),
+    IntegerLiteral(IntegerLiteralExpression),
+    Prefix(PrefixExpression),
 }
 
 // Traits
@@ -47,7 +47,7 @@ pub trait AstNode {
 
 pub struct LetStatement {
     pub token: Token,
-    pub name: Identifier,
+    pub name: IdentifierExpression,
     pub value: Option<Box<Expression>>,
 }
 
@@ -102,33 +102,33 @@ impl fmt::Display for ExpressionStatement {
 
 // Expressions
 
-pub struct Identifier {
+pub struct IdentifierExpression {
     pub token: Token,
 }
 
-impl fmt::Display for Identifier {
+impl fmt::Display for IdentifierExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.token.literal)
     }
 }
 
-pub struct IntegerLiteral {
+pub struct IntegerLiteralExpression {
     pub token: Token,
     pub value: i64,
 }
 
-impl fmt::Display for IntegerLiteral {
+impl fmt::Display for IntegerLiteralExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.token.literal)
     }
 }
 
-pub struct Prefix {
+pub struct PrefixExpression {
     pub token: Token,
     pub right: Box<Expression>,
 }
 
-impl fmt::Display for Prefix {
+impl fmt::Display for PrefixExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}{})", self.token.literal, self.right)
     }
@@ -163,13 +163,13 @@ mod tests {
                     token_type: TokenType::Let,
                     literal: "let".to_string(),
                 },
-                name: Identifier {
+                name: IdentifierExpression {
                     token: Token {
                         token_type: TokenType::Ident,
                         literal: "myVar".to_string(),
                     },
                 },
-                value: Some(Box::new(Expression::Identifier(Identifier {
+                value: Some(Box::new(Expression::Identifier(IdentifierExpression {
                     token: Token {
                         token_type: TokenType::Ident,
                         literal: "anotherVar".to_string(),

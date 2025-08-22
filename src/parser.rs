@@ -2,7 +2,7 @@ use std::thread::current;
 
 use crate::{
     ast::{
-        AstNode, Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Prefix, Program, ReturnStatement, Statement
+        AstNode, Expression, ExpressionStatement, IdentifierExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
 
         let statement = LetStatement {
             token: statement_token,
-            name: Identifier {
+            name: IdentifierExpression {
                 token: identifier_token,
             },
             value: None,
@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
         // TODO - Use identifier as expression for now just to have something
         let statement = ReturnStatement {
             token: statement_token,
-            return_value: Some(Box::new(Expression::Identifier(Identifier {
+            return_value: Some(Box::new(Expression::Identifier(IdentifierExpression {
                 token: self.current_token.clone(),
             }))),
         };
@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_identifier_expression(&self) -> Result<Expression, ParseError> {
-        let identifier = Identifier {
+        let identifier = IdentifierExpression {
             token: self.current_token.clone(),
         };
         Ok(Expression::Identifier(identifier))
@@ -166,7 +166,7 @@ impl<'a> Parser<'a> {
                     source: e,
                 })?;
 
-        let integer_literal_expression = IntegerLiteral {
+        let integer_literal_expression = IntegerLiteralExpression {
             token: self.current_token.clone(),
             value: literal,
         };
@@ -178,7 +178,7 @@ impl<'a> Parser<'a> {
         let prefix = self.current_token.clone();
         self.next_token();
 
-        let prefix_expression = Prefix { token:prefix, right: Box::new(self.parse_expression(Precedence::Prefix)?)};
+        let prefix_expression = PrefixExpression { token:prefix, right: Box::new(self.parse_expression(Precedence::Prefix)?)};
         Ok(Expression::Prefix(prefix_expression))
 
     }
