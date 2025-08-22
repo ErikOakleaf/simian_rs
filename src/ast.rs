@@ -1,6 +1,23 @@
 use crate::token::{Token, TokenType};
 use std::fmt;
 
+macro_rules! impl_display_for_enum {
+        ($enum_name:ident, $($variant:ident),*) => {
+            impl fmt::Display for $enum_name {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    match self {
+                        $(
+                            $enum_name::$variant(inner) => write!(f, "{}", inner),
+                    )*
+                    }
+                }
+            }
+        };
+}
+
+impl_display_for_enum!(Statement, Let, Return, Expression);
+impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix);
+
 // Enums
 
 pub enum Node {
@@ -14,26 +31,10 @@ pub enum Statement {
     Expression(ExpressionStatement),
 }
 
-impl fmt::Display for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Statement::Let(statement) => write!(f, "{}", statement),
-            Statement::Return(statement) => write!(f, "{}", statement),
-            Statement::Expression(statement) => write!(f, "{}", statement),
-        }
-    }
-}
-
 pub enum Expression {
     Identifier(Identifier),
-}
-
-impl fmt::Display for Expression {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Expression::Identifier(ident) => write!(f, "{}", ident),
-        }
-    }
+    IntegerLiteral(IntegerLiteral),
+    Prefix(Prefix),
 }
 
 // Traits
@@ -50,19 +51,13 @@ pub struct LetStatement {
     pub value: Option<Box<Expression>>,
 }
 
-impl<'a> AstNode for LetStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-}
-
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "{} {} = ",
-            self.token_literal(),
-            self.name.token_literal()
+            self.token.literal,
+            self.name.token.literal
         )?;
 
         if let Some(expr) = &self.value {
@@ -78,15 +73,9 @@ pub struct ReturnStatement {
     pub return_value: Option<Box<Expression>>,
 }
 
-impl<'a> AstNode for ReturnStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-}
-
 impl fmt::Display for ReturnStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.token_literal())?;
+        write!(f, "{}", self.token.literal)?;
 
         if let Some(expr) = &self.return_value {
             write!(f, " {}", expr)?;
@@ -99,12 +88,6 @@ impl fmt::Display for ReturnStatement {
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Box<Expression>>,
-}
-
-impl AstNode for ExpressionStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
 }
 
 impl fmt::Display for ExpressionStatement {
@@ -123,15 +106,31 @@ pub struct Identifier {
     pub token: Token,
 }
 
-impl AstNode for Identifier {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token.literal)
     }
 }
 
-impl fmt::Display for Identifier {
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl fmt::Display for IntegerLiteral {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.token_literal())
+        write!(f, "{}", self.token.literal)
+    }
+}
+
+pub struct Prefix {
+    pub token: Token,
+    pub right: Box<Expression>,
+}
+
+impl fmt::Display for Prefix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.token.literal, self.right)
     }
 }
 
