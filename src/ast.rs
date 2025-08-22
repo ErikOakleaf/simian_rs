@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::{Token, TokenType};
 use std::fmt;
 
 // Enums
@@ -30,7 +30,9 @@ pub enum Expression {
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", "placeholder")
+        match self {
+            Expression::Identifier(ident) => write!(f, "{}", ident),
+        }
     }
 }
 
@@ -45,7 +47,7 @@ pub trait AstNode {
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
-    pub value: Box<Expression>,
+    pub value: Option<Box<Expression>>,
 }
 
 impl<'a> AstNode for LetStatement {
@@ -58,17 +60,22 @@ impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} = {};",
+            "{} {} = ",
             self.token_literal(),
-            self.name.token_literal(),
-            self.value
-        )
+            self.name.token_literal()
+        )?;
+
+        if let Some(expr) = &self.value {
+            write!(f, "{}", expr)?;
+        }
+
+        write!(f, ";")
     }
 }
 
 pub struct ReturnStatement {
     pub token: Token,
-    pub return_value: Box<Expression>,
+    pub return_value: Option<Box<Expression>>,
 }
 
 impl<'a> AstNode for ReturnStatement {
@@ -79,13 +86,19 @@ impl<'a> AstNode for ReturnStatement {
 
 impl fmt::Display for ReturnStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.token_literal(), self.return_value,)
+        write!(f, "{}", self.token_literal())?;
+
+        if let Some(expr) = &self.return_value {
+            write!(f, " {}", expr)?;
+        }
+
+        write!(f, ";")
     }
 }
 
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Box<Expression>,
+    pub expression: Option<Box<Expression>>,
 }
 
 impl AstNode for ExpressionStatement {
@@ -96,7 +109,11 @@ impl AstNode for ExpressionStatement {
 
 impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.expression)
+        if let Some(expr) = &self.expression {
+            write!(f, "{}", expr)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -112,6 +129,12 @@ impl AstNode for Identifier {
     }
 }
 
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token_literal())
+    }
+}
+
 // Program
 
 pub struct Program {
@@ -124,5 +147,38 @@ impl fmt::Display for Program {
             write!(f, "{}", statement)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ast::Statement;
+
+    use super::*;
+
+    #[test]
+    pub fn test_display() {
+        let program = Program {
+            statements: vec![Statement::Let(LetStatement {
+                token: Token {
+                    token_type: TokenType::Let,
+                    literal: "let".to_string(),
+                },
+                name: Identifier {
+                    token: Token {
+                        token_type: TokenType::Ident,
+                        literal: "myVar".to_string(),
+                    },
+                },
+                value: Some(Box::new(Expression::Identifier(Identifier {
+                    token: Token {
+                        token_type: TokenType::Ident,
+                        literal: "anotherVar".to_string(),
+                    },
+                }))),
+            })],
+        };
+
+        assert_eq!(format!("{}", program), "let myVar = anotherVar;");
     }
 }

@@ -76,6 +76,7 @@ impl<'a> Parser<'a> {
             name: Identifier {
                 token: identifier_token,
             },
+            value: None,
         };
 
         Ok(Statement::Let(statement))
@@ -93,9 +94,9 @@ impl<'a> Parser<'a> {
         // TODO - Use identifier as expression for now just to have something
         let statement = ReturnStatement {
             token: statement_token,
-            return_value: Expression::Identifier(Identifier {
+            return_value: Some(Box::new(Expression::Identifier(Identifier {
                 token: self.current_token.clone(),
-            }),
+            }))),
         };
 
         Ok(Statement::Return(statement))
