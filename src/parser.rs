@@ -2,8 +2,7 @@ use std::thread::current;
 
 use crate::{
     ast::{
-        AstNode, Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement,
-        Program, ReturnStatement, Statement,
+        AstNode, Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Prefix, Program, ReturnStatement, Statement
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -141,22 +140,23 @@ impl<'a> Parser<'a> {
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParseError> {
         let prefix = match self.current_token.token_type {
-            TokenType::Ident => self.parse_identifier(),
-            TokenType::Int => self.parse_integer_literal(),
+            TokenType::Ident => self.parse_identifier_expression(),
+            TokenType::Int => self.parse_integer_literal_expression(),
+            TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
             _ => return Err(ParseError::UnexpectedToken(self.current_token.clone())),
         };
 
         prefix
     }
 
-    fn parse_identifier(&self) -> Result<Expression, ParseError> {
+    fn parse_identifier_expression(&self) -> Result<Expression, ParseError> {
         let identifier = Identifier {
             token: self.current_token.clone(),
         };
         Ok(Expression::Identifier(identifier))
     }
 
-    fn parse_integer_literal(&mut self) -> Result<Expression, ParseError> {
+    fn parse_integer_literal_expression(&mut self) -> Result<Expression, ParseError> {
         let literal: i64 =
             self.current_token
                 .literal
@@ -172,6 +172,15 @@ impl<'a> Parser<'a> {
         };
 
         Ok(Expression::IntegerLiteral(integer_literal_expression))
+    }
+
+    fn parse_prefix_expression(&mut self) -> Result<Expression, ParseError> {
+        let prefix = self.current_token.clone();
+        self.next_token();
+
+        let prefix_expression = Prefix { token:prefix, right: Box::new(self.parse_expression(Precedence::Prefix)?)};
+        Ok(Expression::Prefix(prefix_expression))
+
     }
 
     // Helper functions
@@ -314,8 +323,7 @@ mod tests {
                 {
                     Expression::Identifier(identifier) => {
                         assert_eq!(
-                            identifier.token.literal,
-                            "foobar",
+                            identifier.token.literal, "foobar",
                             "ident.value not 'foobar'. got={}",
                             identifier.token.literal
                         );
@@ -355,8 +363,7 @@ mod tests {
                 {
                     Expression::IntegerLiteral(integer_literal) => {
                         assert_eq!(
-                            integer_literal.token.literal,
-                            "5",
+                            integer_literal.token.literal, "5",
                             "integer_literal.token.literal not '5'. got={}",
                             integer_literal.token.literal
                         );
@@ -423,11 +430,9 @@ mod tests {
                     {
                         Expression::Prefix(prefix_expression) => {
                             assert_eq!(
-                                prefix_expression.token.literal,
-                                operator,
+                                prefix_expression.token.literal, operator,
                                 "wrong operator expected {} got {}",
-                                operator,
-                                prefix_expression.token.literal
+                                operator, prefix_expression.token.literal
                             );
                             match prefix_expression.right.as_ref() {
                                 Expression::IntegerLiteral(integer_literal) => {

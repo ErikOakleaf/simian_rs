@@ -130,7 +130,7 @@ pub struct Prefix {
 
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.token.literal, self.right)
+        write!(f, "({}{})", self.token.literal, self.right)
     }
 }
 
