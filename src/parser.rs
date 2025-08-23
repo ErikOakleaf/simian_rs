@@ -88,19 +88,19 @@ impl<'a> Parser<'a> {
 
         let identifier_token = self.current_token.clone();
         self.expect_peek(TokenType::Assign)?;
-
-        // TODO - we are skipping the expressions until we hit a semicolon for now
-        while self.current_token.token_type != TokenType::Semicolon {
-            self.next_token();
-        }
+        self.next_token();
 
         let statement = LetStatement {
             token: statement_token,
             name: IdentifierExpression {
                 token: identifier_token,
             },
-            value: None,
+            value: Box::new(self.parse_expression(Precedence::Lowest)?),
         };
+
+        if self.peek_token.token_type == TokenType::Semicolon {
+            self.next_token();
+        }
 
         Ok(Statement::Let(statement))
     }
@@ -109,18 +109,14 @@ impl<'a> Parser<'a> {
         let statement_token = self.current_token.clone();
         self.next_token();
 
-        // TODO - Skipping expression until hitting semicolon
-        while self.current_token.token_type != TokenType::Semicolon {
-            self.next_token();
-        }
-
-        // TODO - Use identifier as expression for now just to have something
         let statement = ReturnStatement {
             token: statement_token,
-            return_value: Some(Box::new(Expression::Identifier(IdentifierExpression {
-                token: self.current_token.clone(),
-            }))),
+            return_value: Box::new(self.parse_expression(Precedence::Lowest)?),
         };
+
+        if self.peek_token.token_type == TokenType::Semicolon {
+            self.next_token();
+        }
 
         Ok(Statement::Return(statement))
     }
@@ -157,7 +153,7 @@ impl<'a> Parser<'a> {
         while self.peek_token.token_type != TokenType::Semicolon
             && precedence < self.peek_precedence()
         {
-            let infix = match self.peek_token.token_type {
+            let infix_expression = match self.peek_token.token_type {
                 TokenType::Plus
                 | TokenType::Minus
                 | TokenType::Slash
@@ -173,7 +169,7 @@ impl<'a> Parser<'a> {
                     return Ok(left_expression);
                 }
             };
-            left_expression = infix;
+            left_expression = infix_expression;
         }
 
         Ok(left_expression)

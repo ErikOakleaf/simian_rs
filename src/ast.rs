@@ -49,35 +49,23 @@ pub trait AstNode {
 pub struct LetStatement {
     pub token: Token,
     pub name: IdentifierExpression,
-    pub value: Option<Box<Expression>>,
+    pub value: Box<Expression>,
 }
 
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} = ", self.token.literal, self.name.token.literal)?;
-
-        if let Some(expr) = &self.value {
-            write!(f, "{}", expr)?;
-        }
-
-        write!(f, ";")
+        write!(f, "{} {} = {};", self.token.literal, self.name.token.literal, self.value)
     }
 }
 
 pub struct ReturnStatement {
     pub token: Token,
-    pub return_value: Option<Box<Expression>>,
+    pub return_value: Box<Expression>,
 }
 
 impl fmt::Display for ReturnStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.token.literal)?;
-
-        if let Some(expr) = &self.return_value {
-            write!(f, " {}", expr)?;
-        }
-
-        write!(f, ";")
+        write!(f, "{} {};", self.token.literal, self.return_value)
     }
 }
 
@@ -177,12 +165,12 @@ mod tests {
                         literal: "myVar".to_string(),
                     },
                 },
-                value: Some(Box::new(Expression::Identifier(IdentifierExpression {
+                value: Box::new(Expression::Identifier(IdentifierExpression {
                     token: Token {
                         token_type: TokenType::Ident,
                         literal: "anotherVar".to_string(),
                     },
-                }))),
+                })),
             })],
         };
 
