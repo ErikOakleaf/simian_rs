@@ -54,7 +54,11 @@ pub struct LetStatement {
 
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} = {};", self.token.literal, self.name.token.literal, self.value)
+        write!(
+            f,
+            "{} {} = {};",
+            self.token.literal, self.name.token.literal, self.value
+        )
     }
 }
 
@@ -71,16 +75,12 @@ impl fmt::Display for ReturnStatement {
 
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Option<Box<Expression>>,
+    pub expression: Box<Expression>,
 }
 
 impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(expr) = &self.expression {
-            write!(f, "{}", expr)
-        } else {
-            Ok(())
-        }
+        write!(f, "{}", self.expression)
     }
 }
 
@@ -126,7 +126,7 @@ pub struct InfixExpression {
 
 impl fmt::Display for InfixExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {} {})",self.left, self.token.literal, self.right)
+        write!(f, "({} {} {})", self.left, self.token.literal, self.right)
     }
 }
 

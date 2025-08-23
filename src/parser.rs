@@ -122,7 +122,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement, ParseError> {
-        let expression = Some(Box::new(self.parse_expression(Precedence::Lowest)?));
+        let expression = Box::new(self.parse_expression(Precedence::Lowest)?);
         let expression_statement = ExpressionStatement {
             token: self.current_token.clone(),
             expression: expression,
@@ -269,6 +269,43 @@ mod tests {
 
     use super::*;
 
+    // Test helper functions
+
+    fn test_identifier(expression: &Expression, value: &str) {
+        match expression {
+            Expression::Identifier(identifier) => {
+                assert_eq!(
+                    identifier.token.literal, value,
+                    "ident.value not {}. got={}",
+                    value, identifier.token.literal
+                );
+            }
+            _ => panic!("expression is not Identifier"),
+        }
+    }
+
+    fn test_integer_literal(exp: &Expression, expected: i64) -> Result<(), ParseError> {
+        match exp {
+            Expression::IntegerLiteral(integer_literal) => {
+                assert_eq!(
+                    integer_literal.value, expected,
+                    "integer_literal.value not {}. got={}",
+                    expected, integer_literal.value
+                );
+                assert_eq!(
+                    integer_literal.token.literal,
+                    expected.to_string(),
+                    "integer_literal.token.literal not {}. got={}",
+                    expected,
+                    integer_literal.token.literal
+                );
+            }
+            _ => panic!("exp not IntegerLiteral"),
+        }
+
+        Ok(())
+    }
+
     #[test]
     fn test_let_statements() -> Result<(), ParseError> {
         let input = "let x = 5;
@@ -306,15 +343,8 @@ mod tests {
                     Ok(())
                 }
             }
-            Statement::Return(return_statement) => Err(ParseError::ExpectedToken {
-                expected: TokenType::Let,
-                got: return_statement.token.clone(),
-            }),
-            Statement::Expression(expression_statement) => {
-                return Err(ParseError::ExpectedToken {
-                    expected: TokenType::Let,
-                    got: expression_statement.token.clone(),
-                });
+            _ => {
+                panic!("Statement is not let statement");
             }
         }
     }
@@ -380,21 +410,7 @@ mod tests {
         let statement = &program.statements[0];
         match statement {
             Statement::Expression(expression_statement) => {
-                match expression_statement
-                    .expression
-                    .as_ref()
-                    .expect("expected expression")
-                    .as_ref()
-                {
-                    Expression::Identifier(identifier) => {
-                        assert_eq!(
-                            identifier.token.literal, "foobar",
-                            "ident.value not 'foobar'. got={}",
-                            identifier.token.literal
-                        );
-                    }
-                    _ => panic!("unexpected identifier"),
-                }
+                test_identifier(expression_statement.expression.as_ref(), "foobar");
             }
             _ => panic!("unexpected statement"),
         }
@@ -420,51 +436,12 @@ mod tests {
         let statement = &program.statements[0];
         match statement {
             Statement::Expression(expression_statement) => {
-                match expression_statement
-                    .expression
-                    .as_ref()
-                    .expect("expected expression")
-                    .as_ref()
-                {
-                    Expression::IntegerLiteral(integer_literal) => {
-                        assert_eq!(
-                            integer_literal.token.literal, "5",
-                            "integer_literal.token.literal not '5'. got={}",
-                            integer_literal.token.literal
-                        );
-                        assert_eq!(
-                            integer_literal.value, 5,
-                            "integer_literal.value not '5'. got={}",
-                            integer_literal.value
-                        );
-                    }
-                    _ => panic!("unexpected identifier"),
-                }
+                test_integer_literal(&expression_statement.expression, 5)?;
             }
             _ => panic!("unexpected statement"),
         }
 
         Ok(())
-    }
-
-    fn test_integer_literal(exp: &Expression, expected: i64) {
-        match exp {
-            Expression::IntegerLiteral(integer_literal) => {
-                assert_eq!(
-                    integer_literal.value, expected,
-                    "integer_literal.value not {}. got={}",
-                    expected, integer_literal.value
-                );
-                assert_eq!(
-                    integer_literal.token.literal,
-                    expected.to_string(),
-                    "integer_literal.token.literal not {}. got={}",
-                    expected,
-                    integer_literal.token.literal
-                );
-            }
-            _ => panic!("exp not IntegerLiteral"),
-        }
     }
 
     #[test]
@@ -487,12 +464,7 @@ mod tests {
 
             match statement {
                 Statement::Expression(expression_statement) => {
-                    match expression_statement
-                        .expression
-                        .as_ref()
-                        .expect("expected expression")
-                        .as_ref()
-                    {
+                    match expression_statement.expression.as_ref() {
                         Expression::Prefix(prefix_expression) => {
                             assert_eq!(
                                 prefix_expression.token.literal, operator,
@@ -549,12 +521,7 @@ mod tests {
 
             match statement {
                 Statement::Expression(expression_statement) => {
-                    match expression_statement
-                        .expression
-                        .as_ref()
-                        .expect("expected expression")
-                        .as_ref()
-                    {
+                    match expression_statement.expression.as_ref() {
                         Expression::Infix(infix_expression) => {
                             assert_eq!(
                                 infix_expression.token.literal, operator,
