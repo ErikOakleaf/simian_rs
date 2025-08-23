@@ -16,7 +16,7 @@ macro_rules! impl_display_for_enum {
 }
 
 impl_display_for_enum!(Statement, Let, Return, Expression);
-impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix);
+impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix, Infix);
 
 // Enums
 
@@ -35,6 +35,7 @@ pub enum Expression {
     Identifier(IdentifierExpression),
     IntegerLiteral(IntegerLiteralExpression),
     Prefix(PrefixExpression),
+    Infix(InfixExpression),
 }
 
 // Traits
@@ -53,12 +54,7 @@ pub struct LetStatement {
 
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {} = ",
-            self.token.literal,
-            self.name.token.literal
-        )?;
+        write!(f, "{} {} = ", self.token.literal, self.name.token.literal)?;
 
         if let Some(expr) = &self.value {
             write!(f, "{}", expr)?;
@@ -131,6 +127,18 @@ pub struct PrefixExpression {
 impl fmt::Display for PrefixExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}{})", self.token.literal, self.right)
+    }
+}
+
+pub struct InfixExpression {
+    pub token: Token,
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+}
+
+impl fmt::Display for InfixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})",self.left, self.token.literal, self.right)
     }
 }
 

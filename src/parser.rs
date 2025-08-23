@@ -2,12 +2,15 @@ use std::thread::current;
 
 use crate::{
     ast::{
-        AstNode, Expression, ExpressionStatement, IdentifierExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
+        AstNode, Expression, ExpressionStatement, IdentifierExpression, InfixExpression,
+        IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
+        Statement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
 };
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 pub enum Precedence {
     Lowest,
     Equals,
@@ -29,6 +32,7 @@ pub enum ParseError {
         token: Token,
         source: std::num::ParseIntError,
     },
+    NoPrefixParseFunction(Token),
 }
 
 pub struct Parser<'a> {
@@ -139,14 +143,40 @@ impl<'a> Parser<'a> {
     // Parse expressions
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParseError> {
-        let prefix = match self.current_token.token_type {
-            TokenType::Ident => self.parse_identifier_expression(),
-            TokenType::Int => self.parse_integer_literal_expression(),
-            TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
-            _ => return Err(ParseError::UnexpectedToken(self.current_token.clone())),
+        let mut left_expression = match self.current_token.token_type {
+            TokenType::Ident => self.parse_identifier_expression()?,
+            TokenType::Int => self.parse_integer_literal_expression()?,
+            TokenType::Bang | TokenType::Minus => self.parse_prefix_expression()?,
+            _ => {
+                return Err(ParseError::NoPrefixParseFunction(
+                    self.current_token.clone(),
+                ));
+            }
         };
 
-        prefix
+        while self.peek_token.token_type != TokenType::Semicolon
+            && precedence < self.peek_precedence()
+        {
+            let infix = match self.peek_token.token_type {
+                TokenType::Plus
+                | TokenType::Minus
+                | TokenType::Slash
+                | TokenType::Asterisk
+                | TokenType::EQ
+                | TokenType::NotEQ
+                | TokenType::LT
+                | TokenType::GT => {
+                    self.next_token();
+                    self.parse_infix_expression(left_expression)?
+                }
+                _ => {
+                    return Ok(left_expression);
+                }
+            };
+            left_expression = infix;
+        }
+
+        Ok(left_expression)
     }
 
     fn parse_identifier_expression(&self) -> Result<Expression, ParseError> {
@@ -178,9 +208,26 @@ impl<'a> Parser<'a> {
         let prefix = self.current_token.clone();
         self.next_token();
 
-        let prefix_expression = PrefixExpression { token:prefix, right: Box::new(self.parse_expression(Precedence::Prefix)?)};
+        let prefix_expression = PrefixExpression {
+            token: prefix,
+            right: Box::new(self.parse_expression(Precedence::Prefix)?),
+        };
         Ok(Expression::Prefix(prefix_expression))
+    }
 
+    fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, ParseError> {
+        let infix = self.current_token.clone();
+        let precedence = self.current_precedence();
+        self.next_token();
+
+        let right = self.parse_expression(precedence)?;
+        let infix_expression = InfixExpression {
+            token: infix,
+            left: Box::new(left),
+            right: Box::new(right),
+        };
+
+        Ok(Expression::Infix(infix_expression))
     }
 
     // Helper functions
@@ -194,6 +241,28 @@ impl<'a> Parser<'a> {
                 expected: expected,
                 got: self.peek_token.clone(),
             })
+        }
+    }
+
+    fn current_precedence(&self) -> Precedence {
+        Self::precedence_of(self.current_token.clone().token_type)
+    }
+
+    fn peek_precedence(&self) -> Precedence {
+        Self::precedence_of(self.peek_token.clone().token_type)
+    }
+
+    fn precedence_of(token_type: TokenType) -> Precedence {
+        match token_type {
+            TokenType::EQ => Precedence::Equals,
+            TokenType::NotEQ => Precedence::Equals,
+            TokenType::LT => Precedence::LessGreater,
+            TokenType::GT => Precedence::LessGreater,
+            TokenType::Plus => Precedence::Sum,
+            TokenType::Minus => Precedence::Sum,
+            TokenType::Slash => Precedence::Product,
+            TokenType::Asterisk => Precedence::Product,
+            _ => Precedence::Lowest,
         }
     }
 }
@@ -440,6 +509,78 @@ mod tests {
                                         integer_literal.value, literal,
                                         "wrong integer literal expected {} goct {}",
                                         literal, integer_literal.value
+                                    );
+                                }
+                                _ => panic!("unexpected integer literal"),
+                            }
+                        }
+                        _ => panic!("unexpected identifier"),
+                    }
+                }
+                _ => panic!("unexpected statement"),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_infix_expressions() -> Result<(), ParseError> {
+        let prefix_tests = vec![
+            ("5 + 5;", 5, "+", 5),
+            ("5 - 5;", 5, "-", 5),
+            ("5 * 5;", 5, "*", 5),
+            ("5 / 5;", 5, "/", 5),
+            ("5 > 5;", 5, ">", 5),
+            ("5 < 5;", 5, "<", 5),
+            ("5 == 5;", 5, "==", 5),
+            ("5 != 5;", 5, "!=", 5),
+        ];
+
+        for (input, literal_left, operator, literal_right) in prefix_tests {
+            let mut lexer = Lexer::new(input);
+            let mut parser = Parser::new(&mut lexer);
+            let program = parser.parse_program()?;
+
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program contains {} statements not 1",
+                program.statements.len()
+            );
+
+            let statement = &program.statements[0];
+
+            match statement {
+                Statement::Expression(expression_statement) => {
+                    match expression_statement
+                        .expression
+                        .as_ref()
+                        .expect("expected expression")
+                        .as_ref()
+                    {
+                        Expression::Infix(infix_expression) => {
+                            assert_eq!(
+                                infix_expression.token.literal, operator,
+                                "wrong operator expected {} got {}",
+                                operator, infix_expression.token.literal
+                            );
+                            match infix_expression.left.as_ref() {
+                                Expression::IntegerLiteral(integer_literal) => {
+                                    assert_eq!(
+                                        integer_literal.value, literal_left,
+                                        "wrong integer literal expected {} goct {}",
+                                        literal_left, integer_literal.value
+                                    );
+                                }
+                                _ => panic!("unexpected integer literal"),
+                            }
+                            match infix_expression.right.as_ref() {
+                                Expression::IntegerLiteral(integer_literal) => {
+                                    assert_eq!(
+                                        integer_literal.value, literal_right,
+                                        "wrong integer literal expected {} goct {}",
+                                        literal_right, integer_literal.value
                                     );
                                 }
                                 _ => panic!("unexpected integer literal"),
