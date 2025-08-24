@@ -16,7 +16,15 @@ macro_rules! impl_display_for_enum {
 }
 
 impl_display_for_enum!(Statement, Let, Return, Expression);
-impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix, Infix, Boolean);
+impl_display_for_enum!(
+    Expression,
+    Identifier,
+    IntegerLiteral,
+    Prefix,
+    Infix,
+    Boolean,
+    If
+);
 
 // Enums
 
@@ -32,6 +40,7 @@ pub enum Expression {
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(BooleanLiteralExpression),
+    If(IfExpression),
 }
 
 // Statements
@@ -71,6 +80,21 @@ pub struct ExpressionStatement {
 impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.expression)
+    }
+}
+
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>,
+}
+
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for statement in &self.statements {
+            write!(f, "{}", statement)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -125,10 +149,28 @@ pub struct BooleanLiteralExpression {
     pub value: bool,
 }
 
-
 impl fmt::Display for BooleanLiteralExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.token.literal)
+    }
+}
+
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Box<Expression>,
+    pub consequence: BlockStatement,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "if{} {}", self.condition, self.consequence)?;
+
+        if let Some(alternative) = &self.alternative {
+            write!(f, "else {}", alternative)?;
+        }
+
+        Ok(())
     }
 }
 

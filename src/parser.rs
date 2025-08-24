@@ -1,8 +1,8 @@
 use crate::{
     ast::{
-        BooleanLiteralExpression, Expression, ExpressionStatement, IdentifierExpression,
-        InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statement,
+        BlockStatement, BooleanLiteralExpression, Expression, ExpressionStatement,
+        IdentifierExpression, IfExpression, InfixExpression, IntegerLiteralExpression,
+        LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -134,6 +134,27 @@ impl<'a> Parser<'a> {
         Ok(statement)
     }
 
+    fn parse_block_statement(&mut self) -> Result<BlockStatement, ParseError> {
+        let statement_token = self.current_token.clone();
+        let mut statements: Vec<Statement> = vec![];
+
+        self.next_token();
+
+        while self.current_token.token_type != TokenType::RBrace
+            && self.current_token.token_type != TokenType::EOF
+        {
+            let statement = self.parse_statement()?;
+            statements.push(statement);
+            self.next_token();
+        }
+
+        let block_statement = BlockStatement {
+            token: statement_token,
+            statements: statements,
+        };
+        Ok(block_statement)
+    }
+
     // Parse expressions
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParseError> {
@@ -143,6 +164,7 @@ impl<'a> Parser<'a> {
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression()?,
             TokenType::True | TokenType::False => self.parse_boolean_expression()?,
             TokenType::LParen => self.parse_grouped_expression()?,
+            TokenType::If => self.parse_if_expression()?,
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -249,6 +271,29 @@ impl<'a> Parser<'a> {
         self.expect_peek(TokenType::RParen)?;
 
         Ok(expression)
+    }
+
+    fn parse_if_expression(&mut self) -> Result<Expression, ParseError> {
+        let expression_token = self.current_token.clone();
+
+        self.expect_peek(TokenType::LParen)?;
+        self.next_token();
+
+        let condition = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(TokenType::RParen)?;
+        self.expect_peek(TokenType::LBrace)?;
+
+        let consequence = self.parse_block_statement()?;
+
+        let if_expression = IfExpression {
+            token: expression_token,
+            condition: Box::new(condition),
+            consequence: consequence,
+            alternative: None,
+        };
+
+        Ok(Expression::If(if_expression))
     }
 
     // Helper functions
@@ -694,6 +739,99 @@ mod tests {
             let expression = get_statement_expression(&program.statements[0]);
 
             test_boolean_literal(expression, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_if_expressions() -> Result<(), ParseError> {
+        let input = "if (x < y) { x }";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program contains {} statements not 1",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+
+        match expression {
+            Expression::If(if_expression) => {
+                test_infix_expression(
+                    if_expression.condition.as_ref(),
+                    ExpectedLiteral::Identifier("x"),
+                    "<",
+                    ExpectedLiteral::Identifier("y"),
+                );
+
+                assert_eq!(
+                    if_expression.consequence.statements.len(),
+                    1,
+                    "consequence is not 1 statements got {}",
+                    if_expression.consequence.statements.len()
+                );
+
+                let consequence_expression = get_statement_expression(&if_expression.consequence.statements[0]);
+                test_identifier(consequence_expression, "x");
+
+                if let Some(_alternative) = &if_expression.alternative {
+                    panic!("If statement alternative exists");
+                }
+            }
+            _ => panic!("Expression is not if expression"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_if_else_expressions() -> Result<(), ParseError> {
+        let input = "if (x < y) { x } else { y }";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program contains {} statements not 1",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+
+        match expression {
+            Expression::If(if_expression) => {
+                test_infix_expression(
+                    if_expression.condition.as_ref(),
+                    ExpectedLiteral::Identifier("x"),
+                    "<",
+                    ExpectedLiteral::Identifier("y"),
+                );
+
+                assert_eq!(
+                    if_expression.consequence.statements.len(),
+                    1,
+                    "consequence is not 1 statements got {}",
+                    if_expression.consequence.statements.len()
+                );
+
+                let consequence_expression =
+                    get_statement_expression(&if_expression.consequence.statements[0]);
+                test_identifier(consequence_expression, "x");
+
+                if let Some(alternative) = &if_expression.alternative {
+                    let alternative_expression =
+                        get_statement_expression(&alternative.statements[0]);
+                    test_identifier(alternative_expression, "y");
+                } else {
+                    panic!("If statement alternative does not exist");
+                }
+            }
+            _ => panic!("Expression is not if expression"),
         }
 
         Ok(())
