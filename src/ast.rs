@@ -16,7 +16,7 @@ macro_rules! impl_display_for_enum {
 }
 
 impl_display_for_enum!(Statement, Let, Return, Expression);
-impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix, Infix);
+impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix, Infix, Boolean);
 
 // Enums
 
@@ -36,6 +36,7 @@ pub enum Expression {
     IntegerLiteral(IntegerLiteralExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
+    Boolean(BooleanExpression),
 }
 
 // Traits
@@ -127,6 +128,18 @@ pub struct InfixExpression {
 impl fmt::Display for InfixExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {} {})", self.left, self.token.literal, self.right)
+    }
+}
+
+pub struct BooleanExpression {
+    pub token: Token,
+    pub value: bool,
+}
+
+
+impl fmt::Display for BooleanExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token.literal)
     }
 }
 

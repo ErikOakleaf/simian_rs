@@ -2,9 +2,7 @@ use std::thread::current;
 
 use crate::{
     ast::{
-        AstNode, Expression, ExpressionStatement, IdentifierExpression, InfixExpression,
-        IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
-        Statement,
+        AstNode, BooleanExpression, Expression, ExpressionStatement, IdentifierExpression, InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -143,6 +141,7 @@ impl<'a> Parser<'a> {
             TokenType::Ident => self.parse_identifier_expression()?,
             TokenType::Int => self.parse_integer_literal_expression()?,
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression()?,
+            TokenType::True | TokenType::False => self.parse_boolean_expression()?,
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -226,6 +225,19 @@ impl<'a> Parser<'a> {
         Ok(Expression::Infix(infix_expression))
     }
 
+    fn parse_boolean_expression(&mut self) -> Result<Expression, ParseError> {
+        let value = match self.current_token.token_type {
+            TokenType::True => true,
+            TokenType::False => false,
+            _ => {
+                return Err(ParseError::UnexpectedToken(self.current_token.clone()));
+            },
+        };
+
+        let boolean_expression = BooleanExpression { token: self.current_token.clone(), value: value };
+        Ok(Expression::Boolean(boolean_expression))
+    }
+
     // Helper functions
 
     fn expect_peek(&mut self, expected: TokenType) -> Result<(), ParseError> {
@@ -269,6 +281,12 @@ mod tests {
 
     use super::*;
 
+    enum ExpectedLiteral<'a> {
+        Int(i64),
+        Identifier(&'a str),
+        Bool(bool),
+    }
+
     // Test helper functions
 
     fn parse_input(input: &str) -> Result<Program, ParseError> {
@@ -285,29 +303,11 @@ mod tests {
         }
     }
 
-    fn test_return_statement(statement: &Statement) {
-        if let Statement::Return(return_statement) = statement {
-            if return_statement.token.literal != "return" {
-                panic!(
-                    "return statement literal is not correct got: {}",
-                    return_statement.token.literal
-                )
-            }
-        } else {
-            panic!("Statement is not return statement")
-        }
-    }
-
-    fn test_let_statement(statement: &Statement, name: &str) {
-        if let Statement::Let(let_statement) = statement {
-            if let_statement.name.token.literal != name {
-                panic!(
-                    "statement literal is not correct got {} expected {}",
-                    let_statement.name.token.literal, name
-                )
-            }
-        } else {
-            panic!("Statement is not let statement");
+    fn test_literal_expression(expression: &Expression, expected: ExpectedLiteral) {
+        match expected {
+            ExpectedLiteral::Int(expected) => test_integer_literal(expression, expected),
+            ExpectedLiteral::Identifier(name) => test_identifier(expression, name),
+            ExpectedLiteral::Bool(value) => test_boolean_literal(expression, value),
         }
     }
 
@@ -342,14 +342,44 @@ mod tests {
         }
     }
 
-    fn test_prefix_expression(expression: &Expression, operator: &str, right_value: i64) {
+    fn test_return_statement(statement: &Statement) {
+        if let Statement::Return(return_statement) = statement {
+            if return_statement.token.literal != "return" {
+                panic!(
+                    "return statement literal is not correct got: {}",
+                    return_statement.token.literal
+                )
+            }
+        } else {
+            panic!("Statement is not return statement")
+        }
+    }
+
+    fn test_let_statement(statement: &Statement, name: &str) {
+        if let Statement::Let(let_statement) = statement {
+            if let_statement.name.token.literal != name {
+                panic!(
+                    "statement literal is not correct got {} expected {}",
+                    let_statement.name.token.literal, name
+                )
+            }
+        } else {
+            panic!("Statement is not let statement");
+        }
+    }
+
+    fn test_prefix_expression(
+        expression: &Expression,
+        operator: &str,
+        right_value: ExpectedLiteral,
+    ) {
         if let Expression::Prefix(prefix_expression) = expression {
             assert_eq!(
                 prefix_expression.token.literal, operator,
                 "Expected operator '{}', got '{}'",
                 operator, prefix_expression.token.literal
             );
-            test_integer_literal(&prefix_expression.right, right_value);
+            test_literal_expression(&prefix_expression.right, right_value);
         } else {
             panic!("Expression is not prefix expression");
         }
@@ -357,9 +387,9 @@ mod tests {
 
     fn test_infix_expression(
         expression: &Expression,
-        left_value: i64,
+        left_value: ExpectedLiteral,
         operator: &str,
-        right_value: i64,
+        right_value: ExpectedLiteral,
     ) {
         if let Expression::Infix(infix_expression) = expression {
             assert_eq!(
@@ -367,10 +397,30 @@ mod tests {
                 "Expected operator '{}', got '{}'",
                 operator, infix_expression.token.literal
             );
-            test_integer_literal(&infix_expression.left, left_value);
-            test_integer_literal(&infix_expression.right, right_value);
+            test_literal_expression(&infix_expression.left, left_value);
+            test_literal_expression(&infix_expression.right, right_value);
         } else {
             panic!("Expression is not infix expression");
+        }
+    }
+
+    fn test_boolean_literal(expression: &Expression, expected: bool) {
+        match expression {
+            Expression::Boolean(boolean_expression) => {
+                assert_eq!(
+                    boolean_expression.token.literal,
+                    expected.to_string(),
+                    "Boolean expression literal value is {} not {}",
+                    boolean_expression.token.literal,
+                    expected.to_string()
+                );
+                assert_eq!(
+                    boolean_expression.value, expected,
+                    "Boolean expression value is {} not {}",
+                    boolean_expression.value, expected
+                )
+            }
+            _ => panic!("Expression is not boolean expression"),
         }
     }
 
@@ -463,7 +513,10 @@ mod tests {
 
     #[test]
     fn test_parsing_prefix_expressions() -> Result<(), ParseError> {
-        let prefix_tests = vec![("!5;", "!", 5), ("-15;", "-", 15)];
+        let prefix_tests = vec![
+            ("!5;", "!", ExpectedLiteral::Int(5)),
+            ("-15;", "-", ExpectedLiteral::Int(15)),
+        ];
 
         for (input, operator, literal) in prefix_tests {
             let program = parse_input(input)?;
@@ -485,14 +538,54 @@ mod tests {
     #[test]
     fn test_parsing_infix_expressions() -> Result<(), ParseError> {
         let prefix_tests = vec![
-            ("5 + 5;", 5, "+", 5),
-            ("5 - 5;", 5, "-", 5),
-            ("5 * 5;", 5, "*", 5),
-            ("5 / 5;", 5, "/", 5),
-            ("5 > 5;", 5, ">", 5),
-            ("5 < 5;", 5, "<", 5),
-            ("5 == 5;", 5, "==", 5),
-            ("5 != 5;", 5, "!=", 5),
+            (
+                "5 + 5;",
+                ExpectedLiteral::Int(5),
+                "+",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 - 5;",
+                ExpectedLiteral::Int(5),
+                "-",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 * 5;",
+                ExpectedLiteral::Int(5),
+                "*",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 / 5;",
+                ExpectedLiteral::Int(5),
+                "/",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 > 5;",
+                ExpectedLiteral::Int(5),
+                ">",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 < 5;",
+                ExpectedLiteral::Int(5),
+                "<",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 == 5;",
+                ExpectedLiteral::Int(5),
+                "==",
+                ExpectedLiteral::Int(5),
+            ),
+            (
+                "5 != 5;",
+                ExpectedLiteral::Int(5),
+                "!=",
+                ExpectedLiteral::Int(5),
+            ),
         ];
 
         for (input, literal_left, operator, literal_right) in prefix_tests {
@@ -545,6 +638,20 @@ mod tests {
                 "precdence is not correct expected {} got {}",
                 actual, program_string
             )
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_boolean_expressions() -> Result<(), ParseError> {
+        let tests = [("false;", false), ("true;", true)];
+
+        for (input, expected) in tests {
+            let program = parse_input(input)?;
+            let expression = get_statement_expression(&program.statements[0]);
+
+            test_boolean_literal(expression, expected);
         }
 
         Ok(())
