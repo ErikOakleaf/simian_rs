@@ -142,6 +142,7 @@ impl<'a> Parser<'a> {
             TokenType::Int => self.parse_integer_literal_expression()?,
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression()?,
             TokenType::True | TokenType::False => self.parse_boolean_expression()?,
+            TokenType::LParen => self.parse_grouped_expression()?,
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -239,6 +240,15 @@ impl<'a> Parser<'a> {
             value: value,
         };
         Ok(Expression::Boolean(boolean_expression))
+    }
+
+    fn parse_grouped_expression(&mut self) -> Result<Expression, ParseError> {
+        self.next_token();
+        let expression = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(TokenType::RParen)?;
+
+        Ok(expression)
     }
 
     // Helper functions
@@ -654,6 +664,11 @@ mod tests {
             ("false", "false"),
             ("3 > 5 == false", "((3 > 5) == false)"),
             ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, actual) in tests {
