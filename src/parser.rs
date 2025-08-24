@@ -1,8 +1,8 @@
-use std::thread::current;
-
 use crate::{
     ast::{
-        AstNode, BooleanExpression, Expression, ExpressionStatement, IdentifierExpression, InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
+        BooleanLiteralExpression, Expression, ExpressionStatement, IdentifierExpression,
+        InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program,
+        ReturnStatement, Statement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -231,10 +231,13 @@ impl<'a> Parser<'a> {
             TokenType::False => false,
             _ => {
                 return Err(ParseError::UnexpectedToken(self.current_token.clone()));
-            },
+            }
         };
 
-        let boolean_expression = BooleanExpression { token: self.current_token.clone(), value: value };
+        let boolean_expression = BooleanLiteralExpression {
+            token: self.current_token.clone(),
+            value: value,
+        };
         Ok(Expression::Boolean(boolean_expression))
     }
 
@@ -516,6 +519,8 @@ mod tests {
         let prefix_tests = vec![
             ("!5;", "!", ExpectedLiteral::Int(5)),
             ("-15;", "-", ExpectedLiteral::Int(15)),
+            ("!true;", "!", ExpectedLiteral::Bool(true)),
+            ("!false;", "!", ExpectedLiteral::Bool(false)),
         ];
 
         for (input, operator, literal) in prefix_tests {
@@ -586,6 +591,24 @@ mod tests {
                 "!=",
                 ExpectedLiteral::Int(5),
             ),
+            (
+                "true == true",
+                ExpectedLiteral::Bool(true),
+                "==",
+                ExpectedLiteral::Bool(true),
+            ),
+            (
+                "true != false",
+                ExpectedLiteral::Bool(true),
+                "!=",
+                ExpectedLiteral::Bool(false),
+            ),
+            (
+                "false == false",
+                ExpectedLiteral::Bool(false),
+                "==",
+                ExpectedLiteral::Bool(false),
+            ),
         ];
 
         for (input, literal_left, operator, literal_right) in prefix_tests {
@@ -627,6 +650,10 @@ mod tests {
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
         ];
 
         for (input, actual) in tests {

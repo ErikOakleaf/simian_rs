@@ -20,11 +20,6 @@ impl_display_for_enum!(Expression, Identifier, IntegerLiteral, Prefix, Infix, Bo
 
 // Enums
 
-pub enum Node {
-    Statement(Statement),
-    Expression(Expression),
-}
-
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
@@ -36,13 +31,7 @@ pub enum Expression {
     IntegerLiteral(IntegerLiteralExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
-    Boolean(BooleanExpression),
-}
-
-// Traits
-
-pub trait AstNode {
-    fn token_literal(&self) -> String;
+    Boolean(BooleanLiteralExpression),
 }
 
 // Statements
@@ -131,13 +120,13 @@ impl fmt::Display for InfixExpression {
     }
 }
 
-pub struct BooleanExpression {
+pub struct BooleanLiteralExpression {
     pub token: Token,
     pub value: bool,
 }
 
 
-impl fmt::Display for BooleanExpression {
+impl fmt::Display for BooleanLiteralExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.token.literal)
     }
