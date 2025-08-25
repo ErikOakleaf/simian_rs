@@ -1,8 +1,9 @@
 use crate::{
     ast::{
         BlockStatement, BooleanLiteralExpression, Expression, ExpressionStatement,
-        IdentifierExpression, IfExpression, InfixExpression, IntegerLiteralExpression,
-        LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
+        FunctionLiteralExpression, IdentifierExpression, IfExpression, InfixExpression,
+        IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
+        Statement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -165,6 +166,7 @@ impl<'a> Parser<'a> {
             TokenType::True | TokenType::False => self.parse_boolean_expression()?,
             TokenType::LParen => self.parse_grouped_expression()?,
             TokenType::If => self.parse_if_expression()?,
+            TokenType::Function => self.parse_function_literal_expression()?,
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -288,6 +290,8 @@ impl<'a> Parser<'a> {
 
         let mut alternative = None;
 
+        // Handle else case
+
         if self.peek_token.token_type == TokenType::Else {
             self.next_token();
             self.expect_peek(TokenType::LBrace)?;
@@ -302,6 +306,52 @@ impl<'a> Parser<'a> {
         };
 
         Ok(Expression::If(if_expression))
+    }
+
+    fn parse_function_literal_expression(&mut self) -> Result<Expression, ParseError> {
+        let expression_token = self.current_token.clone();
+
+        self.expect_peek(TokenType::LParen)?;
+
+        let parameters = self.parse_function_parameters()?;
+
+        self.expect_peek(TokenType::LBrace)?;
+
+        let body = self.parse_block_statement()?;
+
+        let function_literal_expression = FunctionLiteralExpression {
+            token: expression_token,
+            parameters: parameters,
+            body: body,
+        };
+
+        Ok(Expression::Function(function_literal_expression))
+    }
+
+    fn parse_function_parameters(&mut self) -> Result<Vec<IdentifierExpression>, ParseError> {
+        let mut identifiers: Vec<IdentifierExpression> = vec![];
+
+        if self.peek_token.token_type == TokenType::RParen {
+            self.next_token();
+            return Ok(identifiers);
+        }
+
+        self.next_token();
+        identifiers.push(IdentifierExpression {
+            token: self.current_token.clone(),
+        });
+
+        while self.peek_token.token_type == TokenType::Comma {
+            self.next_token();
+            self.next_token();
+            identifiers.push(IdentifierExpression {
+                token: self.current_token.clone(),
+            });
+        }
+
+        self.expect_peek(TokenType::RParen)?;
+
+        Ok(identifiers)
     }
 
     // Helper functions
@@ -783,7 +833,8 @@ mod tests {
                     if_expression.consequence.statements.len()
                 );
 
-                let consequence_expression = get_statement_expression(&if_expression.consequence.statements[0]);
+                let consequence_expression =
+                    get_statement_expression(&if_expression.consequence.statements[0]);
                 test_identifier(consequence_expression, "x");
 
                 if let Some(_alternative) = &if_expression.alternative {
@@ -840,6 +891,54 @@ mod tests {
                 }
             }
             _ => panic!("Expression is not if expression"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_function_literal_parsing() -> Result<(), ParseError> {
+        let input = "fn(x, y) { x + y; }";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program contains {} statements not 1",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+
+        match expression {
+            Expression::Function(function_expression) => {
+                test_literal_expression(
+                    &Expression::Identifier(function_expression.parameters[0].clone()),
+                    ExpectedLiteral::Identifier("x"),
+                );
+                test_literal_expression(
+                    &Expression::Identifier(function_expression.parameters[1].clone()),
+                    ExpectedLiteral::Identifier("y"),
+                );
+
+                assert_eq!(
+                    function_expression.body.statements.len(),
+                    1,
+                    "function_expression.body.statements does not have 1 statements. got {}",
+                    function_expression.body.statements.len()
+                );
+
+                let body_statement_expression =
+                    get_statement_expression(&function_expression.body.statements[0]);
+                test_infix_expression(
+                    body_statement_expression,
+                    ExpectedLiteral::Identifier("x"),
+                    "+",
+                    ExpectedLiteral::Identifier("y"),
+                );
+            }
+            _ => panic!("Expression is not function literal expression"),
         }
 
         Ok(())

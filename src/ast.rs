@@ -23,7 +23,8 @@ impl_display_for_enum!(
     Prefix,
     Infix,
     Boolean,
-    If
+    If,
+    Function
 );
 
 // Enums
@@ -41,6 +42,7 @@ pub enum Expression {
     Infix(InfixExpression),
     Boolean(BooleanLiteralExpression),
     If(IfExpression),
+    Function(FunctionLiteralExpression),
 }
 
 // Statements
@@ -100,6 +102,7 @@ impl fmt::Display for BlockStatement {
 
 // Expressions
 
+#[derive(Clone)]
 pub struct IdentifierExpression {
     pub token: Token,
 }
@@ -169,6 +172,28 @@ impl fmt::Display for IfExpression {
         if let Some(alternative) = &self.alternative {
             write!(f, "else {}", alternative)?;
         }
+
+        Ok(())
+    }
+}
+
+pub struct FunctionLiteralExpression {
+    pub token: Token,
+    pub parameters: Vec<IdentifierExpression>,
+    pub body: BlockStatement,
+}
+
+impl fmt::Display for FunctionLiteralExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let params: Vec<String> = self.parameters.iter().map(|p| format!("{}", p)).collect();
+
+        write!(
+            f,
+            "{} ({}) {}",
+            self.token.literal,
+            params.join(", "),
+            self.body
+        )?;
 
         Ok(())
     }
