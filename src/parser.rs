@@ -286,11 +286,19 @@ impl<'a> Parser<'a> {
 
         let consequence = self.parse_block_statement()?;
 
+        let mut alternative = None;
+
+        if self.peek_token.token_type == TokenType::Else {
+            self.next_token();
+            self.expect_peek(TokenType::LBrace)?;
+            alternative = Some(self.parse_block_statement()?);
+        }
+
         let if_expression = IfExpression {
             token: expression_token,
             condition: Box::new(condition),
             consequence: consequence,
-            alternative: None,
+            alternative: alternative,
         };
 
         Ok(Expression::If(if_expression))
