@@ -943,4 +943,40 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_function_parameter_parsing() -> Result<(), ParseError> {
+        let tests: [(&str, &[&str]); 3] = [
+            ("fn() {};", &[]),
+            ("fn(x) {};", &["x"]),
+            ("fn(x, y, z) {};", &["x", "y", "z"]),
+        ];
+
+        for (input, expected) in tests {
+            let program = parse_input(input)?;
+
+            let expression = get_statement_expression(&program.statements[0]);
+            match expression {
+                Expression::Function(function_expression) => {
+                    assert_eq!(
+                        function_expression.parameters.len(),
+                        expected.len(),
+                        "parameters length wrong got {} expected {}",
+                        function_expression.parameters.len(),
+                        expected.len()
+                    );
+
+                    for (i, identifier) in expected.iter().enumerate() {
+                        test_literal_expression(
+                            &Expression::Identifier(function_expression.parameters[i].clone()),
+                            ExpectedLiteral::Identifier(identifier),
+                        );
+                    }
+                }
+                _ => panic!("Expression is not function expression"),
+            }
+        }
+
+        Ok(())
+    }
 }
