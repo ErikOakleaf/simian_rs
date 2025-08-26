@@ -211,7 +211,7 @@ impl fmt::Display for CallExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let arguments: Vec<String> = self.arguments.iter().map(|p| format!("{}", p)).collect();
 
-        write!(f, "{} ({})", self.token.literal, arguments.join(", "),)?;
+        write!(f, "{}({})", self.function, arguments.join(", "),)?;
 
         Ok(())
     }
