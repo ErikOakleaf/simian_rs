@@ -496,32 +496,6 @@ mod tests {
         }
     }
 
-    fn test_return_statement(statement: &Statement) {
-        if let Statement::Return(return_statement) = statement {
-            if return_statement.token.literal != "return" {
-                panic!(
-                    "return statement literal is not correct got: {}",
-                    return_statement.token.literal
-                )
-            }
-        } else {
-            panic!("Statement is not return statement")
-        }
-    }
-
-    fn test_let_statement(statement: &Statement, name: &str) {
-        if let Statement::Let(let_statement) = statement {
-            if let_statement.name.token.literal != name {
-                panic!(
-                    "statement literal is not correct got {} expected {}",
-                    let_statement.name.token.literal, name
-                )
-            }
-        } else {
-            panic!("Statement is not let statement");
-        }
-    }
-
     fn test_prefix_expression(
         expression: &Expression,
         operator: &str,
@@ -582,24 +556,39 @@ mod tests {
 
     #[test]
     fn test_let_statements() -> Result<(), ParseError> {
-        let input = "let x = 5;
-                    let y = 10;
-                    let foobar = 838383;";
+        let tests: [(&str, &str, ExpectedLiteral); 3] = [
+            ("let x = 5;", "x", ExpectedLiteral::Int(5)),
+            ("let y = true;", "y", ExpectedLiteral::Bool(true)),
+            (
+                "let foobar = y;",
+                "foobar",
+                ExpectedLiteral::Identifier("y"),
+            ),
+        ];
 
-        let program = parse_input(input)?;
+        for (input, expected_name, expected_value) in tests {
+            let program = parse_input(input)?;
 
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program contains {} statements not 3",
-            program.statements.len()
-        );
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program contains {} statements not 1",
+                program.statements.len()
+            );
 
-        let tests = vec!["x", "y", "foobar"];
+            let let_statement = &program.statements[0];
 
-        for (i, expected) in tests.iter().enumerate() {
-            let statement = &program.statements[i];
-            test_let_statement(statement, &expected);
+            if let Statement::Let(let_statement) = let_statement {
+                assert_eq!(
+                    let_statement.name.token.literal, expected_name,
+                    "statement name is not {} got {}",
+                    expected_name, let_statement.name.token.literal
+                );
+
+                test_literal_expression(let_statement.value.as_ref(), expected_value);
+            } else {
+                panic!("Statement is not let statement");
+            }
         }
 
         Ok(())
@@ -607,23 +596,28 @@ mod tests {
 
     #[test]
     fn test_return_statements() -> Result<(), ParseError> {
-        let input = "return 5;
-                    return 10;
-                    return 993322;";
+        let tests: [(&str, ExpectedLiteral); 3] = [
+            ("return 5;", ExpectedLiteral::Int(5)),
+            ("return 10;", ExpectedLiteral::Int(10)),
+            ("return 993322;", ExpectedLiteral::Int(993322)),
+        ];
 
-        let program = parse_input(input)?;
+        for (input, expected) in tests {
+            let program = parse_input(input)?;
+            let statement = &program.statements[0];
 
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program contains {} statements not 3",
-            program.statements.len()
-        );
+            if let Statement::Return(return_statement) = statement {
+                assert_eq!(
+                    return_statement.token.literal, "return",
+                    "return statement literal is not correct got {}",
+                    return_statement.token.literal
+                );
 
-        for statement in &program.statements {
-            test_return_statement(statement);
+                test_literal_expression(return_statement.return_value.as_ref(), expected);
+            } else {
+                panic!("Statement is not return statement");
+            }
         }
-
         Ok(())
     }
 
