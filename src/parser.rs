@@ -1,6 +1,6 @@
 use crate::{
     ast::{
-        BlockStatement, BooleanLiteralExpression, Expression, ExpressionStatement,
+        BlockStatement, BooleanLiteralExpression, CallExpression, Expression, ExpressionStatement,
         FunctionLiteralExpression, IdentifierExpression, IfExpression, InfixExpression,
         IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
         Statement,
@@ -189,6 +189,10 @@ impl<'a> Parser<'a> {
                     self.next_token();
                     self.parse_infix_expression(left_expression)?
                 }
+                TokenType::LParen => {
+                    self.next_token();
+                    self.parse_call_expression(left_expression)?
+                }
                 _ => {
                     return Ok(left_expression);
                 }
@@ -354,6 +358,39 @@ impl<'a> Parser<'a> {
         Ok(identifiers)
     }
 
+    fn parse_call_expression(&mut self, function: Expression) -> Result<Expression, ParseError> {
+        let arguments = self.parse_call_arguments()?;
+        let call_expression = CallExpression {
+            token: self.current_token.clone(),
+            function: Box::new(function),
+            arguments: arguments,
+        };
+        Ok(Expression::Call(call_expression))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParseError> {
+        let mut arguments: Vec<Expression> = vec![];
+
+        if self.peek_token.token_type == TokenType::RParen {
+            self.next_token();
+            return Ok(arguments);
+        }
+
+        self.next_token();
+
+        arguments.push(self.parse_expression(Precedence::Lowest)?);
+
+        while self.peek_token.token_type == TokenType::Comma {
+            self.next_token();
+            self.next_token();
+            arguments.push(self.parse_expression(Precedence::Lowest)?);
+        }
+
+        self.expect_peek(TokenType::RParen)?;
+
+        Ok(arguments)
+    }
+
     // Helper functions
 
     fn expect_peek(&mut self, expected: TokenType) -> Result<(), ParseError> {
@@ -386,6 +423,7 @@ impl<'a> Parser<'a> {
             TokenType::Minus => Precedence::Sum,
             TokenType::Slash => Precedence::Product,
             TokenType::Asterisk => Precedence::Product,
+            TokenType::LParen => Precedence::Call,
             _ => Precedence::Lowest,
         }
     }
@@ -977,6 +1015,85 @@ mod tests {
             }
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_call_expression_parsing() -> Result<(), ParseError> {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program does not contain 1 statement contains {} statements",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Call(call_expression) => {
+                test_identifier(call_expression.function.as_ref(), "add");
+                assert_eq!(
+                    call_expression.arguments.len(),
+                    3,
+                    "Wrong length of arguments got {}",
+                    call_expression.arguments.len()
+                );
+
+                test_literal_expression(&call_expression.arguments[0], ExpectedLiteral::Int(1));
+                test_infix_expression(
+                    &call_expression.arguments[1],
+                    ExpectedLiteral::Int(2),
+                    "*",
+                    ExpectedLiteral::Int(3),
+                );
+                test_infix_expression(
+                    &call_expression.arguments[2],
+                    ExpectedLiteral::Int(4),
+                    "+",
+                    ExpectedLiteral::Int(5),
+                );
+            }
+            _ => panic!("Expression is not call_expression expression"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_call_arguments_parsing() -> Result<(), ParseError> {
+        let tests: [(&str, &[&str]); 3] = [
+            ("add();", &[]),
+            ("add(x);", &["x"]),
+            ("add(x, y, z);", &["x", "y", "z"]),
+        ];
+
+        for (input, expected) in tests {
+            let program = parse_input(input)?;
+
+            let expression = get_statement_expression(&program.statements[0]);
+            match expression {
+                Expression::Call(call_expression) => {
+                    assert_eq!(
+                        call_expression.arguments.len(),
+                        expected.len(),
+                        "parameters length wrong got {} expected {}",
+                        call_expression.arguments.len(),
+                        expected.len()
+                    );
+
+                    for (i, identifier) in expected.iter().enumerate() {
+                        test_literal_expression(
+                            &call_expression.arguments[i],
+                            ExpectedLiteral::Identifier(identifier),
+                        );
+                    }
+                }
+                _ => panic!("Expression is not function expression"),
+            }
+        }
         Ok(())
     }
 }

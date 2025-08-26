@@ -24,7 +24,8 @@ impl_display_for_enum!(
     Infix,
     Boolean,
     If,
-    Function
+    Function,
+    Call
 );
 
 // Enums
@@ -43,6 +44,7 @@ pub enum Expression {
     Boolean(BooleanLiteralExpression),
     If(IfExpression),
     Function(FunctionLiteralExpression),
+    Call(CallExpression),
 }
 
 // Statements
@@ -194,6 +196,22 @@ impl fmt::Display for FunctionLiteralExpression {
             params.join(", "),
             self.body
         )?;
+
+        Ok(())
+    }
+}
+
+pub struct CallExpression {
+    pub token: Token,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Expression>,
+}
+
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let arguments: Vec<String> = self.arguments.iter().map(|p| format!("{}", p)).collect();
+
+        write!(f, "{} ({})", self.token.literal, arguments.join(", "),)?;
 
         Ok(())
     }
