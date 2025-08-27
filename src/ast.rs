@@ -29,6 +29,10 @@ impl_display_for_enum!(
 );
 
 // Enums
+pub enum Node {
+    Statement(Statement),
+    Expression(Expression),
+}
 
 pub enum Statement {
     Let(LetStatement),
