@@ -1,6 +1,6 @@
 use std::fmt;
 
-enum Object {
+pub enum Object {
     Integer(i64),
     Boolean(bool),
     Null,
