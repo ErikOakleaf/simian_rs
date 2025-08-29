@@ -39,6 +39,11 @@ fn eval_expression(expression: &Expression) -> Object {
             let right = eval_expression(&prefix_expression.right);
             eval_prefix_expression(&prefix_expression.token.literal, &right)
         }
+        Expression::Infix(infix_expression) => {
+            let left = eval_expression(&infix_expression.left);
+            let right = eval_expression(&infix_expression.right);
+            eval_infix_expression(&infix_expression.token.literal, &left, &right)
+        }
 
         _ => Object::Null,
     }
@@ -68,10 +73,27 @@ fn eval_minus_prefix_operator_expression(right: &Object) -> Object {
     }
 }
 
+fn eval_infix_expression(operator: &str, left: &Object, right: &Object) -> Object {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => {
+            eval_integer_infix_expression(operator, *l, *r)
+        }
+        _ => Object::Null
+    }
+}
+
+fn eval_integer_infix_expression(operator: &str, l: i64, r: i64) -> Object {
+    match operator {
+        "+" => Object::Integer(l + r),
+        "-" => Object::Integer(l - r),
+        "*" => Object::Integer(l * r),
+        "/" => Object::Integer(l / r),
+        _ => Object::Null
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::ast::Statement;
-
     use super::*;
 
     // Test helpers
@@ -115,7 +137,23 @@ mod tests {
 
     #[test]
     fn test_eval_integer_expression() -> Result<(), EvaluationError> {
-        let tests: [(&str, i64); 4] = [("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
+        let tests: [(&str, i64); 15] = [
+            ("5", 5),
+            ("10", 10),
+            ("-5", -5),
+            ("-10", -10),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
