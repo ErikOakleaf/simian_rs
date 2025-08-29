@@ -1,4 +1,4 @@
-use crate::ast::{Expression, PrefixExpression, Program, Statement};
+use crate::ast::{Expression, IfExpression, PrefixExpression, Program, Statement};
 use crate::lexer::Lexer;
 use crate::object::Object;
 use crate::parser::{ParseError, Parser};
@@ -44,6 +44,7 @@ fn eval_expression(expression: &Expression) -> Object {
             let right = eval_expression(&infix_expression.right);
             eval_infix_expression(&infix_expression.token.literal, &left, &right)
         }
+        Expression::If(if_expression) => eval_if_expression(&if_expression),
 
         _ => Object::Null,
     }
@@ -59,7 +60,7 @@ fn eval_prefix_expression(operator: &str, right: &Object) -> Object {
 
 fn eval_bang_operator_expression(right: &Object) -> Object {
     match right {
-        Object::Boolean(bool) => Object::Boolean(!bool),
+        Object::Boolean(boolean) => Object::Boolean(!boolean),
         Object::Null => Object::Boolean(true),
         _ => Object::Boolean(false),
     }
@@ -103,6 +104,28 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Object {
     }
 }
 
+fn eval_if_expression(if_expression: &IfExpression) -> Object {
+    let condition = eval_expression(if_expression.condition.as_ref());
+    if is_truthy(&condition) {
+        eval_statements(&if_expression.consequence.statements)
+    } else if let Some(alternative) = &if_expression.alternative {
+        eval_statements(&alternative.statements)
+    } else {
+        Object::Null
+    }
+
+}
+
+// Helpers
+
+fn is_truthy(object: &Object) -> bool {
+    match object {
+        Object::Boolean(boolean) => *boolean,
+        Object::Null => false,
+        _ => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,10 +165,6 @@ mod tests {
         } else {
             panic!("object is not boolean object")
         }
-    }
-
-    fn test_null_object(object: &Object) {
-        assert!(matches!(object, Object::Null), "Object is not Null")
     }
 
     // Tests
@@ -231,7 +250,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_if_else_expression() -> Result<(), EvaluationError> {
         let tests: [(&str, Object); 7] = [
@@ -249,7 +267,7 @@ mod tests {
             if let Object::Integer(integer) = expected {
                 test_integer_object(evaluated, integer);
             } else {
-                test_null_object(&evaluated);
+                assert!(matches!(evaluated, Object::Null), "Object is not Null");
             }
         }
 
