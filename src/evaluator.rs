@@ -76,6 +76,7 @@ fn eval_minus_prefix_operator_expression(right: &Object) -> Object {
 fn eval_infix_expression(operator: &str, left: &Object, right: &Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
+        (Object::Boolean(l), Object::Boolean(r)) => eval_bool_infix_expression(operator, *l, *r),
         _ => Object::Null,
     }
 }
@@ -88,6 +89,14 @@ fn eval_integer_infix_expression(operator: &str, l: i64, r: i64) -> Object {
         "/" => Object::Integer(l / r),
         ">" => Object::Boolean(l > r),
         "<" => Object::Boolean(l < r),
+        "==" => Object::Boolean(l == r),
+        "!=" => Object::Boolean(l != r),
+        _ => Object::Null,
+    }
+}
+
+fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Object {
+    match operator {
         "==" => Object::Boolean(l == r),
         "!=" => Object::Boolean(l != r),
         _ => Object::Null,
@@ -167,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_eval_boolean_expression() -> Result<(), EvaluationError> {
-        let tests: [(&str, bool); 10] = [
+        let tests: [(&str, bool); 19] = [
             ("true", true),
             ("true", true),
             ("1 < 2", true),
@@ -178,6 +187,15 @@ mod tests {
             ("1 != 1", false),
             ("1 == 2", false),
             ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
         ];
 
         for (input, expected) in tests {
