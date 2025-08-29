@@ -34,6 +34,9 @@ fn eval_expression(expression: &Expression) -> Result<Object, EvaluationError> {
         Expression::IntegerLiteral(integer_literal_expression) => {
             Ok(Object::Integer(integer_literal_expression.value))
         }
+        Expression::Boolean(boolean_expression) => {
+            Ok(Object::Boolean(boolean_expression.value))
+        }
         _ => Err(EvaluationError::GenericError),
     }
 }
@@ -69,6 +72,18 @@ mod tests {
         }
     }
 
+    fn test_boolean_object(object: Object, expected: bool) {
+        if let Object::Boolean(boolean_object) = object {
+            assert_eq!(
+                boolean_object, expected,
+                "value {} is not expected: {}",
+                boolean_object, expected
+            )
+        } else {
+            panic!("object is not boolean object")
+        }
+    }
+
     // Tests
 
     #[test]
@@ -78,6 +93,19 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input)?;
             test_integer_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_eval_boolean_expression() -> Result<(), EvaluationError> {
+        let tests: [(&str, bool); 2] = [("true", true), ("true", true)];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input)?;
+            test_boolean_object(evaluated, expected);
         }
 
         Ok(())
