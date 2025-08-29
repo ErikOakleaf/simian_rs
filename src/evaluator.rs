@@ -25,7 +25,7 @@ fn eval_statement(statement: &Statement) -> Object {
         Statement::Expression(expression_statement) => {
             eval_expression(&expression_statement.expression)
         }
-        _ => Object::Null 
+        _ => Object::Null,
     }
 }
 
@@ -40,34 +40,33 @@ fn eval_expression(expression: &Expression) -> Object {
             eval_prefix_expression(&prefix_expression.token.literal, &right)
         }
 
-
-        _ =>  Object::Null
+        _ => Object::Null,
     }
 }
 
 fn eval_prefix_expression(operator: &str, right: &Object) -> Object {
     match operator {
-        "!" => {
-            eval_bang_expression(right)
-        }
-        _ => {
-            Object::Null
-        }
+        "!" => eval_bang_operator_expression(right),
+        "-" => eval_minus_prefix_operator_expression(right),
+        _ => Object::Null,
     }
 }
 
-fn eval_bang_expression(right: &Object) -> Object {
+fn eval_bang_operator_expression(right: &Object) -> Object {
     match right {
-        Object::Boolean(bool) => {
-           Object::Boolean(!bool)
-        }
-        Object::Null => {
-            Object::Boolean(true)
-        }
-        _ => Object::Boolean(false)
+        Object::Boolean(bool) => Object::Boolean(!bool),
+        Object::Null => Object::Boolean(true),
+        _ => Object::Boolean(false),
     }
 }
 
+fn eval_minus_prefix_operator_expression(right: &Object) -> Object {
+    if let Object::Integer(integer) = right {
+        Object::Integer(-integer)
+    } else {
+        Object::Null
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -116,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_eval_integer_expression() -> Result<(), EvaluationError> {
-        let tests: [(&str, i64); 2] = [("5", 5), ("10", 10)];
+        let tests: [(&str, i64); 4] = [("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
