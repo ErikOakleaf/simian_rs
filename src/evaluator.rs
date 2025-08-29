@@ -144,6 +144,10 @@ mod tests {
         }
     }
 
+    fn test_null_object(object: &Object) {
+        assert!(matches!(object, Object::Null), "Object is not Null")
+    }
+
     // Tests
 
     #[test]
@@ -222,6 +226,31 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input);
             test_boolean_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_if_else_expression() -> Result<(), EvaluationError> {
+        let tests: [(&str, Object); 7] = [
+            ("if (true) { 10 }", Object::Integer(10)),
+            ("if (false) { 10 }", Object::Null),
+            ("if (1) { 10 }", Object::Integer(10)),
+            ("if (1 < 2) { 10 }", Object::Integer(10)),
+            ("if (1 > 2) { 10 }", Object::Null),
+            ("if (1 > 2) { 10 } else { 20 }", Object::Integer(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Object::Integer(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            if let Object::Integer(integer) = expected {
+                test_integer_object(evaluated, integer);
+            } else {
+                test_null_object(&evaluated);
+            }
         }
 
         Ok(())
