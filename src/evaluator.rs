@@ -1,19 +1,41 @@
-use crate::ast::Program;
+use crate::ast::{Expression, Program, Statement};
 use crate::lexer::Lexer;
 use crate::object::Object;
 use crate::parser::{ParseError, Parser};
 
 #[derive(Debug)]
-enum EvaluationError {
+pub enum EvaluationError {
     GenericError,
 }
 
 pub fn eval_program(program: &Program) -> Result<Object, EvaluationError> {
+    eval_statements(&program.statements)
+}
+
+fn eval_statements(statements: &[Statement]) -> Result<Object, EvaluationError> {
     let mut result = Object::Null;
-
-    // itterate and match all the statements here
-
+    for statement in statements {
+        result = eval_statement(&statement)?;
+    }
     Ok(result)
+}
+
+fn eval_statement(statement: &Statement) -> Result<Object, EvaluationError> {
+    match statement {
+        Statement::Expression(expression_statement) => {
+            eval_expression(&expression_statement.expression)
+        }
+        _ => Err(EvaluationError::GenericError),
+    }
+}
+
+fn eval_expression(expression: &Expression) -> Result<Object, EvaluationError> {
+    match expression {
+        Expression::IntegerLiteral(integer_literal_expression) => {
+            Ok(Object::Integer(integer_literal_expression.value))
+        }
+        _ => Err(EvaluationError::GenericError),
+    }
 }
 
 #[cfg(test)]
