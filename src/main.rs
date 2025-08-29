@@ -8,7 +8,7 @@ mod parser;
 mod object;
 mod evaluator;
 
-fn main() -> Result<(), ParseError>{
+fn main() -> Result<(), String>{
     repl::start()?;
     Ok(())
 }

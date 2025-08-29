@@ -4,8 +4,9 @@ use crate::parser::{self, ParseError, Parser};
 use crate::token::{Token, TokenType};
 use std::io;
 use std::io::Write;
+use crate::evaluator::eval_program;
 
-pub fn start() -> Result<(), ParseError> {
+pub fn start() -> Result<(), String> {
     let stdin = io::stdin();
 
     loop {
@@ -15,8 +16,9 @@ pub fn start() -> Result<(), ParseError> {
         stdin.read_line(&mut buffer).unwrap();
         let mut lexer = Lexer::new(&buffer);
         let mut parser = Parser::new(&mut lexer);
-        let program = parser.parse_program()?;
+        let program = parser.parse_program().expect("parse error");
+        let evaluated = eval_program(&program).expect("evaluation error");
 
-        println!("{}", program);
+        println!("{}", evaluated);
     }
 }
