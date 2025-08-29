@@ -8,45 +8,69 @@ pub enum EvaluationError {
     GenericError,
 }
 
-pub fn eval_program(program: &Program) -> Object {
-    eval_statements(&program.statements)
+pub enum EvaluationResult {
+    Value(Object),
+    Return(Object),
 }
 
-fn eval_statements(statements: &[Statement]) -> Object {
-    let mut result = Object::Null;
+pub fn eval_program(program: &Program) -> Object {
+    match eval_statements(&program.statements) {
+        EvaluationResult::Value(object) => object,
+        EvaluationResult::Return(object) => object,
+    }
+}
+
+fn eval_statements(statements: &[Statement]) -> EvaluationResult {
+    let mut result = EvaluationResult::Value(Object::Null);
     for statement in statements {
         result = eval_statement(&statement);
+
+        if let EvaluationResult::Return(_) = result {
+            return result;
+        }
     }
     result
 }
 
-fn eval_statement(statement: &Statement) -> Object {
+fn eval_statement(statement: &Statement) -> EvaluationResult {
     match statement {
         Statement::Expression(expression_statement) => {
-            eval_expression(&expression_statement.expression)
+            eval_expression(expression_statement.expression.as_ref())
         }
-        _ => Object::Null,
+        Statement::Return(return_statement) => {
+            EvaluationResult::Return(unwrap_object(eval_expression(return_statement.return_value.as_ref())))
+        }
+        _ => EvaluationResult::Value(Object::Null),
     }
 }
 
-fn eval_expression(expression: &Expression) -> Object {
+fn eval_expression(expression: &Expression) -> EvaluationResult {
     match expression {
         Expression::IntegerLiteral(integer_literal_expression) => {
-            Object::Integer(integer_literal_expression.value)
+            EvaluationResult::Value(Object::Integer(integer_literal_expression.value))
         }
-        Expression::Boolean(boolean_expression) => Object::Boolean(boolean_expression.value),
+        Expression::Boolean(boolean_expression) => {
+            EvaluationResult::Value(Object::Boolean(boolean_expression.value))
+        }
         Expression::Prefix(prefix_expression) => {
-            let right = eval_expression(&prefix_expression.right);
-            eval_prefix_expression(&prefix_expression.token.literal, &right)
+            let right = unwrap_object(eval_expression(&prefix_expression.right));
+            EvaluationResult::Value(eval_prefix_expression(
+                &prefix_expression.token.literal,
+                &right,
+            ))
         }
         Expression::Infix(infix_expression) => {
-            let left = eval_expression(&infix_expression.left);
-            let right = eval_expression(&infix_expression.right);
-            eval_infix_expression(&infix_expression.token.literal, &left, &right)
+            let left = unwrap_object(eval_expression(&infix_expression.left));
+            let right = unwrap_object(eval_expression(&infix_expression.right));
+            EvaluationResult::Value(eval_infix_expression(
+                &infix_expression.token.literal,
+                &left,
+                &right,
+            ))
         }
         Expression::If(if_expression) => eval_if_expression(&if_expression),
 
-        _ => Object::Null,
+        _ => EvaluationResult::Value(Object::Null),
     }
 }
 
@@ -104,16 +128,15 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Object {
     }
 }
 
-fn eval_if_expression(if_expression: &IfExpression) -> Object {
-    let condition = eval_expression(if_expression.condition.as_ref());
+fn eval_if_expression(if_expression: &IfExpression) -> EvaluationResult {
+    let condition = unwrap_object(eval_expression(if_expression.condition.as_ref()));
     if is_truthy(&condition) {
         eval_statements(&if_expression.consequence.statements)
     } else if let Some(alternative) = &if_expression.alternative {
         eval_statements(&alternative.statements)
     } else {
-        Object::Null
+        EvaluationResult::Value(Object::Null)
     }
-
 }
 
 // Helpers
@@ -123,6 +146,13 @@ fn is_truthy(object: &Object) -> bool {
         Object::Boolean(boolean) => *boolean,
         Object::Null => false,
         _ => true,
+    }
+}
+
+fn unwrap_object(evaluation_result: EvaluationResult) -> Object {
+    match evaluation_result {
+        EvaluationResult::Value(object) => object,
+        EvaluationResult::Return(object) => object,
     }
 }
 
@@ -170,7 +200,7 @@ mod tests {
     // Tests
 
     #[test]
-    fn test_eval_integer_expression() -> Result<(), EvaluationError> {
+    fn test_eval_integer_expression() -> Result<(), String> {
         let tests: [(&str, i64); 15] = [
             ("5", 5),
             ("10", 10),
@@ -198,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_boolean_expression() -> Result<(), EvaluationError> {
+    fn test_eval_boolean_expression() -> Result<(), String> {
         let tests: [(&str, bool); 19] = [
             ("true", true),
             ("true", true),
@@ -230,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bang_operator() -> Result<(), EvaluationError> {
+    fn test_bang_operator() -> Result<(), String> {
         let tests: [(&str, bool); 8] = [
             ("true", true),
             ("true", true),
@@ -251,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_if_else_expression() -> Result<(), EvaluationError> {
+    fn test_if_else_expression() -> Result<(), String> {
         let tests: [(&str, Object); 7] = [
             ("if (true) { 10 }", Object::Integer(10)),
             ("if (false) { 10 }", Object::Null),
@@ -269,6 +299,34 @@ mod tests {
             } else {
                 assert!(matches!(evaluated, Object::Null), "Object is not Null");
             }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_return_statements() -> Result<(), String> {
+        let tests: [(&str, i64); 5] = [
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+            (
+                "
+                if (10 > 1) {
+                    if (10 > 1) {
+                        return 10;
+                    }
+                    return 1;
+                }
+",
+                10,
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_integer_object(evaluated, expected);
         }
 
         Ok(())
