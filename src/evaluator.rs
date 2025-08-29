@@ -75,10 +75,8 @@ fn eval_minus_prefix_operator_expression(right: &Object) -> Object {
 
 fn eval_infix_expression(operator: &str, left: &Object, right: &Object) -> Object {
     match (left, right) {
-        (Object::Integer(l), Object::Integer(r)) => {
-            eval_integer_infix_expression(operator, *l, *r)
-        }
-        _ => Object::Null
+        (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
+        _ => Object::Null,
     }
 }
 
@@ -88,7 +86,11 @@ fn eval_integer_infix_expression(operator: &str, l: i64, r: i64) -> Object {
         "-" => Object::Integer(l - r),
         "*" => Object::Integer(l * r),
         "/" => Object::Integer(l / r),
-        _ => Object::Null
+        ">" => Object::Boolean(l > r),
+        "<" => Object::Boolean(l < r),
+        "==" => Object::Boolean(l == r),
+        "!=" => Object::Boolean(l != r),
+        _ => Object::Null,
     }
 }
 
@@ -165,7 +167,18 @@ mod tests {
 
     #[test]
     fn test_eval_boolean_expression() -> Result<(), EvaluationError> {
-        let tests: [(&str, bool); 2] = [("true", true), ("true", true)];
+        let tests: [(&str, bool); 10] = [
+            ("true", true),
+            ("true", true),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
