@@ -13,6 +13,15 @@ pub enum EvaluationResult {
     Return(Object),
 }
 
+impl EvaluationResult {
+    pub fn unwrap_object(self) -> Object {
+        match self {
+            EvaluationResult::Value(object) => object,
+            EvaluationResult::Return(object) => object,
+        }
+    }
+}
+
 pub fn eval_program(program: &Program) -> Object {
     match eval_statements(&program.statements) {
         EvaluationResult::Value(object) => object,
@@ -21,7 +30,7 @@ pub fn eval_program(program: &Program) -> Object {
 }
 
 fn eval_statements(statements: &[Statement]) -> EvaluationResult {
-    let mut result = EvaluationResult::Value(Object::Null);
+    let mut result = Object::Null.into_value();
     for statement in statements {
         result = eval_statement(&statement);
 
@@ -38,39 +47,34 @@ fn eval_statement(statement: &Statement) -> EvaluationResult {
             eval_expression(expression_statement.expression.as_ref())
         }
         Statement::Return(return_statement) => {
-            EvaluationResult::Return(unwrap_object(eval_expression(return_statement.return_value.as_ref())))
+            eval_expression(return_statement.return_value.as_ref())
+                .unwrap_object()
+                .into_return()
         }
-        _ => EvaluationResult::Value(Object::Null),
+        _ => Object::Null.into_value(),
     }
 }
 
 fn eval_expression(expression: &Expression) -> EvaluationResult {
     match expression {
         Expression::IntegerLiteral(integer_literal_expression) => {
-            EvaluationResult::Value(Object::Integer(integer_literal_expression.value))
+            Object::Integer(integer_literal_expression.value).into_value()
         }
         Expression::Boolean(boolean_expression) => {
-            EvaluationResult::Value(Object::Boolean(boolean_expression.value))
+            Object::Boolean(boolean_expression.value).into_value()
         }
         Expression::Prefix(prefix_expression) => {
-            let right = unwrap_object(eval_expression(&prefix_expression.right));
-            EvaluationResult::Value(eval_prefix_expression(
-                &prefix_expression.token.literal,
-                &right,
-            ))
+            let right = eval_expression(&prefix_expression.right).unwrap_object();
+            eval_prefix_expression(&prefix_expression.token.literal, &right).into_value()
         }
         Expression::Infix(infix_expression) => {
-            let left = unwrap_object(eval_expression(&infix_expression.left));
-            let right = unwrap_object(eval_expression(&infix_expression.right));
-            EvaluationResult::Value(eval_infix_expression(
-                &infix_expression.token.literal,
-                &left,
-                &right,
-            ))
+            let left = eval_expression(&infix_expression.left).unwrap_object();
+            let right = eval_expression(&infix_expression.right).unwrap_object();
+            eval_infix_expression(&infix_expression.token.literal, &left, &right).into_value()
         }
         Expression::If(if_expression) => eval_if_expression(&if_expression),
 
-        _ => EvaluationResult::Value(Object::Null),
+        _ => Object::Null.into_value(),
     }
 }
 
@@ -129,7 +133,8 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Object {
 }
 
 fn eval_if_expression(if_expression: &IfExpression) -> EvaluationResult {
-    let condition = unwrap_object(eval_expression(if_expression.condition.as_ref()));
+    let condition = eval_expression(if_expression.condition.as_ref()).unwrap_object();
+
     if is_truthy(&condition) {
         eval_statements(&if_expression.consequence.statements)
     } else if let Some(alternative) = &if_expression.alternative {
@@ -146,13 +151,6 @@ fn is_truthy(object: &Object) -> bool {
         Object::Boolean(boolean) => *boolean,
         Object::Null => false,
         _ => true,
-    }
-}
-
-fn unwrap_object(evaluation_result: EvaluationResult) -> Object {
-    match evaluation_result {
-        EvaluationResult::Value(object) => object,
-        EvaluationResult::Return(object) => object,
     }
 }
 
