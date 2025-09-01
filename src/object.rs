@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::evaluator::EvaluationResult;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),

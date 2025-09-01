@@ -17,7 +17,7 @@ pub fn start() -> Result<(), String> {
         let mut lexer = Lexer::new(&buffer);
         let mut parser = Parser::new(&mut lexer);
         let program = parser.parse_program().expect("parse error");
-        let evaluated = eval_program(&program);
+        let evaluated = eval_program(&program).expect("evaluation error");
 
         println!("{}", evaluated);
     }
