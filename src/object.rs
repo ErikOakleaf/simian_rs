@@ -1,6 +1,7 @@
 use std::fmt;
+use std::collections::HashMap;
 
-use crate::evaluator::EvaluationResult;
+use crate::evaluator::{EvaluationError, EvaluationResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Object {
@@ -32,5 +33,23 @@ impl fmt::Display for Object {
                 write!(f, "null")
             }
         }
+    }
+}
+
+pub struct Enviroment {
+    store: HashMap<String, Object>,
+}
+
+impl Enviroment {
+    pub fn new() -> Self {
+        Enviroment{ store: HashMap::<String, Object>::new() }
+    }
+
+    pub fn get(&self, name: &str) -> Result<Object, EvaluationError> {
+        self.store.get(name).cloned().ok_or(EvaluationError::UnknownIdentifier(name.to_string()))
+    }
+
+    pub fn set(&mut self, name: &str, object: Object) {
+        self.store.insert(name.to_string(), object);
     }
 }

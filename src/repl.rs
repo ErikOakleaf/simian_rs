@@ -1,13 +1,14 @@
 use crate::ast::Program;
+use crate::evaluator::eval_program;
 use crate::lexer::Lexer;
-use crate::parser::{self, ParseError, Parser};
-use crate::token::{Token, TokenType};
+use crate::object::Enviroment;
+use crate::parser::Parser;
 use std::io;
 use std::io::Write;
-use crate::evaluator::eval_program;
 
 pub fn start() -> Result<(), String> {
     let stdin = io::stdin();
+    let mut enviroment = Enviroment::new();
 
     loop {
         print!(">> ");
@@ -16,8 +17,8 @@ pub fn start() -> Result<(), String> {
         stdin.read_line(&mut buffer).unwrap();
         let mut lexer = Lexer::new(&buffer);
         let mut parser = Parser::new(&mut lexer);
-        let program = parser.parse_program().expect("parse error");
-        let evaluated = eval_program(&program).expect("evaluation error");
+        let program = parser.parse_program().map_err(|e| format!("{:?}", e))?;
+        let evaluated = eval_program(&program, &mut enviroment).map_err(|e| format!("{:?}", e))?;
 
         println!("{}", evaluated);
     }
