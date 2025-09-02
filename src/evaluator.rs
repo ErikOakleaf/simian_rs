@@ -1,7 +1,10 @@
-use crate::ast::{Expression, IdentifierExpression, IfExpression, Program, Statement};
-use crate::object::{Enviroment, Object};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-#[derive(Debug, PartialEq, Eq)]
+use crate::ast::{Expression, IdentifierExpression, IfExpression, Program, Statement};
+use crate::object::{Enviroment, Function, Object};
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum EvaluationError {
     TypeMismatch {
         operator: String,
@@ -32,7 +35,7 @@ impl EvaluationResult {
 
 pub fn eval_program(
     program: &Program,
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<Object, EvaluationError> {
     match eval_statements(&program.statements, enviroment)? {
         EvaluationResult::Value(object) => Ok(object),
@@ -42,7 +45,7 @@ pub fn eval_program(
 
 fn eval_statements(
     statements: &[Statement],
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<EvaluationResult, EvaluationError> {
     let mut result = Object::Null.into_value();
     for statement in statements {
@@ -57,7 +60,7 @@ fn eval_statements(
 
 fn eval_statement(
     statement: &Statement,
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<EvaluationResult, EvaluationError> {
     match statement {
         Statement::Expression(expression_statement) => {
@@ -72,7 +75,7 @@ fn eval_statement(
         Statement::Let(let_statement) => {
             let value = eval_expression(let_statement.value.as_ref(), enviroment)?.unwrap_object();
             let name = let_statement.name.token.literal.clone();
-            enviroment.set(&name, value);
+            enviroment.borrow_mut().set(&name, value);
             Ok(Object::Null.into_value())
         }
     }
@@ -80,7 +83,7 @@ fn eval_statement(
 
 fn eval_expression(
     expression: &Expression,
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<EvaluationResult, EvaluationError> {
     let result = match expression {
         Expression::IntegerLiteral(integer_literal_expression) => {
@@ -88,7 +91,8 @@ fn eval_expression(
         }
         Expression::Boolean(boolean_expression) => Object::Boolean(boolean_expression.value),
         Expression::Identifier(identifier_expression) => {
-            eval_identifier_expression(identifier_expression, enviroment)?
+            let borrow = enviroment.borrow();
+            eval_identifier_expression(identifier_expression, &borrow)?
         }
         Expression::Prefix(prefix_expression) => {
             let right = eval_expression(&prefix_expression.right, enviroment)?.unwrap_object();
@@ -102,6 +106,17 @@ fn eval_expression(
             eval_infix_expression(&infix_expression.token.literal, &left, &right, enviroment)?
         }
         Expression::If(if_expression) => return eval_if_expression(&if_expression, enviroment),
+        Expression::Function(function_expression) => {
+            let parameters = function_expression.parameters.clone();
+            let body = function_expression.body.clone();
+            let function = Function {
+                parameters: parameters,
+                body: body,
+                enviroment: Rc::clone(enviroment),
+            };
+
+            Object::Function(function)
+        }
 
         _ => Object::Null,
     };
@@ -109,10 +124,7 @@ fn eval_expression(
     Ok(result.into_value())
 }
 
-fn eval_prefix_expression(
-    operator: &str,
-    right: &Object,
-) -> Result<Object, EvaluationError> {
+fn eval_prefix_expression(operator: &str, right: &Object) -> Result<Object, EvaluationError> {
     match operator {
         "!" => Ok(eval_bang_operator_expression(right)),
         "-" => eval_minus_prefix_operator_expression(right),
@@ -143,7 +155,7 @@ fn eval_infix_expression(
     operator: &str,
     left: &Object,
     right: &Object,
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<Object, EvaluationError> {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
@@ -192,7 +204,7 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Result<Object
 
 fn eval_if_expression(
     if_expression: &IfExpression,
-    enviroment: &mut Enviroment,
+    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<EvaluationResult, EvaluationError> {
     let condition = eval_expression(if_expression.condition.as_ref(), enviroment)?.unwrap_object();
 
@@ -207,7 +219,7 @@ fn eval_if_expression(
 
 fn eval_identifier_expression(
     identifier_expression: &IdentifierExpression,
-    enviroment: &mut Enviroment,
+    enviroment: &Enviroment,
 ) -> Result<Object, EvaluationError> {
     enviroment.get(&identifier_expression.token.literal)
 }
@@ -238,8 +250,8 @@ mod tests {
 
     fn test_eval(input: &str) -> Result<Object, EvaluationError> {
         let program = parse_input(input).expect("Parsing failed");
-        let mut enviroment = Enviroment::new();
-        eval_program(&program, &mut enviroment)
+        let enviroment = Rc::new(RefCell::new(Enviroment::new())); 
+        eval_program(&program, &enviroment)
     }
 
     fn test_integer_object(object: Object, expected: i64) {
@@ -269,7 +281,7 @@ mod tests {
     // Tests
 
     #[test]
-    fn test_eval_integer_expression() -> Result<(), String> {
+    fn test_eval_integer_expression() -> Result<(), EvaluationError> {
         let tests: [(&str, i64); 15] = [
             ("5", 5),
             ("10", 10),
@@ -289,7 +301,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input).unwrap();
+            let evaluated = test_eval(input)?;
             test_integer_object(evaluated, expected);
         }
 
@@ -495,6 +507,40 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input).unwrap();
             test_integer_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_function_object() -> Result<(), String> {
+        let input = "fn(x) { x + 2 };";
+        let evaluated = test_eval(input).unwrap();
+
+        if let Object::Function(function) = evaluated {
+            assert_eq!(
+                function.parameters.len(),
+                1,
+                "function does not have the right amount of parameters got {} expected {}",
+                function.parameters.len(),
+                1
+            );
+            assert_eq!(
+                format!("{}", function.parameters[0]),
+                "x",
+                "function does not have the correct parameters got {} expected {}",
+                function.parameters[0],
+                "x",
+            );
+            assert_eq!(
+                format!("{}", function.body),
+                "(x + 2)",
+                "function does not have the correct body got {} expected {}",
+                function.body,
+                "(x + 2)",
+            );
+        } else {
+            panic!("Object is not function object")
         }
 
         Ok(())

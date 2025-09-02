@@ -1,12 +1,17 @@
-use std::fmt;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::{fmt, rc::Rc};
 
-use crate::evaluator::{EvaluationError, EvaluationResult};
+use crate::{
+    ast::{BlockStatement, IdentifierExpression},
+    evaluator::{EvaluationError, EvaluationResult},
+};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    Function(Function),
     Null,
 }
 
@@ -29,6 +34,9 @@ impl fmt::Display for Object {
             Object::Boolean(value) => {
                 write!(f, "{}", value)
             }
+            Object::Function(value) => {
+                write!(f, "{}", value)
+            }
             Object::Null => {
                 write!(f, "null")
             }
@@ -36,20 +44,48 @@ impl fmt::Display for Object {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Enviroment {
     store: HashMap<String, Object>,
 }
 
 impl Enviroment {
     pub fn new() -> Self {
-        Enviroment{ store: HashMap::<String, Object>::new() }
+        Enviroment {
+            store: HashMap::<String, Object>::new(),
+        }
     }
 
     pub fn get(&self, name: &str) -> Result<Object, EvaluationError> {
-        self.store.get(name).cloned().ok_or(EvaluationError::UnknownIdentifier(name.to_string()))
+        self.store
+            .get(name)
+            .cloned()
+            .ok_or(EvaluationError::UnknownIdentifier(name.to_string()))
     }
 
     pub fn set(&mut self, name: &str, object: Object) {
         self.store.insert(name.to_string(), object);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub parameters: Vec<IdentifierExpression>,
+    pub body: BlockStatement,
+    pub enviroment: Rc<RefCell<Enviroment>>,
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        // Only compare parameters and body, ignore environment
+        self.parameters == other.parameters && self.body == other.body
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
+
+        write!(f, "fn({}) {{\n{}\n}}", params.join(", "), self.body)
     }
 }

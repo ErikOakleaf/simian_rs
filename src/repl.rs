@@ -3,12 +3,14 @@ use crate::evaluator::eval_program;
 use crate::lexer::Lexer;
 use crate::object::Enviroment;
 use crate::parser::Parser;
+use std::cell::RefCell;
 use std::io;
 use std::io::Write;
+use std::rc::Rc;
 
 pub fn start() -> Result<(), String> {
     let stdin = io::stdin();
-    let mut enviroment = Enviroment::new();
+    let enviroment = Rc::new(RefCell::new(Enviroment::new()));
 
     loop {
         print!(">> ");
@@ -18,7 +20,7 @@ pub fn start() -> Result<(), String> {
         let mut lexer = Lexer::new(&buffer);
         let mut parser = Parser::new(&mut lexer);
         let program = parser.parse_program().map_err(|e| format!("{:?}", e))?;
-        let evaluated = eval_program(&program, &mut enviroment).map_err(|e| format!("{:?}", e))?;
+        let evaluated = eval_program(&program, &enviroment).map_err(|e| format!("{:?}", e))?;
 
         println!("{}", evaluated);
     }
