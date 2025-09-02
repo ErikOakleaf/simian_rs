@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::ast::{Expression, IdentifierExpression, IfExpression, Program, Statement};
+use crate::ast::{
+    Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
+};
 use crate::object::{Enviroment, Function, Object};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -107,17 +109,30 @@ fn eval_expression(
         }
         Expression::If(if_expression) => return eval_if_expression(&if_expression, enviroment),
         Expression::Function(function_expression) => {
-            let parameters = function_expression.parameters.clone();
-            let body = function_expression.body.clone();
-            let function = Function {
-                parameters: parameters,
-                body: body,
-                enviroment: Rc::clone(enviroment),
-            };
-
+            let function = eval_function_expression(function_expression, &enviroment);
             Object::Function(function)
         }
+        Expression::Call(call_expression) => {
+            let function_object =
+                eval_expression(call_expression.function.as_ref(), enviroment)?.unwrap_object();
+            let arguments_result: Result<Vec<Object>, EvaluationError> = call_expression
+                .arguments
+                .iter()
+                .map(|arg| eval_expression(arg, enviroment).map(|res| res.unwrap_object()))
+                .collect();
+            let arguments = arguments_result?;
 
+            match function_object {
+                Object::Function(function) => apply_function(&function, arguments)?,
+                other => {
+                    return Err(EvaluationError::TypeMismatch {
+                        operator: "call".to_string(),
+                        left: other,
+                        right: Object::Null,
+                    });
+                }
+            }
+        }
         _ => Object::Null,
     };
 
@@ -224,6 +239,27 @@ fn eval_identifier_expression(
     enviroment.get(&identifier_expression.token.literal)
 }
 
+fn eval_function_expression(
+    function_expression: &FunctionLiteralExpression,
+    enviroment: &Rc<RefCell<Enviroment>>,
+) -> Function {
+    let parameters = function_expression.parameters.clone();
+    let body = function_expression.body.clone();
+    Function {
+        parameters: parameters,
+        body: body,
+        enviroment: Rc::clone(enviroment),
+    }
+}
+
+// ----------
+
+fn apply_function(function: &Function, arguments: Vec<Object>) -> Result<Object, EvaluationError> {
+    let extended_enviroment = extend_function_enviroment(function, arguments);
+    let evaluated = eval_statements(&function.body.statements, &extended_enviroment)?;
+    Ok(evaluated.unwrap_object())
+}
+
 // Helpers
 
 fn is_truthy(object: &Object) -> bool {
@@ -232,6 +268,23 @@ fn is_truthy(object: &Object) -> bool {
         Object::Null => false,
         _ => true,
     }
+}
+
+fn extend_function_enviroment(
+    function: &Function,
+    arguments: Vec<Object>,
+) -> Rc<RefCell<Enviroment>> {
+    let extended_enviroment = Rc::new(RefCell::new(Enviroment::new_enclosed_enviroment(
+        Rc::clone(&function.enviroment),
+    )));
+
+    for (parameter, argument) in function.parameters.iter().zip(arguments.into_iter()) {
+        extended_enviroment
+            .borrow_mut()
+            .set(&parameter.token.literal, argument);
+    }
+
+    extended_enviroment
 }
 
 #[cfg(test)]
@@ -250,7 +303,7 @@ mod tests {
 
     fn test_eval(input: &str) -> Result<Object, EvaluationError> {
         let program = parse_input(input).expect("Parsing failed");
-        let enviroment = Rc::new(RefCell::new(Enviroment::new())); 
+        let enviroment = Rc::new(RefCell::new(Enviroment::new()));
         eval_program(&program, &enviroment)
     }
 
@@ -542,6 +595,41 @@ mod tests {
         } else {
             panic!("Object is not function object")
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_function_application() -> Result<(), String> {
+        let tests: [(&str, i64); 6] = [
+            ("let identity = fn(x) { x; }; identity(5);", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).unwrap();
+            test_integer_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_closures() ->Result<(), String> {
+        let input = "
+            let newAdder = fn(x) {
+                fn(y) { x + y };
+            };
+
+            let addTwo = newAdder(2);
+            addTwo(2);";
+
+        let evaluated = test_eval(input).unwrap();
+        test_integer_object(evaluated, 4);
 
         Ok(())
     }

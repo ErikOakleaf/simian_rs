@@ -47,20 +47,34 @@ impl fmt::Display for Object {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Enviroment {
     store: HashMap<String, Object>,
+    outer: Option<Rc<RefCell<Enviroment>>>,
 }
 
 impl Enviroment {
     pub fn new() -> Self {
         Enviroment {
             store: HashMap::<String, Object>::new(),
+            outer: None,
+        }
+    }
+
+    pub fn new_enclosed_enviroment(outer: Rc<RefCell<Enviroment>>) -> Self {
+        Enviroment {
+            store: HashMap::<String, Object>::new(),
+            outer: Some(outer),
         }
     }
 
     pub fn get(&self, name: &str) -> Result<Object, EvaluationError> {
-        self.store
-            .get(name)
-            .cloned()
-            .ok_or(EvaluationError::UnknownIdentifier(name.to_string()))
+        if let Some(object) = self.store.get(name) {
+            return Ok(object.clone());
+        }
+
+        if let Some(outer) = &self.outer {
+            return outer.borrow().get(name);
+        }
+
+        Err(EvaluationError::UnknownIdentifier(name.to_string()))
     }
 
     pub fn set(&mut self, name: &str, object: Object) {
