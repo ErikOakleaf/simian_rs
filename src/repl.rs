@@ -1,7 +1,7 @@
 use crate::ast::Program;
 use crate::evaluator::eval_program;
 use crate::lexer::Lexer;
-use crate::object::Enviroment;
+use crate::object::{Enviroment, Object};
 use crate::parser::Parser;
 use std::cell::RefCell;
 use std::io;
@@ -22,6 +22,11 @@ pub fn start() -> Result<(), String> {
         let program = parser.parse_program().map_err(|e| format!("{:?}", e))?;
         let evaluated = eval_program(&program, &enviroment).map_err(|e| format!("{:?}", e))?;
 
-        println!("{}", evaluated);
+        match evaluated {
+            Object::Void => {}
+            _ => {
+                println!("{}", evaluated);
+            }
+        }
     }
 }

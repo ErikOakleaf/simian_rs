@@ -13,6 +13,7 @@ pub enum Object {
     Boolean(bool),
     Function(Function),
     Null,
+    Void,
 }
 
 impl Object {
@@ -39,6 +40,9 @@ impl fmt::Display for Object {
             }
             Object::Null => {
                 write!(f, "null")
+            }
+            Object::Void => {
+                write!(f, "")
             }
         }
     }

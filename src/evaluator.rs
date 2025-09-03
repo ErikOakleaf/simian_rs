@@ -78,7 +78,7 @@ fn eval_statement(
             let value = eval_expression(let_statement.value.as_ref(), enviroment)?.unwrap_object();
             let name = let_statement.name.token.literal.clone();
             enviroment.borrow_mut().set(&name, value);
-            Ok(Object::Null.into_value())
+            Ok(Object::Void.into_value())
         }
     }
 }
