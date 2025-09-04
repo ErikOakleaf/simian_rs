@@ -89,6 +89,7 @@ impl<'a> Lexer<'a> {
                 TokenType::RBrace,
                 &self.input[self.position..self.position + 1],
             ),
+            b'"' => Token::new(TokenType::String, self.read_string()),
             0 => Token::new(TokenType::EOF, ""),
             _ => {
                 if Self::is_letter(self.char) {
@@ -162,6 +163,18 @@ impl<'a> Lexer<'a> {
             self.read_char();
         }
     }
+
+    fn read_string(&mut self) -> &str {
+        let position = self.position + 1;
+        loop {
+            self.read_char();
+            if self.char == b'"' || self.char == b'0' {
+                break;
+            }
+        }
+
+        &self.input[position..self.position]
+    }
 }
 
 #[cfg(test)]
@@ -189,6 +202,8 @@ mod tests {
 
                     10 == 10;
                     10 != 9;
+                    \"foobar\"
+                    \"foo bar\"
                     ";
 
         let mut lexer = Lexer::new(input);
@@ -267,6 +282,8 @@ mod tests {
             (TokenType::NotEQ, "!="),
             (TokenType::Int, "9"),
             (TokenType::Semicolon, ";"),
+            (TokenType::String, "foobar"),
+            (TokenType::String, "foo bar"),
             (TokenType::EOF, ""),
         ];
 

@@ -10,6 +10,7 @@ pub enum TokenType {
     RParen,
     LBrace,
     RBrace,
+    String,
 
     //Keywords
     Let,
