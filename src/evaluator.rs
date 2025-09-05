@@ -92,6 +92,7 @@ fn eval_expression(
             Object::Integer(integer_literal_expression.value)
         }
         Expression::Boolean(boolean_expression) => Object::Boolean(boolean_expression.value),
+        Expression::String(string_expression) => Object::String(string_expression.literal.clone()),
         Expression::Identifier(identifier_expression) => {
             let borrow = enviroment.borrow();
             eval_identifier_expression(identifier_expression, &borrow)?
@@ -105,7 +106,7 @@ fn eval_expression(
             let left = eval_expression(&infix_expression.left, enviroment)?.unwrap_object();
             let right = eval_expression(&infix_expression.right, enviroment)?.unwrap_object();
 
-            eval_infix_expression(&infix_expression.token.literal, &left, &right, enviroment)?
+            eval_infix_expression(&infix_expression.token.literal, &left, &right)?
         }
         Expression::If(if_expression) => return eval_if_expression(&if_expression, enviroment),
         Expression::Function(function_expression) => {
@@ -133,7 +134,6 @@ fn eval_expression(
                 }
             }
         }
-        _ => Object::Null,
     };
 
     Ok(result.into_value())
@@ -170,7 +170,6 @@ fn eval_infix_expression(
     operator: &str,
     left: &Object,
     right: &Object,
-    enviroment: &Rc<RefCell<Enviroment>>,
 ) -> Result<Object, EvaluationError> {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
@@ -630,6 +629,22 @@ mod tests {
 
         let evaluated = test_eval(input).unwrap();
         test_integer_object(evaluated, 4);
+
+        Ok(())
+    }
+
+    
+    #[test]
+    fn test_string_literal() ->Result<(), String> {
+        let input = "\"hello world\"";
+
+        let evaluated = test_eval(input).unwrap();
+
+        if let Object::String(string) = evaluated {
+            assert_eq!(string, "hello world", "expected \"hell world\" got \"{}\"", string); 
+        } else {
+            panic!("Object is not string object")
+        }
 
         Ok(())
     }

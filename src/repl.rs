@@ -1,4 +1,3 @@
-use crate::ast::Program;
 use crate::evaluator::eval_program;
 use crate::lexer::Lexer;
 use crate::object::{Enviroment, Object};

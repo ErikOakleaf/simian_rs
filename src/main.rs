@@ -1,5 +1,3 @@
-use crate::parser::ParseError;
-
 mod token;
 mod lexer;
 mod repl;

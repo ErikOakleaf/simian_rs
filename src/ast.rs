@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::token::Token;
 use std::fmt;
 
 macro_rules! impl_display_for_enum {
@@ -30,10 +30,6 @@ impl_display_for_enum!(
 );
 
 // Enums
-pub enum Node {
-    Statement(Statement),
-    Expression(Expression),
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -254,6 +250,7 @@ impl fmt::Display for Program {
 #[cfg(test)]
 mod tests {
     use crate::ast::Statement;
+    use crate::token::TokenType;
 
     use super::*;
 

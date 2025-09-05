@@ -20,6 +20,7 @@ pub enum Precedence {
     Call,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken(Token),

@@ -12,6 +12,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Function(Function),
+    String(String),
     Null,
     Void,
 }
@@ -36,6 +37,9 @@ impl fmt::Display for Object {
                 write!(f, "{}", value)
             }
             Object::Function(value) => {
+                write!(f, "{}", value)
+            }
+            Object::String(value) => {
                 write!(f, "{}", value)
             }
             Object::Null => {
