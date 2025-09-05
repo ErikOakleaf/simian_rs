@@ -13,6 +13,7 @@ pub enum Object {
     Boolean(bool),
     Function(Function),
     String(String),
+    Builtin(BuiltinFunction),
     Null,
     Void,
 }
@@ -40,6 +41,9 @@ impl fmt::Display for Object {
                 write!(f, "{}", value)
             }
             Object::String(value) => {
+                write!(f, "{}", value)
+            }
+            Object::Builtin(value) => {
                 write!(f, "{}", value)
             }
             Object::Null => {
@@ -73,16 +77,16 @@ impl Enviroment {
         }
     }
 
-    pub fn get(&self, name: &str) -> Result<Object, EvaluationError> {
+    pub fn get(&self, name: &str) -> Option<Object> {
         if let Some(object) = self.store.get(name) {
-            return Ok(object.clone());
+            return Some(object.clone());
         }
 
         if let Some(outer) = &self.outer {
             return outer.borrow().get(name);
         }
 
-        Err(EvaluationError::UnknownIdentifier(name.to_string()))
+        None
     }
 
     pub fn set(&mut self, name: &str, object: Object) {
@@ -109,5 +113,17 @@ impl fmt::Display for Function {
         let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
 
         write!(f, "fn({}) {{\n{}\n}}", params.join(", "), self.body)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BuiltinFunction {
+    pub name: &'static str,
+    pub func: fn(&[Object]) -> Result<Object, EvaluationError>
+}
+
+impl fmt::Display for BuiltinFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

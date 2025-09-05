@@ -1,10 +1,13 @@
+use once_cell::sync::Lazy;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::ast::{
     Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
 };
 use crate::object::{Enviroment, Function, Object};
+use crate::object::BuiltinFunction;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvaluationError {
@@ -19,6 +22,7 @@ pub enum EvaluationError {
         right: Object,
     },
     UnknownIdentifier(String),
+    Other(String),
 }
 
 pub enum EvaluationResult {
@@ -124,7 +128,8 @@ fn eval_expression(
             let arguments = arguments_result?;
 
             match function_object {
-                Object::Function(function) => apply_function(&function, arguments)?,
+                Object::Function(function) => apply_function(&function, &arguments)?,
+                Object::Builtin(builtin) => (builtin.func)(&arguments)?,
                 other => {
                     return Err(EvaluationError::TypeMismatch {
                         operator: "call".to_string(),
@@ -174,7 +179,9 @@ fn eval_infix_expression(
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
         (Object::Boolean(l), Object::Boolean(r)) => eval_bool_infix_expression(operator, *l, *r),
-        (Object::String(l), Object::String(r)) => eval_string_infix_expression(operator, l.clone(), r.clone()),
+        (Object::String(l), Object::String(r)) => {
+            eval_string_infix_expression(operator, l.clone(), r.clone())
+        }
         (l, r) => Err(EvaluationError::TypeMismatch {
             operator: operator.to_string(),
             left: l.clone(),
@@ -217,7 +224,11 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Result<Object
     }
 }
 
-fn eval_string_infix_expression(operator: &str, l: String, r: String) -> Result<Object, EvaluationError> {
+fn eval_string_infix_expression(
+    operator: &str,
+    l: String,
+    r: String,
+) -> Result<Object, EvaluationError> {
     match operator {
         "+" => Ok(Object::String(format!("{}{}", l, r).to_string())),
         other => Err(EvaluationError::UnknownOperator {
@@ -247,7 +258,15 @@ fn eval_identifier_expression(
     identifier_expression: &IdentifierExpression,
     enviroment: &Enviroment,
 ) -> Result<Object, EvaluationError> {
-    enviroment.get(&identifier_expression.token.literal)
+    if let Some(obj) = enviroment.get(&identifier_expression.token.literal) {
+        Ok(obj)
+    } else if let Some(builtin) = BUILTINS.get(identifier_expression.token.literal.as_str()) {
+        Ok(Object::Builtin(builtin.clone()))
+    } else {
+        Err(EvaluationError::UnknownIdentifier(
+            identifier_expression.token.literal.clone(),
+        ))
+    }
 }
 
 fn eval_function_expression(
@@ -265,7 +284,7 @@ fn eval_function_expression(
 
 // ----------
 
-fn apply_function(function: &Function, arguments: Vec<Object>) -> Result<Object, EvaluationError> {
+fn apply_function(function: &Function, arguments: &[Object]) -> Result<Object, EvaluationError> {
     let extended_enviroment = extend_function_enviroment(function, arguments);
     let evaluated = eval_statements(&function.body.statements, &extended_enviroment)?;
     Ok(evaluated.unwrap_object())
@@ -283,7 +302,7 @@ fn is_truthy(object: &Object) -> bool {
 
 fn extend_function_enviroment(
     function: &Function,
-    arguments: Vec<Object>,
+    arguments: &[Object],
 ) -> Rc<RefCell<Enviroment>> {
     let extended_enviroment = Rc::new(RefCell::new(Enviroment::new_enclosed_enviroment(
         Rc::clone(&function.enviroment),
@@ -292,11 +311,42 @@ fn extend_function_enviroment(
     for (parameter, argument) in function.parameters.iter().zip(arguments.into_iter()) {
         extended_enviroment
             .borrow_mut()
-            .set(&parameter.token.literal, argument);
+            .set(&parameter.token.literal, argument.clone());
     }
 
     extended_enviroment
 }
+
+// Builtin functions
+
+pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+
+    m.insert(
+        "len",
+        BuiltinFunction {
+            name: "len",
+            func: len_builtin,
+        },
+    );
+
+    m
+});
+
+fn len_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    if args.len() != 1 {
+        return Err(EvaluationError::Other(format!("wrong number of arguments. got: {}, expected: 1", args.len().to_string())));
+    }
+
+    let string_object = &args[0];
+    if let Object::String(string) = string_object {
+        Ok(Object::Integer(string.len() as i64))
+    } else {
+        Err(EvaluationError::Other(format!("argument to len not supported, got {}", string_object)))
+    }
+
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -479,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_error_handling() -> Result<(), String> {
-        let tests: [(&str, EvaluationError); 9] = [
+        let tests: [(&str, EvaluationError); 11] = [
             (
                 "5 + true;",
                 EvaluationError::TypeMismatch {
@@ -554,7 +604,17 @@ mod tests {
                     left: Some(Object::String("hello".to_string())),
                     right: Object::String("world".to_string()),
                 },
-        )
+            ),
+            (
+                "len(1)",
+                EvaluationError::Other("argument to len not supported, got 1".to_string()),
+            ),
+            (
+                "len(\"one\", \"two\")",
+                EvaluationError::Other(
+                    "wrong number of arguments. got: 2, expected: 1".to_string(),
+                ),
+            ),
         ];
 
         for (input, expected) in tests {
@@ -686,6 +746,22 @@ mod tests {
             );
         } else {
             panic!("Object is not string object")
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_len_bulitin() -> Result<(), String> {
+        let tests: [(&str, i64); 3] = [
+            ("len(\"\")", 0),
+            ("len(\"four\")", 4),
+            ("len(\"hello world\")", 11),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).unwrap();
+            test_integer_object(evaluated, expected);
         }
 
         Ok(())
