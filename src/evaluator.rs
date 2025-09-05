@@ -174,6 +174,7 @@ fn eval_infix_expression(
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_integer_infix_expression(operator, *l, *r),
         (Object::Boolean(l), Object::Boolean(r)) => eval_bool_infix_expression(operator, *l, *r),
+        (Object::String(l), Object::String(r)) => eval_string_infix_expression(operator, l.clone(), r.clone()),
         (l, r) => Err(EvaluationError::TypeMismatch {
             operator: operator.to_string(),
             left: l.clone(),
@@ -212,6 +213,17 @@ fn eval_bool_infix_expression(operator: &str, l: bool, r: bool) -> Result<Object
             operator: other.to_string(),
             left: Some(Object::Boolean(l)),
             right: Object::Boolean(r),
+        }),
+    }
+}
+
+fn eval_string_infix_expression(operator: &str, l: String, r: String) -> Result<Object, EvaluationError> {
+    match operator {
+        "+" => Ok(Object::String(format!("{}{}", l, r).to_string())),
+        other => Err(EvaluationError::UnknownOperator {
+            operator: other.to_string(),
+            left: Some(Object::String(l)),
+            right: Object::String(r),
         }),
     }
 }
@@ -467,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_error_handling() -> Result<(), String> {
-        let tests: [(&str, EvaluationError); 8] = [
+        let tests: [(&str, EvaluationError); 9] = [
             (
                 "5 + true;",
                 EvaluationError::TypeMismatch {
@@ -535,6 +547,14 @@ mod tests {
                 "foobar",
                 EvaluationError::UnknownIdentifier("foobar".to_string()),
             ),
+            (
+                "\"hello\" - \"world\"",
+                EvaluationError::UnknownOperator {
+                    operator: "-".to_string(),
+                    left: Some(Object::String("hello".to_string())),
+                    right: Object::String("world".to_string()),
+                },
+        )
         ];
 
         for (input, expected) in tests {
@@ -618,7 +638,7 @@ mod tests {
     }
 
     #[test]
-    fn test_closures() ->Result<(), String> {
+    fn test_closures() -> Result<(), String> {
         let input = "
             let newAdder = fn(x) {
                 fn(y) { x + y };
@@ -633,15 +653,37 @@ mod tests {
         Ok(())
     }
 
-    
     #[test]
-    fn test_string_literal() ->Result<(), String> {
+    fn test_string_literal() -> Result<(), String> {
         let input = "\"hello world\"";
 
         let evaluated = test_eval(input).unwrap();
 
         if let Object::String(string) = evaluated {
-            assert_eq!(string, "hello world", "expected \"hell world\" got \"{}\"", string); 
+            assert_eq!(
+                string, "hello world",
+                "expected \"hell world\" got \"{}\"",
+                string
+            );
+        } else {
+            panic!("Object is not string object")
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_string_concatenation() -> Result<(), String> {
+        let input = "\"hello\" + \" \" + \"world\"";
+
+        let evaluated = test_eval(input).unwrap();
+
+        if let Object::String(string) = evaluated {
+            assert_eq!(
+                string, "hello world",
+                "expected \"hell world\" got \"{}\"",
+                string
+            );
         } else {
             panic!("Object is not string object")
         }
