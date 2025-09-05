@@ -25,7 +25,8 @@ impl_display_for_enum!(
     Boolean,
     If,
     Function,
-    Call
+    Call,
+    String
 );
 
 // Enums
@@ -51,6 +52,7 @@ pub enum Expression {
     If(IfExpression),
     Function(FunctionLiteralExpression),
     Call(CallExpression),
+    String(Token),
 }
 
 // Statements

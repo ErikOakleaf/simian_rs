@@ -167,6 +167,7 @@ impl<'a> Parser<'a> {
             TokenType::LParen => self.parse_grouped_expression()?,
             TokenType::If => self.parse_if_expression()?,
             TokenType::Function => self.parse_function_literal_expression()?,
+            TokenType::String => Expression::String(self.current_token.clone()),
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -1096,6 +1097,22 @@ mod tests {
                 }
                 _ => panic!("Expression is not function expression"),
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_string_literal_expression() -> Result<(), ParseError> {
+        let input = "\"hello world\"";
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::String(string_expression) => {
+                assert_eq!(string_expression.literal, "hello world", "expected \"hello world\" got \"{}\"", string_expression.literal) 
+            }
+            _ => panic!("Expression is not string expression"),
         }
         Ok(())
     }
