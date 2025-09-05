@@ -27,7 +27,8 @@ impl_display_for_enum!(
     Function,
     Call,
     String,
-    Array
+    Array,
+    Index
 );
 
 // Enums
@@ -51,6 +52,7 @@ pub enum Expression {
     Call(CallExpression),
     String(Token),
     Array(ArrayLiteralExpression),
+    Index(IndexExpression),
 }
 
 // Statements
@@ -251,6 +253,19 @@ impl fmt::Display for ArrayLiteralExpression {
     }
 }
 
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndexExpression {
+    pub token: Token,
+    pub left: Box<Expression>,
+    pub index: Box<Expression>,
+}
+
+impl fmt::Display for IndexExpression {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}[{}])", self.left, self.index)
+    }
+}
 
 // Program
 

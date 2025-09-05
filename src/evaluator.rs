@@ -142,6 +142,9 @@ fn eval_expression(
         Expression::Array(array_literal_expression) => {
             Object::Null
         }
+        Expression::Index(array_literal_expression) => {
+            Object::Null
+        }
     };
 
     Ok(result.into_value())

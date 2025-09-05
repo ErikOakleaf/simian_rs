@@ -1,9 +1,6 @@
 use crate::{
     ast::{
-        ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression,
-        Expression, ExpressionStatement, FunctionLiteralExpression, IdentifierExpression,
-        IfExpression, InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression,
-        Program, ReturnStatement, Statement,
+        ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression, Expression, ExpressionStatement, FunctionLiteralExpression, IdentifierExpression, IfExpression, IndexExpression, InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -18,6 +15,7 @@ pub enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 #[allow(dead_code)]
@@ -195,6 +193,10 @@ impl<'a> Parser<'a> {
                 TokenType::LParen => {
                     self.next_token();
                     self.parse_call_expression(left_expression)?
+                }
+                TokenType::LBracket => {
+                    self.next_token();
+                    self.parse_index_expression(left_expression)?
                 }
                 _ => {
                     return Ok(left_expression);
@@ -425,6 +427,19 @@ impl<'a> Parser<'a> {
         Ok(elements)
     }
 
+    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParseError> {
+        let token = self.current_token.clone();
+        
+        self.next_token();
+
+        let index = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(TokenType::RBracket)?;
+
+        let index_expression = IndexExpression {token: token, left: Box::new(left), index: Box::new(index)};
+        Ok(Expression::Index(index_expression))
+    }
+
     // Helper functions
 
     fn expect_peek(&mut self, expected: TokenType) -> Result<(), ParseError> {
@@ -458,6 +473,7 @@ impl<'a> Parser<'a> {
             TokenType::Slash => Precedence::Product,
             TokenType::Asterisk => Precedence::Product,
             TokenType::LParen => Precedence::Call,
+            TokenType::LBracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }
@@ -847,6 +863,14 @@ mod tests {
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         for (input, actual) in tests {
@@ -1176,6 +1200,28 @@ mod tests {
                     ExpectedLiteral::Int(3),
                     "+",
                     ExpectedLiteral::Int(3),
+                );
+            }
+            _ => panic!("Expression is not string expression"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_index_expression() -> Result<(), ParseError> {
+        let input = "myArray[1 + 1]";
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Index(index_expression) => {
+                test_identifier(&index_expression.left, "myArray");
+                test_infix_expression(
+                    &index_expression.index,
+                    ExpectedLiteral::Int(1),
+                    "+",
+                    ExpectedLiteral::Int(1),
                 );
             }
             _ => panic!("Expression is not string expression"),
