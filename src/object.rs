@@ -116,10 +116,16 @@ impl fmt::Display for Function {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct BuiltinFunction {
     pub name: &'static str,
-    pub func: fn(&[Object]) -> Result<Object, EvaluationError>
+    pub func: fn(&[Object]) -> Result<Object, EvaluationError>,
+}
+
+impl PartialEq for BuiltinFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
 }
 
 impl fmt::Display for BuiltinFunction {

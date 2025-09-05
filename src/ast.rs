@@ -26,7 +26,8 @@ impl_display_for_enum!(
     If,
     Function,
     Call,
-    String
+    String,
+    Array
 );
 
 // Enums
@@ -49,6 +50,7 @@ pub enum Expression {
     Function(FunctionLiteralExpression),
     Call(CallExpression),
     String(Token),
+    Array(ArrayLiteralExpression),
 }
 
 // Statements
@@ -231,6 +233,24 @@ impl fmt::Display for CallExpression {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArrayLiteralExpression {
+    pub token: Token,
+    pub elements: Vec<Expression>,
+}
+
+impl fmt::Display for ArrayLiteralExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let elements: Vec<String> = self.elements
+            .iter()
+            .map(|el| el.to_string())
+            .collect();
+        
+        write!(f, "[{}]", elements.join(", "))
+    }
+}
+
 
 // Program
 

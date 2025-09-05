@@ -89,6 +89,14 @@ impl<'a> Lexer<'a> {
                 TokenType::RBrace,
                 &self.input[self.position..self.position + 1],
             ),
+            b'[' => Token::new(
+                TokenType::LBracket,
+                &self.input[self.position..self.position + 1],
+            ),
+            b']' => Token::new(
+                TokenType::RBracket,
+                &self.input[self.position..self.position + 1],
+            ),
             b'"' => Token::new(TokenType::String, self.read_string()),
             0 => Token::new(TokenType::EOF, ""),
             _ => {
@@ -204,6 +212,7 @@ mod tests {
                     10 != 9;
                     \"foobar\"
                     \"foo bar\"
+                    [1, 2];
                     ";
 
         let mut lexer = Lexer::new(input);
@@ -284,6 +293,12 @@ mod tests {
             (TokenType::Semicolon, ";"),
             (TokenType::String, "foobar"),
             (TokenType::String, "foo bar"),
+            (TokenType::LBracket, "["),
+            (TokenType::Int, "1"),
+            (TokenType::Comma, ","),
+            (TokenType::Int, "2"),
+            (TokenType::RBracket, "]"),
+            (TokenType::Semicolon, ";"),
             (TokenType::EOF, ""),
         ];
 
