@@ -22,10 +22,6 @@ pub enum EvaluationError {
         right: Object,
     },
     UnknownIdentifier(String),
-    IndexOutOfBounds {
-        index: i64,
-        length: usize,
-    },
     Other(String),
 }
 
@@ -304,7 +300,9 @@ fn eval_function_expression(
 
 fn eval_index_expression(left: &Object, index: &Object) -> Result<Object, EvaluationError> {
     match (left, index) {
-        (Object::Array(arr), Object::Integer(integer)) => eval_array_index_expression(arr, *integer),
+        (Object::Array(arr), Object::Integer(integer)) => {
+            Ok(eval_array_index_expression(arr, *integer))
+        }
         _ => Err(EvaluationError::TypeMismatch {
             operator: "index".to_string(),
             left: left.clone(),
@@ -313,15 +311,12 @@ fn eval_index_expression(left: &Object, index: &Object) -> Result<Object, Evalua
     }
 }
 
-fn eval_array_index_expression(arr: &Vec<Object>, index: i64) -> Result<Object, EvaluationError> {
+fn eval_array_index_expression(arr: &Vec<Object>, index: i64) -> Object {
     if index < 0 || index as usize >= arr.len() {
-        return Err(EvaluationError::IndexOutOfBounds {
-            index,
-            length: arr.len(),
-        });
+        return Object::Null;
     }
 
-    Ok(arr[index as usize].clone())
+    arr[index as usize].clone()
 }
 
 // ----------
@@ -372,16 +367,27 @@ pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(||
         },
     );
 
+    m.insert(
+        "first",
+        BuiltinFunction {
+            name: "first",
+            func: first_builtin,
+        },
+    );
+
+    m.insert(
+        "last",
+        BuiltinFunction {
+            name: "last",
+            func: last_builtin,
+        },
+    );
+
     m
 });
 
 fn len_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    if args.len() != 1 {
-        return Err(EvaluationError::Other(format!(
-            "wrong number of arguments. got: {}, expected: 1",
-            args.len().to_string()
-        )));
-    }
+    check_args_length(args.len(), 1)?;
 
     let string_object = &args[0];
     if let Object::String(string) = string_object {
@@ -392,6 +398,47 @@ fn len_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
             string_object
         )))
     }
+}
+
+fn first_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    check_args_length(args.len(), 1)?;
+
+    let arr_object = &args[0];
+    if let Object::Array(arr) = arr_object {
+        Ok(arr[0].clone())
+    } else {
+        Err(EvaluationError::Other(format!(
+            "argument to first not supported, got {}",
+            arr_object
+        )))
+    }
+}
+
+fn last_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    check_args_length(args.len(), 1)?;
+
+    let arr_object = &args[0];
+    if let Object::Array(arr) = arr_object {
+        Ok(arr.last().unwrap().clone())
+    } else {
+        Err(EvaluationError::Other(format!(
+            "argument to last not supported, got {}",
+            arr_object
+        )))
+    }
+}
+
+// Builtin helpers
+
+fn check_args_length(args_length: usize, expected: usize) -> Result<(), EvaluationError> {
+    if args_length != expected {
+        return Err(EvaluationError::Other(format!(
+            "wrong number of arguments. got: {}, expected: {}",
+            args_length, expected
+        )));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -798,11 +845,15 @@ mod tests {
     }
 
     #[test]
-    fn test_len_bulitin() -> Result<(), String> {
-        let tests: [(&str, i64); 3] = [
+    fn test_bulitins() -> Result<(), String> {
+        let tests: [(&str, i64); 7] = [
             ("len(\"\")", 0),
             ("len(\"four\")", 4),
             ("len(\"hello world\")", 11),
+            ("first([8, 1, 4])", 8),
+            ("first([8 * 8, 1 - 1, 4 + 82])", 64),
+            ("last([8, 1, 4])", 4),
+            ("last([8 * 8, 1 - 1, 4 + 82])", 86),
         ];
 
         for (input, expected) in tests {
@@ -812,6 +863,7 @@ mod tests {
 
         Ok(())
     }
+
 
     #[test]
     fn test_array_literals() -> Result<(), String> {
