@@ -383,6 +383,14 @@ pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(||
         },
     );
 
+    m.insert(
+        "rest",
+        BuiltinFunction {
+            name: "rest",
+            func: rest_builtin,
+        },
+    );
+
     m
 });
 
@@ -405,6 +413,9 @@ fn first_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
 
     let arr_object = &args[0];
     if let Object::Array(arr) = arr_object {
+        if arr.len() == 0 {
+            return Ok(Object::Null);
+        }
         Ok(arr[0].clone())
     } else {
         Err(EvaluationError::Other(format!(
@@ -419,10 +430,30 @@ fn last_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
 
     let arr_object = &args[0];
     if let Object::Array(arr) = arr_object {
+        if arr.len() == 0 {
+            return Ok(Object::Null);
+        }
         Ok(arr.last().unwrap().clone())
     } else {
         Err(EvaluationError::Other(format!(
             "argument to last not supported, got {}",
+            arr_object
+        )))
+    }
+}
+
+fn rest_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    check_args_length(args.len(), 1)?;
+
+    let arr_object = &args[0];
+    if let Object::Array(arr) = arr_object {
+        if arr.len() < 2 {
+            return Ok(Object::Null);
+        }
+        Ok(Object::Array(arr[1..arr.len()].to_vec()))
+    } else {
+        Err(EvaluationError::Other(format!(
+            "argument to rest not supported, got {}",
             arr_object
         )))
     }
@@ -864,6 +895,28 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_rest_builtin() -> Result<(), String> {
+        let tests: [(&str, Vec<i64>); 3] = [
+            ("let a = [1, 2, 3, 4]; rest(a)", vec![2, 3, 4]),
+            ("let a = [1, 2, 3, 4]; rest(rest(a))", vec![3, 4]),
+            ("let a = [1, 2, 3, 4]; rest(rest(rest(a)))", vec![4]),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).unwrap();
+
+            if let Object::Array(arr) = evaluated {
+                for (obj, &exp) in arr.iter().zip(expected.iter()) {
+                    test_integer_object(obj.clone(), exp);
+                }
+            } else {
+                panic!("object is not array");
+            }
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn test_array_literals() -> Result<(), String> {
