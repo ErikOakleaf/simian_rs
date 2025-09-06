@@ -14,6 +14,7 @@ pub enum Object {
     Function(Function),
     String(String),
     Builtin(BuiltinFunction),
+    Array(Vec<Object>),
     Null,
     Void,
 }
@@ -45,6 +46,11 @@ impl fmt::Display for Object {
             }
             Object::Builtin(value) => {
                 write!(f, "{}", value)
+            }
+            Object::Array(value) => {
+                let elements: Vec<String> = value.iter().map(|el| el.to_string()).collect();
+
+                write!(f, "[{}]", elements.join(", "))
             }
             Object::Null => {
                 write!(f, "null")

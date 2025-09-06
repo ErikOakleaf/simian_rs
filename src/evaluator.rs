@@ -6,8 +6,8 @@ use std::rc::Rc;
 use crate::ast::{
     Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
 };
-use crate::object::{Enviroment, Function, Object};
 use crate::object::BuiltinFunction;
+use crate::object::{Enviroment, Function, Object};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvaluationError {
@@ -140,11 +140,17 @@ fn eval_expression(
             }
         }
         Expression::Array(array_literal_expression) => {
-            Object::Null
+            let elements_result: Result<Vec<Object>, EvaluationError> = array_literal_expression
+                .elements
+                .iter()
+                .map(|expression| {
+                    eval_expression(&expression, enviroment).map(|res| res.unwrap_object())
+                })
+                .collect();
+            let elements = elements_result?;
+            Object::Array(elements)
         }
-        Expression::Index(array_literal_expression) => {
-            Object::Null
-        }
+        Expression::Index(array_literal_expression) => Object::Null,
     };
 
     Ok(result.into_value())
@@ -341,18 +347,22 @@ pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(||
 
 fn len_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
     if args.len() != 1 {
-        return Err(EvaluationError::Other(format!("wrong number of arguments. got: {}, expected: 1", args.len().to_string())));
+        return Err(EvaluationError::Other(format!(
+            "wrong number of arguments. got: {}, expected: 1",
+            args.len().to_string()
+        )));
     }
 
     let string_object = &args[0];
     if let Object::String(string) = string_object {
         Ok(Object::Integer(string.len() as i64))
     } else {
-        Err(EvaluationError::Other(format!("argument to len not supported, got {}", string_object)))
+        Err(EvaluationError::Other(format!(
+            "argument to len not supported, got {}",
+            string_object
+        )))
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -768,6 +778,24 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input).unwrap();
             test_integer_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_array_literals() -> Result<(), String> {
+        let input = "[1, 2 * 2, 3 + 3]";
+
+        let evaluated = test_eval(input).unwrap();
+
+        if let Object::Array(arr) = evaluated {
+            assert_eq!(arr.len(), 3, "array length is not 3 got {}", arr.len());
+            test_integer_object(arr[0].clone(), 1);
+            test_integer_object(arr[1].clone(), 4);
+            test_integer_object(arr[2].clone(), 6);
+        } else {
+            panic!("Object is not string object")
         }
 
         Ok(())
