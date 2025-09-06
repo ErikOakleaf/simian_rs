@@ -22,6 +22,10 @@ pub enum EvaluationError {
         right: Object,
     },
     UnknownIdentifier(String),
+    IndexOutOfBounds {
+        index: i64,
+        length: usize,
+    },
     Other(String),
 }
 
@@ -150,7 +154,11 @@ fn eval_expression(
             let elements = elements_result?;
             Object::Array(elements)
         }
-        Expression::Index(array_literal_expression) => Object::Null,
+        Expression::Index(index_expression) => {
+            let left = eval_expression(&index_expression.left, enviroment)?.unwrap_object();
+            let index = eval_expression(&index_expression.index, enviroment)?.unwrap_object();
+            eval_index_expression(&left, &index)?
+        }
     };
 
     Ok(result.into_value())
@@ -292,6 +300,28 @@ fn eval_function_expression(
         body: body,
         enviroment: Rc::clone(enviroment),
     }
+}
+
+fn eval_index_expression(left: &Object, index: &Object) -> Result<Object, EvaluationError> {
+    match (left, index) {
+        (Object::Array(arr), Object::Integer(integer)) => eval_array_index_expression(arr, *integer),
+        _ => Err(EvaluationError::TypeMismatch {
+            operator: "index".to_string(),
+            left: left.clone(),
+            right: index.clone(),
+        }),
+    }
+}
+
+fn eval_array_index_expression(arr: &Vec<Object>, index: i64) -> Result<Object, EvaluationError> {
+    if index < 0 || index as usize >= arr.len() {
+        return Err(EvaluationError::IndexOutOfBounds {
+            index,
+            length: arr.len(),
+        });
+    }
+
+    Ok(arr[index as usize].clone())
 }
 
 // ----------
@@ -796,6 +826,30 @@ mod tests {
             test_integer_object(arr[2].clone(), 6);
         } else {
             panic!("Object is not string object")
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_array_index_expressions() -> Result<(), String> {
+        let tests: [(&str, i64); 8] = [
+            ("[1, 2, 3][0]", 1),
+            ("[1, 2, 3][1]", 2),
+            ("[1, 2, 3][2]", 3),
+            ("let i = 0; [1][i];", 1),
+            ("[1, 2, 3][1 + 1];", 3),
+            ("let myArray = [1, 2, 3]; myArray[2];", 3),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                6,
+            ),
+            ("let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).unwrap();
+            test_integer_object(evaluated, expected);
         }
 
         Ok(())
