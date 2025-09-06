@@ -391,6 +391,14 @@ pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(||
         },
     );
 
+    m.insert(
+        "push",
+        BuiltinFunction {
+            name: "push",
+            func: push_builtin,
+        },
+    );
+
     m
 });
 
@@ -451,6 +459,22 @@ fn rest_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
             return Ok(Object::Null);
         }
         Ok(Object::Array(arr[1..arr.len()].to_vec()))
+    } else {
+        Err(EvaluationError::Other(format!(
+            "argument to rest not supported, got {}",
+            arr_object
+        )))
+    }
+}
+
+fn push_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    check_args_length(args.len(), 2)?;
+
+    let arr_object = &args[0];
+    if let Object::Array(arr) = arr_object {
+        let mut arr_copy = arr.clone();
+        arr_copy.push(args[1].clone());
+        Ok(Object::Array(arr_copy))
     } else {
         Err(EvaluationError::Other(format!(
             "argument to rest not supported, got {}",
@@ -896,15 +920,18 @@ mod tests {
     }
 
     #[test]
-    fn test_rest_builtin() -> Result<(), String> {
-        let tests: [(&str, Vec<i64>); 3] = [
+    fn test_array_builtins() -> Result<(), String> {
+        let tests: [(&str, Vec<i64>); 4] = [
             ("let a = [1, 2, 3, 4]; rest(a)", vec![2, 3, 4]),
             ("let a = [1, 2, 3, 4]; rest(rest(a))", vec![3, 4]),
             ("let a = [1, 2, 3, 4]; rest(rest(rest(a)))", vec![4]),
+            ("let a = [1, 2, 3, 4]; push(a, 5)", vec![1, 2, 3, 4, 5]),
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input).unwrap();
+            let evaluated = test_eval(input).unwrap_or_else(|err| {
+                panic!("evaluation failed: {:?}", err);
+            });
 
             if let Object::Array(arr) = evaluated {
                 for (obj, &exp) in arr.iter().zip(expected.iter()) {
