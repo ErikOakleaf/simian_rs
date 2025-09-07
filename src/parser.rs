@@ -1,6 +1,10 @@
 use crate::{
     ast::{
-        ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression, Expression, ExpressionStatement, FunctionLiteralExpression, IdentifierExpression, IfExpression, IndexExpression, InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement, Statement
+        ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression,
+        Expression, ExpressionStatement, FunctionLiteralExpression, HashLiteralExpression,
+        IdentifierExpression, IfExpression, IndexExpression, InfixExpression,
+        IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
+        Statement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -168,6 +172,7 @@ impl<'a> Parser<'a> {
             TokenType::Function => self.parse_function_literal_expression()?,
             TokenType::String => Expression::String(self.current_token.clone()),
             TokenType::LBracket => self.parse_array_literal_expression()?,
+            TokenType::LBrace => self.parse_hash_literal_expression()?,
             _ => {
                 return Err(ParseError::NoPrefixParseFunction(
                     self.current_token.clone(),
@@ -427,16 +432,50 @@ impl<'a> Parser<'a> {
         Ok(elements)
     }
 
+    fn parse_hash_literal_expression(&mut self) -> Result<Expression, ParseError> {
+        let token = self.current_token.clone();
+        let mut pairs: Vec<(Expression, Expression)> = vec![];
+
+        while self.peek_token.token_type != TokenType::RBrace {
+            self.next_token();
+
+            let key = self.parse_expression(Precedence::Lowest)?;
+            self.expect_peek(TokenType::Colon)?;
+            self.next_token();
+
+            let value = self.parse_expression(Precedence::Lowest)?;
+
+            pairs.push((key, value));
+
+            if self.peek_token.token_type != TokenType::RBrace {
+                self.expect_peek(TokenType::Comma)?;
+            }
+        }
+
+        self.expect_peek(TokenType::RBrace)?;
+
+        let hash_literal_expression = HashLiteralExpression {
+            token: token,
+            pairs: pairs,
+        };
+
+        Ok(Expression::Hash(hash_literal_expression))
+    }
+
     fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParseError> {
         let token = self.current_token.clone();
-        
+
         self.next_token();
 
         let index = self.parse_expression(Precedence::Lowest)?;
 
         self.expect_peek(TokenType::RBracket)?;
 
-        let index_expression = IndexExpression {token: token, left: Box::new(left), index: Box::new(index)};
+        let index_expression = IndexExpression {
+            token: token,
+            left: Box::new(left),
+            index: Box::new(index),
+        };
         Ok(Expression::Index(index_expression))
     }
 
@@ -1203,6 +1242,101 @@ mod tests {
                 );
             }
             _ => panic!("Expression is not string expression"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_expressions() -> Result<(), ParseError> {
+        let input = "{\"one\": 1, \"two\": 2, \"three\": 3}";
+        let expected = vec![("one", 1), ("two", 2), ("three", 3)];
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Hash(hash_expression) => {
+                assert_eq!(
+                    hash_expression.pairs.len(),
+                    3,
+                    "pairs length is not 3 got {}",
+                    hash_expression.pairs.len()
+                );
+                for (i, (k, v)) in expected.into_iter().enumerate() {
+                    let pair = hash_expression.pairs[i].clone();
+                    if let Expression::String(string_token) = pair.0 {
+                        assert_eq!(
+                            string_token.literal, k,
+                            "key is not {} got {}",
+                            k, string_token.literal
+                        );
+                    } else {
+                        panic!("key is not string got {}", pair.0)
+                    }
+
+                    if let Expression::IntegerLiteral(integer_literal_expression) = pair.1 {
+                        assert_eq!(
+                            integer_literal_expression.value, v,
+                            "value is not {} got {}",
+                            v, integer_literal_expression.value
+                        );
+                    } else {
+                        panic!("key is not string got {}", pair.1)
+                    }
+                }
+            }
+            _ => panic!("Expression is not hash expression"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_expressions_with_expressions() -> Result<(), ParseError> {
+        let input = "{\"one\": 0 + 1, \"two\": 10 - 8, \"three\": 15 / 5}";
+        let expected = vec![
+            (ExpectedLiteral::Int(0), "+", ExpectedLiteral::Int(1)),
+            (ExpectedLiteral::Int(10), "-", ExpectedLiteral::Int(8)),
+            (ExpectedLiteral::Int(15), "/", ExpectedLiteral::Int(5)),
+        ];
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Hash(hash_expression) => {
+                assert_eq!(
+                    hash_expression.pairs.len(),
+                    3,
+                    "pairs length is not 3 got {}",
+                    hash_expression.pairs.len()
+                );
+                for (i, (l, o, r)) in expected.into_iter().enumerate() {
+                    let pair = hash_expression.pairs[i].clone();
+                    test_infix_expression(&pair.1, l, o, r);
+                }
+            }
+            _ => panic!("Expression is not hash expression"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_expression_empty() -> Result<(), ParseError> {
+        let input = "{}";
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Hash(hash_expression) => {
+                assert_eq!(
+                    hash_expression.pairs.len(),
+                    0,
+                    "pairs length is not 0 got {}",
+                    hash_expression.pairs.len()
+                );
+            }
+            _ => panic!("Expression is not hash expression"),
         }
         Ok(())
     }

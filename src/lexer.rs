@@ -69,6 +69,10 @@ impl<'a> Lexer<'a> {
                 TokenType::Semicolon,
                 &self.input[self.position..self.position + 1],
             ),
+            b':' => Token::new(
+                TokenType::Colon,
+                &self.input[self.position..self.position + 1],
+            ),
             b',' => Token::new(
                 TokenType::Comma,
                 &self.input[self.position..self.position + 1],
@@ -213,6 +217,7 @@ mod tests {
                     \"foobar\"
                     \"foo bar\"
                     [1, 2];
+                    {\"foo\": \"bar\"}
                     ";
 
         let mut lexer = Lexer::new(input);
@@ -299,6 +304,11 @@ mod tests {
             (TokenType::Int, "2"),
             (TokenType::RBracket, "]"),
             (TokenType::Semicolon, ";"),
+            (TokenType::LBrace, "{"),
+            (TokenType::String, "foo"),
+            (TokenType::Colon, ":"),
+            (TokenType::String, "bar"),
+            (TokenType::RBrace, "}"),
             (TokenType::EOF, ""),
         ];
 

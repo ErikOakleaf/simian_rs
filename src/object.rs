@@ -7,6 +7,29 @@ use crate::{
     evaluator::{EvaluationError, EvaluationResult},
 };
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HashKey {
+    Integer(i64),
+    Boolean(bool),
+    String(String),
+}
+
+impl fmt::Display for HashKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HashKey::Integer(value) => {
+                write!(f, "{}", value)
+            }
+            HashKey::Boolean(value) => {
+                write!(f, "{}", value)
+            }
+            HashKey::String(value) => {
+                write!(f, "{}", value)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
     Integer(i64),
@@ -15,6 +38,7 @@ pub enum Object {
     String(String),
     Builtin(BuiltinFunction),
     Array(Vec<Object>),
+    Hash(HashMap<HashKey, Object>),
     Null,
     Void,
 }
@@ -22,10 +46,19 @@ pub enum Object {
 impl Object {
     pub fn into_value(self) -> EvaluationResult {
         EvaluationResult::Value(self)
-    }
+    }   
 
     pub fn into_return(self) -> EvaluationResult {
         EvaluationResult::Return(self)
+    }
+
+    pub fn into_hash_key(self) -> Result<HashKey, EvaluationError> {
+        match self {
+            Object::Integer(value) => Ok(HashKey::Integer(value)),
+            Object::Boolean(value) => Ok(HashKey::Boolean(value)),
+            Object::String(value) => Ok(HashKey::String(value)),
+            other => Err(EvaluationError::Other(format!("Object type cannot be a hash key: {}", other)))
+        }
     }
 }
 
@@ -51,6 +84,11 @@ impl fmt::Display for Object {
                 let elements: Vec<String> = value.iter().map(|el| el.to_string()).collect();
 
                 write!(f, "[{}]", elements.join(", "))
+            }
+            Object::Hash(value) => {
+                let pairs: Vec<String> =
+                    value.iter().map(|(k, v)| format!("{}: {}", k, v)).collect();
+                write!(f, "{{{}}}", pairs.join(", "))
             }
             Object::Null => {
                 write!(f, "null")
@@ -109,7 +147,6 @@ pub struct Function {
 
 impl PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
-        // Only compare parameters and body, ignore environment
         self.parameters == other.parameters && self.body == other.body
     }
 }

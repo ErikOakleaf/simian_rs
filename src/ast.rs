@@ -28,6 +28,7 @@ impl_display_for_enum!(
     Call,
     String,
     Array,
+    Hash,
     Index
 );
 
@@ -52,6 +53,7 @@ pub enum Expression {
     Call(CallExpression),
     String(Token),
     Array(ArrayLiteralExpression),
+    Hash(HashLiteralExpression),
     Index(IndexExpression),
 }
 
@@ -237,24 +239,6 @@ impl fmt::Display for CallExpression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ArrayLiteralExpression {
-    pub token: Token,
-    pub elements: Vec<Expression>,
-}
-
-impl fmt::Display for ArrayLiteralExpression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let elements: Vec<String> = self.elements
-            .iter()
-            .map(|el| el.to_string())
-            .collect();
-        
-        write!(f, "[{}]", elements.join(", "))
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct IndexExpression {
     pub token: Token,
     pub left: Box<Expression>,
@@ -262,8 +246,44 @@ pub struct IndexExpression {
 }
 
 impl fmt::Display for IndexExpression {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}[{}])", self.left, self.index)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArrayLiteralExpression {
+    pub token: Token,
+    pub elements: Vec<Expression>,
+}
+
+impl fmt::Display for ArrayLiteralExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let elements: Vec<String> = self.elements.iter().map(|el| el.to_string()).collect();
+
+        write!(f, "[{}]", elements.join(", "))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashLiteralExpression {
+    pub token: Token,
+    pub pairs: Vec<(Expression, Expression)>,
+}
+
+impl PartialEq for HashLiteralExpression {
+    fn eq(&self, other: &Self) -> bool {
+        self.token == other.token
+    }
+}
+
+impl fmt::Display for HashLiteralExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        for (k, v) in &self.pairs {
+            parts.push(format!("{}: {}", k, v));
+        }
+        write!(f, "[{}]", parts.join(", "))
     }
 }
 

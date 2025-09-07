@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::ast::{
     Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
 };
-use crate::object::BuiltinFunction;
+use crate::object::{BuiltinFunction, HashKey};
 use crate::object::{Enviroment, Function, Object};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -142,13 +142,26 @@ fn eval_expression(
         Expression::Array(array_literal_expression) => {
             let elements_result: Result<Vec<Object>, EvaluationError> = array_literal_expression
                 .elements
-                .iter()
+               .iter()
                 .map(|expression| {
                     eval_expression(&expression, enviroment).map(|res| res.unwrap_object())
                 })
                 .collect();
             let elements = elements_result?;
             Object::Array(elements)
+        }
+        Expression::Hash(hash_literal_expression) => {
+            let mut hash = HashMap::<HashKey, Object>::new();
+
+            for (k, v) in hash_literal_expression.pairs.iter() {
+                let key_object = eval_expression(k, enviroment)?.unwrap_object();
+                let hash_key = key_object.into_hash_key()?;
+                let value = eval_expression(v, enviroment)?.unwrap_object();
+
+                hash.insert(hash_key, value);
+            }
+
+            Object::Hash(hash)
         }
         Expression::Index(index_expression) => {
             let left = eval_expression(&index_expression.left, enviroment)?.unwrap_object();
@@ -455,9 +468,14 @@ fn rest_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
 
     let arr_object = &args[0];
     if let Object::Array(arr) = arr_object {
-        if arr.len() < 2 {
+        if arr.len() < 1 {
             return Ok(Object::Null);
         }
+
+        if arr.len() == 1 {
+            return Ok(Object::Array(vec![]));
+        }
+
         Ok(Object::Array(arr[1..arr.len()].to_vec()))
     } else {
         Err(EvaluationError::Other(format!(
@@ -500,6 +518,7 @@ fn check_args_length(args_length: usize, expected: usize) -> Result<(), Evaluati
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
+    use crate::object::HashKey;
     use crate::parser::{ParseError, Parser};
 
     // Test helpers
@@ -921,10 +940,11 @@ mod tests {
 
     #[test]
     fn test_array_builtins() -> Result<(), String> {
-        let tests: [(&str, Vec<i64>); 4] = [
+        let tests: [(&str, Vec<i64>); 5] = [
             ("let a = [1, 2, 3, 4]; rest(a)", vec![2, 3, 4]),
             ("let a = [1, 2, 3, 4]; rest(rest(a))", vec![3, 4]),
             ("let a = [1, 2, 3, 4]; rest(rest(rest(a)))", vec![4]),
+            ("let a = [1, 2, 3, 4]; rest(rest(rest(rest(a))))", vec![]),
             ("let a = [1, 2, 3, 4]; push(a, 5)", vec![1, 2, 3, 4, 5]),
         ];
 
@@ -956,6 +976,62 @@ mod tests {
             test_integer_object(arr[0].clone(), 1);
             test_integer_object(arr[1].clone(), 4);
             test_integer_object(arr[2].clone(), 6);
+        } else {
+            panic!("Object is not string object")
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_hash_literals() -> Result<(), String> {
+        let input = "let two = \"two\";
+                    {
+                    \"one\": 10 - 9,
+                    two: 1 + 1,
+                    \"thr\" + \"ee\": 6 / 2,
+                    4: 4,
+                    5: 6,
+                    true: 5,
+                    false: 6
+                    }";
+
+        let expected_1 = vec![("one", 1), ("two", 2), ("three", 3)];
+        let expected_2 = vec![(4, 4), (5, 6)];
+        let expected_3 = vec![(true, 5), (false, 6)];
+
+        let evaluated = test_eval(input).unwrap();
+
+        if let Object::Hash(hash) = evaluated {
+            assert_eq!(hash.len(), 7, "array length is not 7 got {}", hash.len());
+
+            for (k, v) in expected_1 {
+                let value_object = hash[&HashKey::String(k.to_string())].clone();
+                if let Object::Integer(value) = value_object {
+                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                } else {
+                    panic!("object is not integer object");
+                }
+            }
+
+            for (k, v) in expected_2 {
+                let value_object = hash[&HashKey::Integer(k)].clone();
+                if let Object::Integer(value) = value_object {
+                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                } else {
+                    panic!("object is not integer object");
+                }
+            }
+
+            for (k, v) in expected_3 {
+                let value_object = hash[&HashKey::Boolean(k)].clone();
+                if let Object::Integer(value) = value_object {
+                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                } else {
+                    panic!("object is not integer object");
+                }
+            }
+
         } else {
             panic!("Object is not string object")
         }

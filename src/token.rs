@@ -8,6 +8,7 @@ pub enum TokenType {
     Int,
     Comma,
     Semicolon,
+    Colon,
     LParen,
     RParen,
     LBrace,
