@@ -18,8 +18,22 @@ pub fn start() -> Result<(), String> {
         stdin.read_line(&mut buffer).unwrap();
         let mut lexer = Lexer::new(&buffer);
         let mut parser = Parser::new(&mut lexer);
-        let program = parser.parse_program().map_err(|e| format!("{:?}", e))?;
-        let evaluated = eval_program(&program, &enviroment).map_err(|e| format!("{:?}", e))?;
+
+        let program = match parser.parse_program() {
+            Ok(p) => p,
+            Err(e) => {
+                println!("Parse error: {:?}", e);
+                continue; 
+            }
+        };
+
+        let evaluated = match eval_program(&program, &enviroment) {
+            Ok(obj) => obj,
+            Err(e) => {
+                println!("Evaluation error: {:?}", e);
+                continue;
+            }
+        };
 
         match evaluated {
             Object::Void => {}
