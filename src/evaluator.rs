@@ -142,7 +142,7 @@ fn eval_expression(
         Expression::Array(array_literal_expression) => {
             let elements_result: Result<Vec<Object>, EvaluationError> = array_literal_expression
                 .elements
-               .iter()
+                .iter()
                 .map(|expression| {
                     eval_expression(&expression, enviroment).map(|res| res.unwrap_object())
                 })
@@ -316,6 +316,7 @@ fn eval_index_expression(left: &Object, index: &Object) -> Result<Object, Evalua
         (Object::Array(arr), Object::Integer(integer)) => {
             Ok(eval_array_index_expression(arr, *integer))
         }
+        (Object::Hash(hash), other) => eval_hash_index_expression(&hash, other),
         _ => Err(EvaluationError::TypeMismatch {
             operator: "index".to_string(),
             left: left.clone(),
@@ -330,6 +331,19 @@ fn eval_array_index_expression(arr: &Vec<Object>, index: i64) -> Object {
     }
 
     arr[index as usize].clone()
+}
+
+fn eval_hash_index_expression(
+    hash: &HashMap<HashKey, Object>,
+    index: &Object,
+) -> Result<Object, EvaluationError> {
+    let hash_key = index.into_hash_key()?;
+
+    if let Some(value) = hash.get(&hash_key) {
+        Ok(value.clone())
+    } else {
+        Ok(Object::Null)
+    }
 }
 
 // ----------
@@ -518,7 +532,6 @@ fn check_args_length(args_length: usize, expected: usize) -> Result<(), Evaluati
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
-    use crate::object::HashKey;
     use crate::parser::{ParseError, Parser};
 
     // Test helpers
@@ -696,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_error_handling() -> Result<(), String> {
-        let tests: [(&str, EvaluationError); 11] = [
+        let tests = vec![
             (
                 "5 + true;",
                 EvaluationError::TypeMismatch {
@@ -781,6 +794,14 @@ mod tests {
                 EvaluationError::Other(
                     "wrong number of arguments. got: 2, expected: 1".to_string(),
                 ),
+            ),
+            (
+                "{ [1, 2]: 5 }",
+                EvaluationError::Other("Object type cannot be a hash key: [1, 2]".to_string()),
+            ),
+            (
+                "{ {}: 5 }",
+                EvaluationError::Other("Object type cannot be a hash key: {}".to_string()),
             ),
         ];
 
@@ -1008,7 +1029,11 @@ mod tests {
             for (k, v) in expected_1 {
                 let value_object = hash[&HashKey::String(k.to_string())].clone();
                 if let Object::Integer(value) = value_object {
-                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                    assert_eq!(
+                        v, value,
+                        "did not get correct value from hash expected: {} got {}",
+                        v, value
+                    );
                 } else {
                     panic!("object is not integer object");
                 }
@@ -1017,7 +1042,11 @@ mod tests {
             for (k, v) in expected_2 {
                 let value_object = hash[&HashKey::Integer(k)].clone();
                 if let Object::Integer(value) = value_object {
-                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                    assert_eq!(
+                        v, value,
+                        "did not get correct value from hash expected: {} got {}",
+                        v, value
+                    );
                 } else {
                     panic!("object is not integer object");
                 }
@@ -1026,12 +1055,15 @@ mod tests {
             for (k, v) in expected_3 {
                 let value_object = hash[&HashKey::Boolean(k)].clone();
                 if let Object::Integer(value) = value_object {
-                    assert_eq!(v, value, "did not get correct value from hash expected: {} got {}", v, value);
+                    assert_eq!(
+                        v, value,
+                        "did not get correct value from hash expected: {} got {}",
+                        v, value
+                    );
                 } else {
                     panic!("object is not integer object");
                 }
             }
-
         } else {
             panic!("Object is not string object")
         }
@@ -1058,6 +1090,36 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input).unwrap();
             test_integer_object(evaluated, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_hash_index_expressions() -> Result<(), String> {
+        let tests = vec![
+            ("{\"foo\": 5}[\"foo\"]", 5),
+            ("let key = \"foo\"; {\"foo\": 5}[key]", 5),
+            ("{5: 5}[5]", 5),
+            ("{true: 5}[true]", 5),
+            ("{false: 5}[false]", 5),
+        ];
+
+        let null_tests = vec!["{}[\"foo\"]", "{\"foo\": 5}[\"bar\"]"];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).unwrap();
+            test_integer_object(evaluated, expected);
+        }
+
+        for input in null_tests {
+            let evaluated = test_eval(input).unwrap();
+
+            assert!(
+                matches!(evaluated, Object::Null),
+                "expected Null, got {:?}",
+                evaluated
+            );
         }
 
         Ok(())

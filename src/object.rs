@@ -52,11 +52,11 @@ impl Object {
         EvaluationResult::Return(self)
     }
 
-    pub fn into_hash_key(self) -> Result<HashKey, EvaluationError> {
+    pub fn into_hash_key(&self) -> Result<HashKey, EvaluationError> {
         match self {
-            Object::Integer(value) => Ok(HashKey::Integer(value)),
-            Object::Boolean(value) => Ok(HashKey::Boolean(value)),
-            Object::String(value) => Ok(HashKey::String(value)),
+            Object::Integer(value) => Ok(HashKey::Integer(value.clone())),
+            Object::Boolean(value) => Ok(HashKey::Boolean(value.clone())),
+            Object::String(value) => Ok(HashKey::String(value.clone())),
             other => Err(EvaluationError::Other(format!("Object type cannot be a hash key: {}", other)))
         }
     }
