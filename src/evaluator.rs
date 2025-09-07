@@ -426,6 +426,14 @@ pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(||
         },
     );
 
+    m.insert(
+        "puts",
+        BuiltinFunction {
+            name: "puts",
+            func: puts_builtin,
+        },
+    );
+
     m
 });
 
@@ -513,6 +521,15 @@ fn push_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
             arr_object
         )))
     }
+}
+
+
+fn puts_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
+    for object in args {
+        println!("{}", object);
+    }
+
+    Ok(Object::Void)
 }
 
 // Builtin helpers
