@@ -29,6 +29,13 @@ pub struct Bytecode {
     constants: Box<[Object]>,
 }
 
+// Helpers
+
+fn format_instructions(instructions: &[u8]) -> String {
+    let mut result = String::new();
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -88,6 +95,18 @@ mod tests {
         }
     }
 
+    fn test_integer_object(object: Object, expected: i64) {
+        if let Object::Integer(integer_object) = object {
+            assert_eq!(
+                integer_object, expected,
+                "value {} is not expected: {}",
+                integer_object, expected
+            )
+        } else {
+            panic!("object is not integer object")
+        }
+    }
+
     // Tests
 
     #[test]
@@ -97,8 +116,30 @@ mod tests {
             expected_constants: vec![Object::Integer(1), Object::Integer(2)],
             expected_instructions: vec![
                 make(Opcode::OpConstant, &vec![0, 0]),
-                make(Opcode::OpConstant, &vec![1, 0]),
+                make(Opcode::OpConstant, &vec![0, 1]),
             ],
         }];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_instructions_formatting() {
+        let tests = vec![
+            make(Opcode::OpConstant, &vec![0x00, 0x01]),
+            make(Opcode::OpConstant, &vec![0x00, 0x02]),
+            make(Opcode::OpConstant, &vec![0xFF, 0xFF]),
+        ];
+        let expected = "0000 OpConstant 1\n0003 OpConstant 2\n0006 OpConstant 65535";
+
+        let test_bytes: Vec<u8> = tests
+            .iter()
+            .flat_map(|instruction| instruction.iter())
+            .copied()
+            .collect();
+
+        let result = format_instructions(&test_bytes); 
+        assert_eq!(expected, result, "instructions wrongly formatted expected:\n{}\ngot:\n {}", expected, result);
     }
 }
+
