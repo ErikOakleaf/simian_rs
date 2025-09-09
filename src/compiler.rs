@@ -14,9 +14,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self) {
-
-    }
+    pub fn compile(&self) {}
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
@@ -33,7 +31,11 @@ pub struct Bytecode {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast::Program, lexer::Lexer, parser::{ParseError, Parser}};
+    use crate::{
+        ast::Program,
+        lexer::Lexer,
+        parser::{ParseError, Parser},
+    };
 
     use super::*;
 
@@ -59,9 +61,30 @@ mod tests {
             compiler.compile();
 
             let bytecode = compiler.bytecode();
-            test_instructions(test.expected_instructions.as_ref(), bytecode.instructions.as_ref());
-            test_constants(&test.expected_constants, bytecode.constants.as_ref());
 
+            // flatten expected instructions
+            let expected_bytes: Vec<u8> = test
+                .expected_instructions
+                .iter()
+                .flat_map(|instruction| instruction.iter())
+                .copied()
+                .collect();
+
+            assert_eq!(
+                &expected_bytes,
+                bytecode.instructions.as_ref(),
+                "expected instructions {:?} got {:?}",
+                &expected_bytes,
+                bytecode.instructions.as_ref(),
+            );
+
+            assert_eq!(
+                &test.expected_constants,
+                bytecode.constants.as_ref(),
+                "expected constants {:?} got {:?}",
+                &test.expected_constants,
+                bytecode.constants.as_ref(),
+            );
         }
     }
 
