@@ -1,8 +1,29 @@
-use std::alloc::{alloc, Layout};
+use std::{alloc::{alloc, Layout}, fmt};
 
 #[repr(u8)]
+#[derive(Clone)]
 pub enum Opcode {
     OpConstant = 0x00,
+}
+
+impl TryFrom<u8> for Opcode {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0x00 => Ok(Opcode::OpConstant),
+            _ => Err(format!("invalid opcode: {}", value)),
+        }
+    }
+}
+
+impl fmt::Display for Opcode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Opcode::OpConstant => "OpConstant",
+        };
+        write!(f, "{}", name)
+    }
 }
 
 const fn build_operand_widths() -> [u8; 256] {
@@ -11,7 +32,7 @@ const fn build_operand_widths() -> [u8; 256] {
     table
 }
 
-static OPERAND_WIDTHS: [u8; 256] = build_operand_widths();
+pub static OPERAND_WIDTHS: [u8; 256] = build_operand_widths();
 
 pub fn make(opcode: Opcode, operands: &[u8]) -> Box<[u8]> {
     let instruction_length: usize = 1 + operands.len();
