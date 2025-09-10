@@ -7,6 +7,7 @@ mod object;
 mod evaluator;
 mod code;
 mod compiler;
+mod vm;
 
 fn main() -> Result<(), String>{
     repl::start()?;

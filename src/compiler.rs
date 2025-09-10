@@ -56,7 +56,7 @@ impl Compiler {
                 let position = self.add_constant(integer);
                 self.emit(Opcode::OpConstant, &position.to_be_bytes());
                 Ok(())
-            },
+            }
             Expression::Infix(infix_expression) => {
                 self.compile_expression(&infix_expression.left)?;
                 self.compile_expression(&infix_expression.right)?;
@@ -81,8 +81,8 @@ impl Compiler {
 }
 
 pub struct Bytecode {
-    instructions: Box<[u8]>,
-    constants: Box<[Object]>,
+    pub instructions: Box<[u8]>,
+    pub constants: Box<[Object]>,
 }
 
 // Helpers
@@ -93,7 +93,8 @@ fn format_instructions(instructions: &[u8]) -> String {
     let mut i = 0;
     while i < instructions.len() {
         let adress = i;
-        let opcode = Opcode::try_from(instructions[i]).expect(&format!("opcode not supported {}", instructions[i]));
+        let opcode = Opcode::try_from(instructions[i])
+            .expect(&format!("opcode not supported {}", instructions[i]));
         i += 1;
 
         let (operand, offset) = read_operand(opcode.clone(), &instructions[i..]);
@@ -119,11 +120,7 @@ fn read_operand(opcode: Opcode, instructions: &[u8]) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        ast::Program,
-        lexer::Lexer,
-        parser::{ParseError, Parser},
-    };
+    use crate::{ast::Program, lexer::Lexer, parser::Parser};
 
     use super::*;
 
@@ -250,3 +247,4 @@ mod tests {
         );
     }
 }
+
