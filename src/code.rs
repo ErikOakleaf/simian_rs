@@ -1,5 +1,7 @@
 use std::{alloc::{alloc, Layout}, fmt};
 
+use crate::compiler::CompilationError;
+
 #[repr(u8)]
 #[derive(Clone)]
 pub enum Opcode {
@@ -7,12 +9,12 @@ pub enum Opcode {
 }
 
 impl TryFrom<u8> for Opcode {
-    type Error = String;
+    type Error = CompilationError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0x00 => Ok(Opcode::OpConstant),
-            _ => Err(format!("invalid opcode: {}", value)),
+            _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
 }

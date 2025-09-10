@@ -1,5 +1,12 @@
-use crate::code::{Opcode, make, OPERAND_WIDTHS};
+use crate::ast::{Expression, Program, Statement};
+use crate::code::{OPERAND_WIDTHS, Opcode, make};
 use crate::object::Object;
+
+#[derive(Debug)]
+pub enum CompilationError {
+    Generic(String),
+    UnkownOpcode(u8),
+}
 
 pub struct Compiler {
     instructions: Vec<u8>,
@@ -14,7 +21,56 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self) {}
+    fn add_constant(&mut self, object: Object) -> u16 {
+        self.constants.push(object);
+        (self.constants.len() - 1) as u16
+    }
+
+    fn add_instruction(&mut self, instruction: &[u8]) -> usize {
+        let position = self.instructions.len();
+        self.instructions.extend_from_slice(instruction);
+        position
+    }
+
+    pub fn compile_program(&mut self, program: &Program) -> Result<(), CompilationError> {
+        for statement in program.statements.iter() {
+            self.compile_statement(statement)?;
+        }
+
+        Ok(())
+    }
+
+    fn compile_statement(&mut self, statement: &Statement) -> Result<(), CompilationError> {
+        match statement {
+            Statement::Expression(expression_statement) => {
+                self.compile_expression(expression_statement.expression.as_ref())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompilationError> {
+        match expression {
+            Expression::IntegerLiteral(integer_literal_expression) => {
+                let integer = Object::Integer(integer_literal_expression.value);
+                let position = self.add_constant(integer);
+                self.emit(Opcode::OpConstant, &position.to_be_bytes());
+                Ok(())
+            },
+            Expression::Infix(infix_expression) => {
+                self.compile_expression(&infix_expression.left)?;
+                self.compile_expression(&infix_expression.right)?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn emit(&mut self, opcode: Opcode, operand: &[u8]) -> usize {
+        let instruction = make(opcode, operand);
+        let position = self.add_instruction(instruction.as_ref());
+        position
+    }
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
@@ -37,8 +93,8 @@ fn format_instructions(instructions: &[u8]) -> String {
     let mut i = 0;
     while i < instructions.len() {
         let adress = i;
-        let opcode = Opcode::try_from(instructions[i]).unwrap();
-        i += 1; 
+        let opcode = Opcode::try_from(instructions[i]).expect(&format!("opcode not supported {}", instructions[i]));
+        i += 1;
 
         let (operand, offset) = read_operand(opcode.clone(), &instructions[i..]);
         i += offset;
@@ -55,14 +111,11 @@ fn read_operand(opcode: Opcode, instructions: &[u8]) -> (usize, usize) {
     let val: usize = match operand_width {
         0 => 0,
         1 => instructions[0] as usize,
-        2 => {
-            u16::from_be_bytes([instructions[0], instructions[1]]) as usize
-        }
-        _ => panic!("unsopperted opperand width")
+        2 => u16::from_be_bytes([instructions[0], instructions[1]]) as usize,
+        _ => panic!("unsopperted opperand width"),
     };
     (val, operand_width)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -92,8 +145,9 @@ mod tests {
     fn run_compiler_tests(tests: Vec<CompilerTestCase>) {
         for test in tests {
             let program = parse_input(test.input);
-            let compiler = Compiler::new();
-            compiler.compile();
+            println!("program {}", program);
+            let mut compiler = Compiler::new();
+            compiler.compile_program(&program).unwrap();
 
             let bytecode = compiler.bytecode();
 
@@ -160,8 +214,16 @@ mod tests {
             let opcode = Opcode::try_from(instruction[0]).unwrap();
             let (operand, offset) = read_operand(opcode, &instruction[1..]);
 
-            assert_eq!(expected_offset, offset, "expected {} bytes, got {} bytes", expected_offset, offset);
-            assert_eq!(expected_result, operand, "expected operand {:?} got {:?}", expected_result, operand);
+            assert_eq!(
+                expected_offset, offset,
+                "expected {} bytes, got {} bytes",
+                expected_offset, offset
+            );
+            assert_eq!(
+                expected_result, operand,
+                "expected operand {:?} got {:?}",
+                expected_result, operand
+            );
         }
     }
 
@@ -180,8 +242,11 @@ mod tests {
             .copied()
             .collect();
 
-        let result = format_instructions(&test_bytes); 
-        assert_eq!(expected, result, "instructions wrongly formatted expected:\n{}\ngot:\n{}", expected, result);
+        let result = format_instructions(&test_bytes);
+        assert_eq!(
+            expected, result,
+            "instructions wrongly formatted expected:\n{}\ngot:\n{}",
+            expected, result
+        );
     }
 }
-
