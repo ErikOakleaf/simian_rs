@@ -228,12 +228,32 @@ mod tests {
                 expected: Object::Integer(-1),
             },
             VMTestCase {
-                input: "1 * 2",
+                input: "4 / 2",
                 expected: Object::Integer(2),
             },
             VMTestCase {
-                input: "6 / 2",
-                expected: Object::Integer(3),
+                input: "50 / 2 * 2 + 10 - 5",
+                expected: Object::Integer(55),
+            },
+            VMTestCase {
+                input: "5 + 5 + 5 + 5 - 10",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "2 * 2 * 2 * 2 * 2",
+                expected: Object::Integer(32),
+            },
+            VMTestCase {
+                input: "5 * 2 + 10",
+                expected: Object::Integer(20),
+            },
+            VMTestCase {
+                input: "5 + 2 * 10",
+                expected: Object::Integer(25),
+            },
+            VMTestCase {
+                input: "5 * (2 + 10)",
+                expected: Object::Integer(60),
             },
         ];
 
