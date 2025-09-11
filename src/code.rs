@@ -1,11 +1,15 @@
-use std::{alloc::{alloc, Layout}, fmt};
+use std::{
+    alloc::{Layout, alloc},
+    fmt,
+};
 
 use crate::compiler::CompilationError;
 
 #[repr(u8)]
 #[derive(Clone)]
 pub enum Opcode {
-    OpConstant = 0x00,
+    LoadConstant = 0x00,
+    Add = 0x01,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -13,7 +17,8 @@ impl TryFrom<u8> for Opcode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0x00 => Ok(Opcode::OpConstant),
+            0x00 => Ok(Opcode::LoadConstant),
+            0x01 => Ok(Opcode::Add),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -22,7 +27,8 @@ impl TryFrom<u8> for Opcode {
 impl fmt::Display for Opcode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
-            Opcode::OpConstant => "OpConstant",
+            Opcode::LoadConstant => "LoadConstant",
+            Opcode::Add => "Add",
         };
         write!(f, "{}", name)
     }
@@ -30,7 +36,8 @@ impl fmt::Display for Opcode {
 
 const fn build_operand_widths() -> [u8; 256] {
     let mut table = [0u8; 256];
-    table[Opcode::OpConstant as usize] = 2;
+    table[Opcode::LoadConstant as usize] = 2;
+    table[Opcode::Add as usize] = 0;
     table
 }
 
@@ -70,15 +77,32 @@ fn allocate_array(size: usize) -> Box<[u8]> {
 mod tests {
     use super::*;
 
+    struct MakeTestCase<'a> {
+        opcode: Opcode,
+        operand: &'a [u8],
+        expected: &'a [u8],
+    }
+
     #[test]
     fn test_make() {
-        let tests = [(Opcode::OpConstant, &[0xFF, 0xFE], [0x00, 0xFF, 0xFE])];
+        let tests = [
+            MakeTestCase {
+                opcode: Opcode::LoadConstant,
+                operand: &[0xFF, 0xFE],
+                expected: &[0x00, 0xFF, 0xFE],
+            },
+            MakeTestCase {
+                opcode: Opcode::Add,
+                operand: &[],
+                expected: &[Opcode::Add as u8],
+            },
+        ];
 
-        for (opcode, operands, expected) in tests {
-            let instruction = make(opcode, operands);
+        for test in tests {
+            let instruction = make(test.opcode, test.operand);
 
             let instruction_length = instruction.len();
-            let expected_length = expected.len();
+            let expected_length = test.expected.len();
             assert_eq!(
                 instruction_length, expected_length,
                 "expected instruction length {} got {}",
@@ -86,9 +110,9 @@ mod tests {
             );
             assert_eq!(
                 instruction.as_ref(),
-                expected,
+                test.expected,
                 "expected instruction {:?} got {:?}",
-                expected,
+                test.expected,
                 instruction
             );
         }

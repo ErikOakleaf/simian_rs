@@ -61,10 +61,10 @@ impl VM {
             let opcode = self.instructions[ip];
             ip += 1;
 
-            const OP_CONSTANT: u8 = Opcode::OpConstant as u8;
+            const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
             
             match opcode {
-                OP_CONSTANT => {
+                LOAD_CONSTANT => {
                     let constant_index = ((self.instructions[ip] as usize) << 8) | (self.instructions[ip + 1] as usize);
                     ip += 2;
 
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_integer_arithmetic() {
+    fn test_integer_arithmetic() -> Result<(), VMError> {
         let tests = vec![
             VMTestCase {
                 input: "1",
@@ -152,6 +152,6 @@ mod tests {
             }, // TODO - fix that it should evluate to 3 later
         ];
 
-        run_vm_tests(&tests);
+        run_vm_tests(&tests)
     }
 }

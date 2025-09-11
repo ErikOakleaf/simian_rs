@@ -54,7 +54,7 @@ impl Compiler {
             Expression::IntegerLiteral(integer_literal_expression) => {
                 let integer = Object::Integer(integer_literal_expression.value);
                 let position = self.add_constant(integer);
-                self.emit(Opcode::OpConstant, &position.to_be_bytes());
+                self.emit(Opcode::LoadConstant, &position.to_be_bytes());
                 Ok(())
             }
             Expression::Infix(infix_expression) => {
@@ -92,7 +92,7 @@ fn format_instructions(instructions: &[u8]) -> String {
 
     let mut i = 0;
     while i < instructions.len() {
-        let adress = i;
+        let address = i;
         let opcode = Opcode::try_from(instructions[i])
             .expect(&format!("opcode not supported {}", instructions[i]));
         i += 1;
@@ -100,19 +100,23 @@ fn format_instructions(instructions: &[u8]) -> String {
         let (operand, offset) = read_operand(opcode.clone(), &instructions[i..]);
         i += offset;
 
-        let instruction_string = format!("{:04} {} {}\n", adress, opcode.clone(), operand);
+        let instruction_string = match operand {
+            Some(val) => format!("{:04} {} {}\n", address, opcode, val),
+            None => format!("{:04} {}\n", address, opcode),
+        };
+
         result.push_str(&instruction_string);
     }
 
     result
 }
 
-fn read_operand(opcode: Opcode, instructions: &[u8]) -> (usize, usize) {
+fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Option<usize>, usize) {
     let operand_width = OPERAND_WIDTHS[opcode as usize] as usize;
-    let val: usize = match operand_width {
-        0 => 0,
-        1 => instructions[0] as usize,
-        2 => u16::from_be_bytes([instructions[0], instructions[1]]) as usize,
+    let val: Option<usize> = match operand_width {
+        0 => None,
+        1 => Some(instructions[0] as usize),
+        2 => Some(u16::from_be_bytes([instructions[0], instructions[1]]) as usize),
         _ => panic!("unsopperted opperand width"),
     };
     (val, operand_width)
@@ -129,6 +133,11 @@ mod tests {
         input: &'static str,
         expected_constants: Vec<Object>,
         expected_instructions: Vec<Box<[u8]>>,
+    }
+
+    struct FormattingTestCase {
+        instructions: Vec<Box<[u8]>>,
+        expected: &'static str,
     }
 
     // Test helpers
@@ -194,8 +203,8 @@ mod tests {
             input: "1 + 2",
             expected_constants: vec![Object::Integer(1), Object::Integer(2)],
             expected_instructions: vec![
-                make(Opcode::OpConstant, &vec![0, 0]),
-                make(Opcode::OpConstant, &vec![0, 1]),
+                make(Opcode::LoadConstant, &vec![0, 0]),
+                make(Opcode::LoadConstant, &vec![0, 1]),
             ],
         }];
 
@@ -204,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_read_operands() {
-        let tests = vec![(Opcode::OpConstant, vec![0xFF, 0xFF], 65535, 2)];
+        let tests = vec![(Opcode::LoadConstant, vec![0xFF, 0xFF], 65535, 2)];
 
         for (opcode, operand_bytes, expected_result, expected_offset) in tests {
             let instruction = make(opcode, &operand_bytes);
@@ -217,9 +226,9 @@ mod tests {
                 expected_offset, offset
             );
             assert_eq!(
-                expected_result, operand,
+                expected_result, operand.unwrap(),
                 "expected operand {:?} got {:?}",
-                expected_result, operand
+                expected_result, operand.unwrap()
             );
         }
     }
@@ -227,24 +236,39 @@ mod tests {
     #[test]
     fn test_instructions_formatting() {
         let tests = vec![
-            make(Opcode::OpConstant, &vec![0x00, 0x01]),
-            make(Opcode::OpConstant, &vec![0x00, 0x02]),
-            make(Opcode::OpConstant, &vec![0xFF, 0xFF]),
+            FormattingTestCase {
+                instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0x00, 0x01]),
+                    make(Opcode::LoadConstant, &vec![0x00, 0x02]),
+                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                ],
+                expected: "0000 LoadConstant 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n",
+            },
+            FormattingTestCase {
+                instructions: vec![
+                    make(Opcode::Add, &vec![]),
+                    make(Opcode::LoadConstant, &vec![0x00, 0x02]),
+                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                ],
+                expected: "0000 Add\n0001 LoadConstant 2\n0004 LoadConstant 65535\n",
+            },
         ];
-        let expected = "0000 OpConstant 1\n0003 OpConstant 2\n0006 OpConstant 65535\n";
 
-        let test_bytes: Vec<u8> = tests
-            .iter()
-            .flat_map(|instruction| instruction.iter())
-            .copied()
-            .collect();
+        for test in tests {
+            let test_bytes: Vec<u8> = test
+                .instructions
+                .iter()
+                .flat_map(|instruction| instruction.iter())
+                .copied()
+                .collect();
 
-        let result = format_instructions(&test_bytes);
-        assert_eq!(
-            expected, result,
-            "instructions wrongly formatted expected:\n{}\ngot:\n{}",
-            expected, result
-        );
+            let result = format_instructions(&test_bytes);
+
+            assert_eq!(
+                test.expected, result,
+                "instructions wrongly formatted expected:\n{}\ngot:\n{}",
+                test.expected, result
+            );
+        }
     }
 }
-
