@@ -44,7 +44,9 @@ impl Compiler {
     fn compile_statement(&mut self, statement: &Statement) -> Result<(), CompilationError> {
         match statement {
             Statement::Expression(expression_statement) => {
-                self.compile_expression(expression_statement.expression.as_ref())
+                self.compile_expression(expression_statement.expression.as_ref())?;
+                self.emit(Opcode::Pop, &[]);
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -63,9 +65,9 @@ impl Compiler {
                 self.compile_expression(&infix_expression.right)?;
 
                 let operator = infix_expression.token.literal.as_str();
-                match  operator {
+                match operator {
                     "+" => self.emit(Opcode::Add, &[]),
-                    _ => return Err(CompilationError::UnknownOperator(operator.to_string()))
+                    _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
 
                 Ok(())
@@ -207,15 +209,28 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        let tests = vec![CompilerTestCase {
-            input: "1 + 2",
-            expected_constants: vec![Object::Integer(1), Object::Integer(2)],
-            expected_instructions: vec![
-                make(Opcode::LoadConstant, &vec![0, 0]),
-                make(Opcode::LoadConstant, &vec![0, 1]),
-                make(Opcode::Add, &vec![]),
-            ],
-        }];
+        let tests = vec![
+            CompilerTestCase {
+                input: "1 + 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Add, &vec![]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1; 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::Pop, &vec![]),
+                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+        ];
 
         run_compiler_tests(tests);
     }
@@ -235,9 +250,11 @@ mod tests {
                 expected_offset, offset
             );
             assert_eq!(
-                expected_result, operand.unwrap(),
+                expected_result,
+                operand.unwrap(),
                 "expected operand {:?} got {:?}",
-                expected_result, operand.unwrap()
+                expected_result,
+                operand.unwrap()
             );
         }
     }

@@ -10,6 +10,7 @@ use crate::compiler::CompilationError;
 pub enum Opcode {
     LoadConstant = 0x00,
     Add = 0x01,
+    Pop = 0x02,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -19,6 +20,7 @@ impl TryFrom<u8> for Opcode {
         match value {
             0x00 => Ok(Opcode::LoadConstant),
             0x01 => Ok(Opcode::Add),
+            0x02 => Ok(Opcode::Pop),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -29,19 +31,21 @@ impl fmt::Display for Opcode {
         let name = match self {
             Opcode::LoadConstant => "LoadConstant",
             Opcode::Add => "Add",
+            Opcode::Pop => "Pop",
         };
         write!(f, "{}", name)
     }
 }
 
-const fn build_operand_widths() -> [u8; 256] {
-    let mut table = [0u8; 256];
+const fn build_operand_widths() -> [u8; 10] {
+    let mut table = [0u8; 10];
     table[Opcode::LoadConstant as usize] = 2;
     table[Opcode::Add as usize] = 0;
+    table[Opcode::Pop as usize] = 0;
     table
 }
 
-pub static OPERAND_WIDTHS: [u8; 256] = build_operand_widths();
+pub static OPERAND_WIDTHS: [u8; 10] = build_operand_widths();
 
 pub fn make(opcode: Opcode, operands: &[u8]) -> Box<[u8]> {
     let instruction_length: usize = 1 + operands.len();

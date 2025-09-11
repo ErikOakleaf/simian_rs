@@ -19,11 +19,13 @@ pub enum VMError {
 }
 
 pub struct VM {
-    pub instructions: Box<[u8]>,
-    pub constants: Box<[Object]>,
+    instructions: Box<[u8]>,
+    constants: Box<[Object]>,
 
-    pub stack: [Option<Object>; STACK_SIZE],
-    pub sp: usize,
+    stack: [Option<Object>; STACK_SIZE],
+    sp: usize,
+
+    last_popped: Object,
 }
 
 impl VM {
@@ -32,11 +34,13 @@ impl VM {
         let instructions = bytecode.instructions;
         let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
         let sp = 0;
+        let last_popped = Object::Null;
         VM {
             constants: constants,
             instructions: instructions,
             stack: stack,
             sp: sp,
+            last_popped: last_popped,
         }
     }
 
@@ -68,6 +72,21 @@ impl VM {
         Ok(self.stack[self.sp].take().unwrap())
     }
 
+        
+    fn pop_with_last(&mut self) -> Result<Object, VMError> {
+        if self.sp == 0 {
+            return Err(VMError::StackOverflow);
+        }
+
+        self.sp -= 1;
+        self.last_popped = self.stack[self.sp].clone().unwrap();
+        Ok(self.stack[self.sp].take().unwrap())
+    }
+
+    pub fn last_popped_stack_element(&self) -> &Object {
+        &self.last_popped
+    }
+
     pub fn run(&mut self) -> Result<(), VMError> {
         let mut ip = 0;
         while ip < self.instructions.len() {
@@ -76,6 +95,7 @@ impl VM {
 
             const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
             const ADD: u8 = Opcode::Add as u8;
+            const POP: u8 = Opcode::Pop as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -96,6 +116,10 @@ impl VM {
                         _ => return Err(VMError::TypeMismatch { left: left, opcode: Opcode::Add, right: right}),
                     };
                 }
+                POP => {
+                    self.pop_with_last()?;
+                }
+
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
         }
@@ -146,7 +170,7 @@ mod tests {
             let mut vm = VM::new(compiler.bytecode());
             vm.run()?;
 
-            let stack_element = vm.stack_top().unwrap();
+            let stack_element = vm.last_popped_stack_element();
             assert_eq!(
                 test.expected,
                 stack_element.clone(),
