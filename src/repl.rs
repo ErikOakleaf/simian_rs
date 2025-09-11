@@ -49,34 +49,28 @@ pub fn start(mode: usize) -> Result<(), String> {
             // compiler / vm mode
             let mut compiler = Compiler::new();
             match compiler.compile_program(&program) {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) => {
                     println!("Compilation error: {:?}", e);
                     continue;
                 }
             };
-            
+
             let mut vm = VM::new(compiler.bytecode());
             match vm.run() {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) => {
                     println!("VM error: {:?}", e);
                     continue;
                 }
             }
 
-            let stack_top = match vm.stack_top() {
-                Ok(obj) => obj,
-                Err(e) => {
-                    println!("Stack error: {:?}", e);
-                    continue;
-                }
-            };
+            let last_popped_element = vm.last_popped_stack_element();
 
-            match stack_top {
+            match last_popped_element {
                 Object::Void => {}
                 _ => {
-                    println!("{}", stack_top);
+                    println!("{}", last_popped_element);
                 }
             }
         }

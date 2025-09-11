@@ -67,6 +67,9 @@ impl Compiler {
                 let operator = infix_expression.token.literal.as_str();
                 match operator {
                     "+" => self.emit(Opcode::Add, &[]),
+                    "-" => self.emit(Opcode::Sub, &[]),
+                    "*" => self.emit(Opcode::Mul, &[]),
+                    "/" => self.emit(Opcode::Div, &[]),
                     _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
 
@@ -161,7 +164,6 @@ mod tests {
     fn run_compiler_tests(tests: Vec<CompilerTestCase>) {
         for test in tests {
             let program = parse_input(test.input);
-            println!("program {}", program);
             let mut compiler = Compiler::new();
             compiler.compile_program(&program).unwrap();
 
@@ -227,6 +229,36 @@ mod tests {
                     make(Opcode::LoadConstant, &vec![0, 0]),
                     make(Opcode::Pop, &vec![]),
                     make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 - 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Sub, &vec![]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 * 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Mul, &vec![]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "2 / 1",
+                expected_constants: vec![Object::Integer(2), Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::Div, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
             },

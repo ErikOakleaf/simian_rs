@@ -72,7 +72,6 @@ impl VM {
         Ok(self.stack[self.sp].take().unwrap())
     }
 
-        
     fn pop_with_last(&mut self) -> Result<Object, VMError> {
         if self.sp == 0 {
             return Err(VMError::StackOverflow);
@@ -95,6 +94,9 @@ impl VM {
 
             const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
             const ADD: u8 = Opcode::Add as u8;
+            const SUB: u8 = Opcode::Sub as u8;
+            const MUL: u8 = Opcode::Mul as u8;
+            const DIV: u8 = Opcode::Div as u8;
             const POP: u8 = Opcode::Pop as u8;
 
             match opcode {
@@ -106,15 +108,16 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 ADD => {
-                    let right = self.pop()?;
-                    let left = self.pop()?;
-
-                    match (&left, &right) {
-                        (Object::Integer(l), Object::Integer(r)) => {
-                            self.push(Object::Integer(*l + *r))?;
-                        }
-                        _ => return Err(VMError::TypeMismatch { left: left, opcode: Opcode::Add, right: right}),
-                    };
+                    self.binary_int_op(opcode, |x, y| x + y)?;
+                }
+                SUB => {
+                    self.binary_int_op(opcode, |x, y| x - y)?;
+                }
+                MUL => {
+                    self.binary_int_op(opcode, |x, y| x * y)?;
+                }
+                DIV => {
+                    self.binary_int_op(opcode, |x, y| x / y)?;
                 }
                 POP => {
                     self.pop_with_last()?;
@@ -125,6 +128,28 @@ impl VM {
         }
 
         Ok(())
+    }
+
+    // Helpers
+    #[inline]
+    fn binary_int_op<F>(&mut self, opcode: u8, op: F) -> Result<(), VMError>
+    where
+        F: Fn(i64, i64) -> i64,
+    {
+        let right = self.pop()?;
+        let left = self.pop()?;
+
+        match (&left, &right) {
+            (Object::Integer(l), Object::Integer(r)) => {
+                self.push(Object::Integer(op(*l, *r)))?;
+                Ok(())
+            }
+            _ => Err(VMError::TypeMismatch {
+                left,
+                opcode: Opcode::try_from(opcode).unwrap(),
+                right,
+            }),
+        }
     }
 }
 
@@ -196,6 +221,18 @@ mod tests {
             },
             VMTestCase {
                 input: "1 + 2",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "1 - 2",
+                expected: Object::Integer(-1),
+            },
+            VMTestCase {
+                input: "1 * 2",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
+                input: "6 / 2",
                 expected: Object::Integer(3),
             },
         ];

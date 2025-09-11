@@ -10,7 +10,10 @@ use crate::compiler::CompilationError;
 pub enum Opcode {
     LoadConstant = 0x00,
     Add = 0x01,
-    Pop = 0x02,
+    Sub = 0x02,
+    Mul = 0x03,
+    Div = 0x04,
+    Pop = 0x05,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -20,7 +23,10 @@ impl TryFrom<u8> for Opcode {
         match value {
             0x00 => Ok(Opcode::LoadConstant),
             0x01 => Ok(Opcode::Add),
-            0x02 => Ok(Opcode::Pop),
+            0x02 => Ok(Opcode::Sub),
+            0x03 => Ok(Opcode::Mul),
+            0x04 => Ok(Opcode::Div),
+            0x05 => Ok(Opcode::Pop),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -31,6 +37,9 @@ impl fmt::Display for Opcode {
         let name = match self {
             Opcode::LoadConstant => "LoadConstant",
             Opcode::Add => "Add",
+            Opcode::Sub => "Sub",
+            Opcode::Mul => "Mul",
+            Opcode::Div => "Div",
             Opcode::Pop => "Pop",
         };
         write!(f, "{}", name)
