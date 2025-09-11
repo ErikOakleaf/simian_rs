@@ -8,16 +8,21 @@ const STACK_SIZE: usize = 2048;
 
 #[derive(Debug)]
 pub enum VMError {
-    ReadEmptyStack,
+    EmptyStack,
     StackOverflow,
     UnknownOpcode(u8),
+    TypeMismatch {
+        left: Object,
+        opcode: Opcode,
+        right: Object,
+    },
 }
 
 pub struct VM {
     pub instructions: Box<[u8]>,
     pub constants: Box<[Object]>,
 
-    pub stack: [Object; STACK_SIZE],
+    pub stack: [Option<Object>; STACK_SIZE],
     pub sp: usize,
 }
 
@@ -26,7 +31,7 @@ impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
         let constants = bytecode.constants;
         let instructions = bytecode.instructions;
-        let stack: [Object; STACK_SIZE] = std::array::from_fn(|_| Object::Null);
+        let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
         let sp = 0;
         VM {
             constants: constants,
@@ -38,9 +43,9 @@ impl VM {
 
     fn stack_top(&self) -> Result<&Object, VMError> {
         if self.sp == 0 {
-            Err(VMError::ReadEmptyStack)
+            Err(VMError::EmptyStack)
         } else {
-            Ok(&self.stack[self.sp - 1])
+            Ok(&self.stack[self.sp - 1].as_ref().unwrap())
         }
     }
 
@@ -49,31 +54,51 @@ impl VM {
             return Err(VMError::StackOverflow);
         }
 
-        self.stack[self.sp] = object;
+        self.stack[self.sp] = Some(object);
         self.sp += 1;
 
         Ok(())
     }
 
+    fn pop(&mut self) -> Result<Object, VMError> {
+        if self.sp == 0 {
+            return Err(VMError::StackOverflow);
+        }
+
+        self.sp -= 1;
+        Ok(self.stack[self.sp].take().unwrap())
+    }
+
     pub fn run(&mut self) -> Result<(), VMError> {
-        let mut ip = 0; 
+        let mut ip = 0;
         while ip < self.instructions.len() {
             let opcode = self.instructions[ip];
             ip += 1;
 
             const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
-            
+            const ADD: u8 = Opcode::Add as u8;
+
             match opcode {
                 LOAD_CONSTANT => {
-                    let constant_index = ((self.instructions[ip] as usize) << 8) | (self.instructions[ip + 1] as usize);
+                    let constant_index = ((self.instructions[ip] as usize) << 8)
+                        | (self.instructions[ip + 1] as usize);
                     ip += 2;
 
                     self.push(self.constants[constant_index].clone())?;
                 }
+                ADD => {
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    match (&left, &right) {
+                        (Object::Integer(l), Object::Integer(r)) => {
+                            self.push(Object::Integer(*l + *r))?;
+                        }
+                        _ => return Err(VMError::TypeMismatch { left: left, opcode: Opcode::Add, right: right}),
+                    };
+                }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
-
-            }
-
+            };
         }
 
         Ok(())
@@ -148,8 +173,8 @@ mod tests {
             },
             VMTestCase {
                 input: "1 + 2",
-                expected: Object::Integer(2),
-            }, // TODO - fix that it should evluate to 3 later
+                expected: Object::Integer(3),
+            },
         ];
 
         run_vm_tests(&tests)

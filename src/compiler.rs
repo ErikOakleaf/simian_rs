@@ -60,6 +60,12 @@ impl Compiler {
             Expression::Infix(infix_expression) => {
                 self.compile_expression(&infix_expression.left)?;
                 self.compile_expression(&infix_expression.right)?;
+
+                match infix_expression.token.literal.as_str() {
+                    "+" => self.emit(Opcode::Add, &[]),
+                    other => unreachable!("unsuported operator {}", other),
+                };
+
                 Ok(())
             }
             _ => Ok(()),
@@ -168,9 +174,9 @@ mod tests {
             assert_eq!(
                 &expected_bytes,
                 bytecode.instructions.as_ref(),
-                "expected instructions {:?} got {:?}",
-                &expected_bytes,
-                bytecode.instructions.as_ref(),
+                "expected instructions:\n{}got:\n{}",
+                format_instructions(&expected_bytes),
+                format_instructions(bytecode.instructions.as_ref()),
             );
 
             assert_eq!(
@@ -205,6 +211,7 @@ mod tests {
             expected_instructions: vec![
                 make(Opcode::LoadConstant, &vec![0, 0]),
                 make(Opcode::LoadConstant, &vec![0, 1]),
+                make(Opcode::Add, &vec![]),
             ],
         }];
 

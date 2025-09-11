@@ -6,7 +6,7 @@ use std::{
 use crate::compiler::CompilationError;
 
 #[repr(u8)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Opcode {
     LoadConstant = 0x00,
     Add = 0x01,
