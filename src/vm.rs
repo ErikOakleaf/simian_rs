@@ -26,7 +26,6 @@ pub struct VM {
     pub sp: usize,
 }
 
-#[allow(invalid_value)]
 impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
         let constants = bytecode.constants;
@@ -41,7 +40,7 @@ impl VM {
         }
     }
 
-    fn stack_top(&self) -> Result<&Object, VMError> {
+    pub fn stack_top(&self) -> Result<&Object, VMError> {
         if self.sp == 0 {
             Err(VMError::EmptyStack)
         } else {
