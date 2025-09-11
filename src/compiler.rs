@@ -6,6 +6,7 @@ use crate::object::Object;
 pub enum CompilationError {
     Generic(String),
     UnkownOpcode(u8),
+    UnknownOperator(String),
 }
 
 pub struct Compiler {
@@ -61,9 +62,10 @@ impl Compiler {
                 self.compile_expression(&infix_expression.left)?;
                 self.compile_expression(&infix_expression.right)?;
 
-                match infix_expression.token.literal.as_str() {
+                let operator = infix_expression.token.literal.as_str();
+                match  operator {
                     "+" => self.emit(Opcode::Add, &[]),
-                    other => unreachable!("unsuported operator {}", other),
+                    _ => return Err(CompilationError::UnknownOperator(operator.to_string()))
                 };
 
                 Ok(())

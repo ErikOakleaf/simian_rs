@@ -48,14 +48,27 @@ pub fn start(mode: usize) -> Result<(), String> {
         } else {
             // compiler / vm mode
             let mut compiler = Compiler::new();
-            compiler.compile_program(&program).map_err(|e| format!("Compilation error: {:?}", e));
+            match compiler.compile_program(&program) {
+                Ok(()) => {},
+                Err(e) => {
+                    println!("Compilation error: {:?}", e);
+                    continue;
+                }
+            };
+            
             let mut vm = VM::new(compiler.bytecode());
-            vm.run().map_err(|e| format!("VM error: {:?}", e)); 
+            match vm.run() {
+                Ok(()) => {},
+                Err(e) => {
+                    println!("VM error: {:?}", e);
+                    continue;
+                }
+            }
 
             let stack_top = match vm.stack_top() {
                 Ok(obj) => obj,
                 Err(e) => {
-                    println!("Evaluation error: {:?}", e);
+                    println!("Stack error: {:?}", e);
                     continue;
                 }
             };
