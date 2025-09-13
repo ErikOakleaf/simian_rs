@@ -108,16 +108,16 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 ADD => {
-                    self.binary_int_op(opcode, |x, y| x + y)?;
+                    self.execute_binary_operation(opcode, |x, y| x + y)?;
                 }
                 SUB => {
-                    self.binary_int_op(opcode, |x, y| x - y)?;
+                    self.execute_binary_operation(opcode, |x, y| x - y)?;
                 }
                 MUL => {
-                    self.binary_int_op(opcode, |x, y| x * y)?;
+                    self.execute_binary_operation(opcode, |x, y| x * y)?;
                 }
                 DIV => {
-                    self.binary_int_op(opcode, |x, y| x / y)?;
+                    self.execute_binary_operation(opcode, |x, y| x / y)?;
                 }
                 POP => {
                     self.pop_with_last()?;
@@ -131,8 +131,9 @@ impl VM {
     }
 
     // Helpers
+
     #[inline]
-    fn binary_int_op<F>(&mut self, opcode: u8, op: F) -> Result<(), VMError>
+    fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), VMError>
     where
         F: Fn(i64, i64) -> i64,
     {

@@ -60,6 +60,15 @@ impl Compiler {
                 self.emit(Opcode::LoadConstant, &position.to_be_bytes());
                 Ok(())
             }
+            Expression::Boolean(boolean_literal_expression) => {
+                let bool_value = boolean_literal_expression.value;
+                let bool_opcode = match bool_value {
+                    true => Opcode::True,
+                    false => Opcode::False,
+                };
+                self.emit(bool_opcode, &[]); 
+                Ok(())
+            }
             Expression::Infix(infix_expression) => {
                 self.compile_expression(&infix_expression.left)?;
                 self.compile_expression(&infix_expression.right)?;
@@ -261,6 +270,24 @@ mod tests {
                     make(Opcode::Div, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_boolean_expressions() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "true",
+                expected_constants: vec![],
+                expected_instructions: vec![make(Opcode::True, &[]), make(Opcode::Pop, &[])],
+            },
+            CompilerTestCase {
+                input: "false",
+                expected_constants: vec![],
+                expected_instructions: vec![make(Opcode::False, &[]), make(Opcode::Pop, &[])],
             },
         ];
 

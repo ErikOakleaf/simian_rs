@@ -14,6 +14,8 @@ pub enum Opcode {
     Mul = 0x03,
     Div = 0x04,
     Pop = 0x05,
+    True = 0x06,
+    False = 0x07,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -27,6 +29,8 @@ impl TryFrom<u8> for Opcode {
             0x03 => Ok(Opcode::Mul),
             0x04 => Ok(Opcode::Div),
             0x05 => Ok(Opcode::Pop),
+            0x06 => Ok(Opcode::True),
+            0x07 => Ok(Opcode::False),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -41,6 +45,8 @@ impl fmt::Display for Opcode {
             Opcode::Mul => "Mul",
             Opcode::Div => "Div",
             Opcode::Pop => "Pop",
+            Opcode::True => "True",
+            Opcode::False => "False",
         };
         write!(f, "{}", name)
     }
@@ -50,6 +56,9 @@ const fn build_operand_widths() -> [u8; 10] {
     let mut table = [0u8; 10];
     table[Opcode::LoadConstant as usize] = 2;
     table[Opcode::Add as usize] = 0;
+    table[Opcode::Sub as usize] = 0;
+    table[Opcode::Mul as usize] = 0;
+    table[Opcode::Div as usize] = 0;
     table[Opcode::Pop as usize] = 0;
     table
 }
