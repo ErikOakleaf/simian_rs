@@ -98,6 +98,8 @@ impl VM {
             const MUL: u8 = Opcode::Mul as u8;
             const DIV: u8 = Opcode::Div as u8;
             const POP: u8 = Opcode::Pop as u8;
+            const TRUE: u8 = Opcode::True as u8;
+            const FALSE: u8 = Opcode::False as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -121,6 +123,12 @@ impl VM {
                 }
                 POP => {
                     self.pop_with_last()?;
+                }
+                TRUE => {
+                    self.push(Object::Boolean(true))?;
+                }
+                FALSE => {
+                    self.push(Object::Boolean(false))?;
                 }
 
                 _ => return Err(VMError::UnknownOpcode(opcode)),
@@ -255,6 +263,23 @@ mod tests {
             VMTestCase {
                 input: "5 * (2 + 10)",
                 expected: Object::Integer(60),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+
+    #[test]
+    fn test_boolean_expressions() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "true",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "false",
+                expected: Object::Boolean(false),
             },
         ];
 
