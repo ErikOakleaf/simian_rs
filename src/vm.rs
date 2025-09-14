@@ -69,7 +69,7 @@ impl VM {
 
     fn pop(&mut self) -> Result<Object, VMError> {
         if self.sp == 0 {
-            return Err(VMError::StackOverflow);
+            return Err(VMError::EmptyStack);
         }
 
         self.sp -= 1;
@@ -78,7 +78,7 @@ impl VM {
 
     fn pop_with_last(&mut self) -> Result<Object, VMError> {
         if self.sp == 0 {
-            return Err(VMError::StackOverflow);
+            return Err(VMError::EmptyStack);
         }
 
         self.sp -= 1;

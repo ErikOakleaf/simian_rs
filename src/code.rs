@@ -6,7 +6,7 @@ use std::{
 use crate::compiler::CompilationError;
 
 #[repr(u8)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Opcode {
     LoadConstant = 0x00,
     Add = 0x01,
@@ -21,6 +21,8 @@ pub enum Opcode {
     GreaterThan = 0xA,
     Minus = 0xB,
     Bang = 0xC,
+    JumpNotTruthy = 0xD,
+    Jump = 0xF,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -41,6 +43,8 @@ impl TryFrom<u8> for Opcode {
             0x0A => Ok(Opcode::GreaterThan),
             0x0B => Ok(Opcode::Minus),
             0x0C => Ok(Opcode::Bang),
+            0x0D => Ok(Opcode::JumpNotTruthy),
+            0x0E => Ok(Opcode::Jump),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -62,6 +66,8 @@ impl fmt::Display for Opcode {
             Opcode::GreaterThan => "GreaterThan",
             Opcode::Minus => "Minus",
             Opcode::Bang => "Bang",
+            Opcode::JumpNotTruthy => "JumpNotTruthy",
+            Opcode::Jump => "Jump",
         };
         write!(f, "{}", name)
     }
@@ -80,6 +86,8 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::GreaterThan as usize] = 0;
     table[Opcode::Minus as usize] = 0;
     table[Opcode::Bang as usize] = 0;
+    table[Opcode::JumpNotTruthy as usize] = 2;
+    table[Opcode::Jump as usize] = 2;
     table
 }
 

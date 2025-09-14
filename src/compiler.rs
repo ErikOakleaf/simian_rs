@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Program, Statement};
+use crate::ast::{BlockStatement, Expression, Program, Statement};
 use crate::code::{OPERAND_WIDTHS, Opcode, make};
 use crate::object::Object;
 
@@ -6,11 +6,21 @@ use crate::object::Object;
 pub enum CompilationError {
     UnkownOpcode(u8),
     UnknownOperator(String),
+    Other(String),
+}
+
+#[derive(Clone, Copy)]
+struct EmittedInstruction {
+    opcode: Opcode,
+    position: usize,
 }
 
 pub struct Compiler {
     instructions: Vec<u8>,
     constants: Vec<Object>,
+
+    last_intstruction: EmittedInstruction,
+    previous_instruction: EmittedInstruction,
 }
 
 impl Compiler {
@@ -18,6 +28,9 @@ impl Compiler {
         Compiler {
             instructions: Vec::<u8>::new(),
             constants: Vec::<Object>::new(),
+
+            last_intstruction: EmittedInstruction { opcode: Opcode::LoadConstant, position: 0 },
+            previous_instruction: EmittedInstruction { opcode: Opcode::LoadConstant, position: 0 },
         }
     }
 
@@ -107,15 +120,44 @@ impl Compiler {
 
                 Ok(())
             }
+            Expression::If(if_expression) => {
+                self.compile_expression(if_expression.condition.as_ref())?;
+                let jump_not_truthy_position = self.emit(Opcode::JumpNotTruthy, &[0xFF, 0xFF]);
+                self.compile_block_statement(&if_expression.consequence)?;
+
+                if self.last_intstruction.opcode == Opcode::Pop {
+                    self.remove_last_pop();
+                }
+
+                let after_consequence_position = self.instructions.len() as u16;
+                let after_consequence_position_bytes = after_consequence_position.to_be_bytes();
+                self.change_operand(jump_not_truthy_position, &after_consequence_position_bytes)?;
+
+                Ok(())
+            }
             _ => Ok(()),
         }
+    }
+
+    fn compile_block_statement(
+        &mut self,
+        block_statement: &BlockStatement,
+    ) -> Result<(), CompilationError> {
+        for statement in block_statement.statements.iter() {
+            self.compile_statement(statement)?;
+        }
+        Ok(())
     }
 
     fn emit(&mut self, opcode: Opcode, operand: &[u8]) -> usize {
         let instruction = make(opcode, operand);
         let position = self.add_instruction(instruction.as_ref());
+
+        self.set_last_instruction(opcode, position); 
+
         position
     }
+
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
@@ -123,6 +165,38 @@ impl Compiler {
             constants: self.constants.clone().into_boxed_slice(),
         }
     }
+
+    // Helpers
+
+    #[inline]
+    fn set_last_instruction(&mut self, opcode: Opcode, position: usize) {
+        self.previous_instruction = self.last_intstruction;
+        self.last_intstruction = EmittedInstruction { opcode: opcode, position: position}
+    }
+
+
+    #[inline]
+    fn change_operand(&mut self, opcode_position: usize, new_operand: &[u8]) -> Result<(), CompilationError> {
+        let opcode = Opcode::try_from(self.instructions[opcode_position])?;
+
+        if new_operand.len() != OPERAND_WIDTHS[opcode as usize] as usize {
+            return Err(CompilationError::Other("New operand is not the correct ammount of bytes".to_string()));
+        }
+
+        let operand_position = opcode_position + 1;
+
+        for (i, byte) in new_operand.iter().enumerate() {
+            self.instructions[operand_position + i] = *byte; 
+        }
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn remove_last_pop(&mut self) {
+        self.instructions.pop(); 
+    }
+
 }
 
 pub struct Bytecode {
@@ -379,6 +453,24 @@ mod tests {
                 ],
             },
         ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_conditionals() {
+        let tests = vec![CompilerTestCase {
+            input: "if (true) { 10 }; 3333",
+            expected_constants: vec![Object::Integer(10), Object::Integer(3333)],
+            expected_instructions: vec![
+                make(Opcode::True, &[]),
+                make(Opcode::JumpNotTruthy, &[0x00, 0x07]),
+                make(Opcode::LoadConstant, &[0x00, 0x00]),
+                make(Opcode::Pop, &[]),
+                make(Opcode::LoadConstant, &[0x00, 0x01]),
+                make(Opcode::Pop, &[]),
+            ],
+        }];
 
         run_compiler_tests(tests);
     }
