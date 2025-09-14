@@ -16,6 +16,9 @@ pub enum Opcode {
     Pop = 0x05,
     True = 0x06,
     False = 0x07,
+    Equal = 0x08,
+    NotEqual = 0x09,
+    GreaterThan = 0xA,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -31,6 +34,9 @@ impl TryFrom<u8> for Opcode {
             0x05 => Ok(Opcode::Pop),
             0x06 => Ok(Opcode::True),
             0x07 => Ok(Opcode::False),
+            0x08 => Ok(Opcode::Equal),
+            0x09 => Ok(Opcode::NotEqual),
+            0x0A => Ok(Opcode::GreaterThan),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -47,23 +53,29 @@ impl fmt::Display for Opcode {
             Opcode::Pop => "Pop",
             Opcode::True => "True",
             Opcode::False => "False",
+            Opcode::Equal => "Equal",
+            Opcode::NotEqual => "NotEqual",
+            Opcode::GreaterThan => "GreaterThan",
         };
         write!(f, "{}", name)
     }
 }
 
-const fn build_operand_widths() -> [u8; 10] {
-    let mut table = [0u8; 10];
+const fn build_operand_widths() -> [u8; 256] {
+    let mut table = [0u8; 256];
     table[Opcode::LoadConstant as usize] = 2;
     table[Opcode::Add as usize] = 0;
     table[Opcode::Sub as usize] = 0;
     table[Opcode::Mul as usize] = 0;
     table[Opcode::Div as usize] = 0;
     table[Opcode::Pop as usize] = 0;
+    table[Opcode::Equal as usize] = 0;
+    table[Opcode::NotEqual as usize] = 0;
+    table[Opcode::GreaterThan as usize] = 0;
     table
 }
 
-pub static OPERAND_WIDTHS: [u8; 10] = build_operand_widths();
+pub static OPERAND_WIDTHS: [u8; 256] = build_operand_widths();
 
 pub fn make(opcode: Opcode, operands: &[u8]) -> Box<[u8]> {
     let instruction_length: usize = 1 + operands.len();

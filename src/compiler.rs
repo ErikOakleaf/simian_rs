@@ -4,7 +4,6 @@ use crate::object::Object;
 
 #[derive(Debug)]
 pub enum CompilationError {
-    Generic(String),
     UnkownOpcode(u8),
     UnknownOperator(String),
 }
@@ -66,19 +65,30 @@ impl Compiler {
                     true => Opcode::True,
                     false => Opcode::False,
                 };
-                self.emit(bool_opcode, &[]); 
+                self.emit(bool_opcode, &[]);
                 Ok(())
             }
             Expression::Infix(infix_expression) => {
+                let operator = infix_expression.token.literal.as_str();
+
+                if operator == "<" {
+                    self.compile_expression(&infix_expression.right)?;
+                    self.compile_expression(&infix_expression.left)?;
+                    self.emit(Opcode::GreaterThan, &[]);
+                    return Ok(());
+                }
+
                 self.compile_expression(&infix_expression.left)?;
                 self.compile_expression(&infix_expression.right)?;
 
-                let operator = infix_expression.token.literal.as_str();
                 match operator {
                     "+" => self.emit(Opcode::Add, &[]),
                     "-" => self.emit(Opcode::Sub, &[]),
                     "*" => self.emit(Opcode::Mul, &[]),
                     "/" => self.emit(Opcode::Div, &[]),
+                    ">" => self.emit(Opcode::GreaterThan, &[]),
+                    "==" => self.emit(Opcode::Equal, &[]),
+                    "!=" => self.emit(Opcode::NotEqual, &[]),
                     _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
 
@@ -288,6 +298,66 @@ mod tests {
                 input: "false",
                 expected_constants: vec![],
                 expected_instructions: vec![make(Opcode::False, &[]), make(Opcode::Pop, &[])],
+            },
+            CompilerTestCase {
+                input: "1 > 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0x00, 0x00]),
+                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::GreaterThan, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 < 2",
+                expected_constants: vec![Object::Integer(2), Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0x00, 0x00]),
+                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::GreaterThan, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 == 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0x00, 0x00]),
+                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::Equal, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 != 2",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0x00, 0x00]),
+                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::NotEqual, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "true == false",
+                expected_constants: vec![],
+                expected_instructions: vec![
+                    make(Opcode::True, &[]),
+                    make(Opcode::False, &[]),
+                    make(Opcode::Equal, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "true != false",
+                expected_constants: vec![],
+                expected_instructions: vec![
+                    make(Opcode::True, &[]),
+                    make(Opcode::False, &[]),
+                    make(Opcode::NotEqual, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
             },
         ];
 

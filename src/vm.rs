@@ -100,6 +100,9 @@ impl VM {
             const POP: u8 = Opcode::Pop as u8;
             const TRUE: u8 = Opcode::True as u8;
             const FALSE: u8 = Opcode::False as u8;
+            const EQUAL: u8 = Opcode::Equal as u8;
+            const NOT_EQUAL: u8 = Opcode::NotEqual as u8;
+            const GREATER_THAN: u8 = Opcode::GreaterThan as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -130,6 +133,57 @@ impl VM {
                 FALSE => {
                     self.push(Object::Boolean(false))?;
                 }
+                EQUAL => {
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    match (&left, &right) {
+                        (Object::Integer(l), Object::Integer(r)) => {
+                            self.push(Object::Boolean(l == r))?;
+                        }
+                        (Object::Boolean(l), Object::Boolean(r)) => {
+                            self.push(Object::Boolean(l == r))?;
+                        }
+                        _ => return Err(VMError::TypeMismatch {
+                            left,
+                            opcode: Opcode::try_from(opcode).unwrap(),
+                            right,
+                        })
+                    };
+                }
+                NOT_EQUAL => {
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    match (&left, &right) {
+                        (Object::Integer(l), Object::Integer(r)) => {
+                            self.push(Object::Boolean(l != r))?;
+                        }
+                        (Object::Boolean(l), Object::Boolean(r)) => {
+                            self.push(Object::Boolean(l != r))?;
+                        }
+                        _ => return Err(VMError::TypeMismatch {
+                            left,
+                            opcode: Opcode::try_from(opcode).unwrap(),
+                            right,
+                        })
+                    };
+                }
+                GREATER_THAN => {
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    match (&left, &right) {
+                        (Object::Integer(l), Object::Integer(r)) => {
+                            self.push(Object::Boolean(l > r))?;
+                        }
+                        _ => return Err(VMError::TypeMismatch {
+                            left,
+                            opcode: Opcode::try_from(opcode).unwrap(),
+                            right,
+                        })
+                    };
+                }
 
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
@@ -140,7 +194,7 @@ impl VM {
 
     // Helpers
 
-    #[inline]
+    #[inline(always)]
     fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), VMError>
     where
         F: Fn(i64, i64) -> i64,
@@ -269,7 +323,6 @@ mod tests {
         run_vm_tests(&tests)
     }
 
-
     #[test]
     fn test_boolean_expressions() -> Result<(), VMError> {
         let tests = vec![
@@ -280,6 +333,74 @@ mod tests {
             VMTestCase {
                 input: "false",
                 expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 < 2",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "1 > 2",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 < 1",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 > 1",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 == 1",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "1 != 1",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 == 2",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "1 != 2",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "true == true",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "false == false",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "true == false",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "true != false",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "false != true",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "(1 < 2) == true",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "(1 < 2) == false",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "(1 > 2) == true",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "(1 > 2) == false",
+                expected: Object::Boolean(true),
             },
         ];
 
