@@ -16,6 +16,10 @@ pub enum VMError {
         opcode: Opcode,
         right: Object,
     },
+    UnknownOperator {
+        operand: String,
+        right: Object,
+    },
 }
 
 pub struct VM {
@@ -103,6 +107,8 @@ impl VM {
             const EQUAL: u8 = Opcode::Equal as u8;
             const NOT_EQUAL: u8 = Opcode::NotEqual as u8;
             const GREATER_THAN: u8 = Opcode::GreaterThan as u8;
+            const MINUS: u8 = Opcode::Minus as u8;
+            const BANG: u8 = Opcode::Bang as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -144,11 +150,13 @@ impl VM {
                         (Object::Boolean(l), Object::Boolean(r)) => {
                             self.push(Object::Boolean(l == r))?;
                         }
-                        _ => return Err(VMError::TypeMismatch {
-                            left,
-                            opcode: Opcode::try_from(opcode).unwrap(),
-                            right,
-                        })
+                        _ => {
+                            return Err(VMError::TypeMismatch {
+                                left,
+                                opcode: Opcode::try_from(opcode).unwrap(),
+                                right,
+                            });
+                        }
                     };
                 }
                 NOT_EQUAL => {
@@ -162,11 +170,13 @@ impl VM {
                         (Object::Boolean(l), Object::Boolean(r)) => {
                             self.push(Object::Boolean(l != r))?;
                         }
-                        _ => return Err(VMError::TypeMismatch {
-                            left,
-                            opcode: Opcode::try_from(opcode).unwrap(),
-                            right,
-                        })
+                        _ => {
+                            return Err(VMError::TypeMismatch {
+                                left,
+                                opcode: Opcode::try_from(opcode).unwrap(),
+                                right,
+                            });
+                        }
                     };
                 }
                 GREATER_THAN => {
@@ -177,12 +187,20 @@ impl VM {
                         (Object::Integer(l), Object::Integer(r)) => {
                             self.push(Object::Boolean(l > r))?;
                         }
-                        _ => return Err(VMError::TypeMismatch {
-                            left,
-                            opcode: Opcode::try_from(opcode).unwrap(),
-                            right,
-                        })
+                        _ => {
+                            return Err(VMError::TypeMismatch {
+                                left,
+                                opcode: Opcode::try_from(opcode).unwrap(),
+                                right,
+                            });
+                        }
                     };
+                }
+                MINUS => {
+                    self.execute_minus_operator()?;
+                }
+                BANG => {
+                    self.execute_bang_operator()?;
                 }
 
                 _ => return Err(VMError::UnknownOpcode(opcode)),
@@ -214,6 +232,37 @@ impl VM {
             }),
         }
     }
+
+    fn execute_minus_operator(&mut self) -> Result<(), VMError> {
+        let operand = self.pop()?;
+
+        match operand {
+            Object::Integer(value) => {
+                self.push(Object::Integer(-value))?;
+            }
+            _ => {
+                return Err(VMError::UnknownOperator {
+                    operand: "-".to_string(),
+                    right: operand,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn execute_bang_operator(&mut self) -> Result<(), VMError> {
+        let operand = self.pop()?;
+
+        match operand {
+            Object::Boolean(value) => {
+                self.push(Object::Boolean(!value))?;
+            }
+            _ => self.push(Object::Boolean(false))?,
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -234,18 +283,6 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let mut parser = Parser::new(&mut lexer);
         parser.parse_program().unwrap()
-    }
-
-    fn test_integer_object(object: Object, expected: i64) {
-        if let Object::Integer(integer_object) = object {
-            assert_eq!(
-                integer_object, expected,
-                "value {} is not expected: {}",
-                integer_object, expected
-            )
-        } else {
-            panic!("object is not integer object")
-        }
     }
 
     fn run_vm_tests(tests: &[VMTestCase]) -> Result<(), VMError> {
@@ -317,6 +354,22 @@ mod tests {
             VMTestCase {
                 input: "5 * (2 + 10)",
                 expected: Object::Integer(60),
+            },
+            VMTestCase {
+                input: "-5",
+                expected: Object::Integer(-5),
+            },
+            VMTestCase {
+                input: "-10",
+                expected: Object::Integer(-10),
+            },
+            VMTestCase {
+                input: "-50 + 100 + -50",
+                expected: Object::Integer(0),
+            },
+            VMTestCase {
+                input: "(5 + 10 * 2 + 15 / 3) * 2 + -10",
+                expected: Object::Integer(50),
             },
         ];
 
@@ -400,6 +453,30 @@ mod tests {
             },
             VMTestCase {
                 input: "(1 > 2) == false",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "!true",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "!false",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "!5",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "!!true",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "!!false",
+                expected: Object::Boolean(false),
+            },
+            VMTestCase {
+                input: "!!5",
                 expected: Object::Boolean(true),
             },
         ];

@@ -19,6 +19,8 @@ pub enum Opcode {
     Equal = 0x08,
     NotEqual = 0x09,
     GreaterThan = 0xA,
+    Minus = 0xB,
+    Bang = 0xC,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -37,6 +39,8 @@ impl TryFrom<u8> for Opcode {
             0x08 => Ok(Opcode::Equal),
             0x09 => Ok(Opcode::NotEqual),
             0x0A => Ok(Opcode::GreaterThan),
+            0x0B => Ok(Opcode::Minus),
+            0x0C => Ok(Opcode::Bang),
             _ => Err(CompilationError::UnkownOpcode(value)),
         }
     }
@@ -56,6 +60,8 @@ impl fmt::Display for Opcode {
             Opcode::Equal => "Equal",
             Opcode::NotEqual => "NotEqual",
             Opcode::GreaterThan => "GreaterThan",
+            Opcode::Minus => "Minus",
+            Opcode::Bang => "Bang",
         };
         write!(f, "{}", name)
     }
@@ -72,6 +78,8 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::Equal as usize] = 0;
     table[Opcode::NotEqual as usize] = 0;
     table[Opcode::GreaterThan as usize] = 0;
+    table[Opcode::Minus as usize] = 0;
+    table[Opcode::Bang as usize] = 0;
     table
 }
 

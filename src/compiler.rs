@@ -78,8 +78,8 @@ impl Compiler {
                     return Ok(());
                 }
 
-                self.compile_expression(&infix_expression.left)?;
-                self.compile_expression(&infix_expression.right)?;
+                self.compile_expression(infix_expression.left.as_ref())?;
+                self.compile_expression(infix_expression.right.as_ref())?;
 
                 match operator {
                     "+" => self.emit(Opcode::Add, &[]),
@@ -89,6 +89,19 @@ impl Compiler {
                     ">" => self.emit(Opcode::GreaterThan, &[]),
                     "==" => self.emit(Opcode::Equal, &[]),
                     "!=" => self.emit(Opcode::NotEqual, &[]),
+                    _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
+                };
+
+                Ok(())
+            }
+            Expression::Prefix(prefix_expression) => {
+                let operator = prefix_expression.token.literal.as_str();
+
+                self.compile_expression(prefix_expression.right.as_ref())?;
+
+                match operator {
+                    "-" => self.emit(Opcode::Minus, &[]),
+                    "!" => self.emit(Opcode::Bang, &[]),
                     _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
 
@@ -214,18 +227,6 @@ mod tests {
         }
     }
 
-    fn test_integer_object(object: Object, expected: i64) {
-        if let Object::Integer(integer_object) = object {
-            assert_eq!(
-                integer_object, expected,
-                "value {} is not expected: {}",
-                integer_object, expected
-            )
-        } else {
-            panic!("object is not integer object")
-        }
-    }
-
     // Tests
 
     #[test]
@@ -278,6 +279,24 @@ mod tests {
                     make(Opcode::LoadConstant, &vec![0, 0]),
                     make(Opcode::LoadConstant, &vec![0, 1]),
                     make(Opcode::Div, &vec![]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "-1",
+                expected_constants: vec![Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::Minus, &vec![]),
+                    make(Opcode::Pop, &vec![]),
+                ],
+            },
+            CompilerTestCase {
+                input: "!true",
+                expected_constants: vec![],
+                expected_instructions: vec![
+                    make(Opcode::True, &vec![]),
+                    make(Opcode::Bang, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
             },
