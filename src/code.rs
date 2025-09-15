@@ -22,7 +22,7 @@ pub enum Opcode {
     Minus = 0xB,
     Bang = 0xC,
     JumpNotTruthy = 0xD,
-    Jump = 0xF,
+    Jump = 0xE,
 }
 
 impl TryFrom<u8> for Opcode {
