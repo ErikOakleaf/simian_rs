@@ -109,6 +109,8 @@ impl VM {
             const GREATER_THAN: u8 = Opcode::GreaterThan as u8;
             const MINUS: u8 = Opcode::Minus as u8;
             const BANG: u8 = Opcode::Bang as u8;
+            const JUMP_NOT_TRUTHY: u8 = Opcode::JumpNotTruthy as u8;
+            const JUMP: u8 = Opcode::Jump as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -202,6 +204,21 @@ impl VM {
                 BANG => {
                     self.execute_bang_operator()?;
                 }
+                JUMP_NOT_TRUTHY => {
+                    let position = ((self.instructions[ip] as usize) << 8)
+                        | (self.instructions[ip + 1] as usize);
+                    ip += 2;
+
+                    let condition = self.pop()?;
+                    if !Self::is_truthy(&condition) {
+                        ip = position;
+                    }
+                }
+                JUMP => {
+                    let position = ((self.instructions[ip] as usize) << 8)
+                        | (self.instructions[ip + 1] as usize);
+                    ip = position;
+                }
 
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
@@ -262,6 +279,13 @@ impl VM {
         }
 
         Ok(())
+    }
+
+    fn is_truthy(object: &Object) -> bool {
+        match object {
+            Object::Boolean(value) => *value,
+            _ => true,
+        }
     }
 }
 
@@ -478,6 +502,42 @@ mod tests {
             VMTestCase {
                 input: "!!5",
                 expected: Object::Boolean(true),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_conditionals() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "if (true) { 10 }",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "if (true) { 10 } else { 20 }",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "if (false) { 10 } else { 20 } ",
+                expected: Object::Integer(20),
+            },
+            VMTestCase {
+                input: "if (1) { 10 }",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "if (1 < 2) { 10 }",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "if (1 < 2) { 10 } else { 20 }",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "if (1 > 2) { 10 } else { 20 }",
+                expected: Object::Integer(20),
             },
         ];
 
