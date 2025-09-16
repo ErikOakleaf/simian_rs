@@ -223,7 +223,6 @@ impl VM {
                 NULL => {
                     self.push(Object::Null)?;
                 }
-
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
         }
@@ -275,12 +274,13 @@ impl VM {
     fn execute_bang_operator(&mut self) -> Result<(), VMError> {
         let operand = self.pop()?;
 
-        match operand {
-            Object::Boolean(value) => {
-                self.push(Object::Boolean(!value))?;
-            }
-            _ => self.push(Object::Boolean(false))?,
-        }
+        let result: Object = match operand {
+            Object::Boolean(value) => Object::Boolean(!value),
+            Object::Null => Object::Boolean(true),
+            _ => Object::Boolean(false),
+        };
+
+        self.push(result)?;
 
         Ok(())
     }
@@ -505,6 +505,10 @@ mod tests {
             },
             VMTestCase {
                 input: "!!5",
+                expected: Object::Boolean(true),
+            },
+            VMTestCase {
+                input: "!(if (false) { 5; })",
                 expected: Object::Boolean(true),
             },
         ];
