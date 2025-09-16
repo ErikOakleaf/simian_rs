@@ -111,6 +111,7 @@ impl VM {
             const BANG: u8 = Opcode::Bang as u8;
             const JUMP_NOT_TRUTHY: u8 = Opcode::JumpNotTruthy as u8;
             const JUMP: u8 = Opcode::Jump as u8;
+            const NULL: u8 = Opcode::Null as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -218,6 +219,9 @@ impl VM {
                     let position = ((self.instructions[ip] as usize) << 8)
                         | (self.instructions[ip + 1] as usize);
                     ip = position;
+                }
+                NULL => {
+                    self.push(Object::Null)?;
                 }
 
                 _ => return Err(VMError::UnknownOpcode(opcode)),
@@ -538,6 +542,14 @@ mod tests {
             VMTestCase {
                 input: "if (1 > 2) { 10 } else { 20 }",
                 expected: Object::Integer(20),
+            },
+            VMTestCase {
+                input: "if (1 > 2) { 10 }",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "if (false) { 10 }",
+                expected: Object::Null,
             },
         ];
 

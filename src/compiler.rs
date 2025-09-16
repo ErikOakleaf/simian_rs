@@ -4,7 +4,7 @@ use crate::object::Object;
 
 #[derive(Debug)]
 pub enum CompilationError {
-    UnkownOpcode(u8),
+    UnknownOpcode(u8),
     UnknownOperator(String),
     Other(String),
 }
@@ -128,34 +128,35 @@ impl Compiler {
             }
             Expression::If(if_expression) => {
                 self.compile_expression(if_expression.condition.as_ref())?;
+
                 let jump_not_truthy_position = self.emit(Opcode::JumpNotTruthy, &[0xFF, 0xFF]);
+
                 self.compile_block_statement(&if_expression.consequence)?;
 
                 if self.last_intstruction.opcode == Opcode::Pop {
                     self.remove_last_pop();
                 }
 
+                let jump_position = self.emit(Opcode::Jump, &[0xFF, 0xFF]);
+                let after_consequence_position = self.get_current_position();
+                self.change_operand(jump_not_truthy_position, &after_consequence_position)?;
+
                 match &if_expression.alternative {
                     None => {
-                        let after_consequence_position = self.get_current_position();
-                        self.change_operand(jump_not_truthy_position, &after_consequence_position)?;
+                        self.emit(Opcode::Null, &[]);
+
                     }
                     Some(alternative) => {
-                        let jump_position = self.emit(Opcode::Jump, &[0xFF, 0xFF]);
-
-                        let after_consequence_position = self.get_current_position();
-                        self.change_operand(jump_not_truthy_position, &after_consequence_position)?;
-
                         self.compile_block_statement(alternative)?;
 
                         if self.last_intstruction.opcode == Opcode::Pop {
                             self.remove_last_pop();
                         }
-
-                        let after_alternative_position = self.get_current_position();
-                        self.change_operand(jump_position, &after_alternative_position)?;
                     }
                 };
+
+                let after_alternative_position = self.get_current_position();
+                self.change_operand(jump_position, &after_alternative_position)?;
 
                 Ok(())
             }
@@ -501,8 +502,10 @@ mod tests {
                 expected_constants: vec![Object::Integer(10), Object::Integer(3333)],
                 expected_instructions: vec![
                     make(Opcode::True, &[]),
-                    make(Opcode::JumpNotTruthy, &[0x00, 0x07]),
+                    make(Opcode::JumpNotTruthy, &[0x00, 10]),
                     make(Opcode::LoadConstant, &[0x00, 0x00]),
+                    make(Opcode::Jump, &[0, 11]),
+                    make(Opcode::Null, &[]),
                     make(Opcode::Pop, &[]),
                     make(Opcode::LoadConstant, &[0x00, 0x01]),
                     make(Opcode::Pop, &[]),

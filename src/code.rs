@@ -23,6 +23,7 @@ pub enum Opcode {
     Bang = 0xC,
     JumpNotTruthy = 0xD,
     Jump = 0xE,
+    Null = 0xF,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -45,7 +46,8 @@ impl TryFrom<u8> for Opcode {
             0x0C => Ok(Opcode::Bang),
             0x0D => Ok(Opcode::JumpNotTruthy),
             0x0E => Ok(Opcode::Jump),
-            _ => Err(CompilationError::UnkownOpcode(value)),
+            0x0F => Ok(Opcode::Null),
+            _ => Err(CompilationError::UnknownOpcode(value)),
         }
     }
 }
@@ -68,6 +70,7 @@ impl fmt::Display for Opcode {
             Opcode::Bang => "Bang",
             Opcode::JumpNotTruthy => "JumpNotTruthy",
             Opcode::Jump => "Jump",
+            Opcode::Null => "Null",
         };
         write!(f, "{}", name)
     }
@@ -81,6 +84,8 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::Mul as usize] = 0;
     table[Opcode::Div as usize] = 0;
     table[Opcode::Pop as usize] = 0;
+    table[Opcode::True as usize] = 0;
+    table[Opcode::False as usize] = 0;
     table[Opcode::Equal as usize] = 0;
     table[Opcode::NotEqual as usize] = 0;
     table[Opcode::GreaterThan as usize] = 0;
@@ -88,6 +93,7 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::Bang as usize] = 0;
     table[Opcode::JumpNotTruthy as usize] = 2;
     table[Opcode::Jump as usize] = 2;
+    table[Opcode::Null as usize] = 0;
     table
 }
 
