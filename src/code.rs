@@ -24,6 +24,8 @@ pub enum Opcode {
     JumpNotTruthy = 0xD,
     Jump = 0xE,
     Null = 0xF,
+    GetGlobal = 0x10,
+    SetGlobal = 0x11,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -47,6 +49,8 @@ impl TryFrom<u8> for Opcode {
             0x0D => Ok(Opcode::JumpNotTruthy),
             0x0E => Ok(Opcode::Jump),
             0x0F => Ok(Opcode::Null),
+            0x10 => Ok(Opcode::GetGlobal),
+            0x11 => Ok(Opcode::SetGlobal),
             _ => Err(CompilationError::UnknownOpcode(value)),
         }
     }
@@ -71,6 +75,8 @@ impl fmt::Display for Opcode {
             Opcode::JumpNotTruthy => "JumpNotTruthy",
             Opcode::Jump => "Jump",
             Opcode::Null => "Null",
+            Opcode::GetGlobal => "GetGlobal",
+            Opcode::SetGlobal => "SetGlobal",
         };
         write!(f, "{}", name)
     }
@@ -94,6 +100,8 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::JumpNotTruthy as usize] = 2;
     table[Opcode::Jump as usize] = 2;
     table[Opcode::Null as usize] = 0;
+    table[Opcode::GetGlobal as usize] = 2;
+    table[Opcode::SetGlobal as usize] = 2;
     table
 }
 

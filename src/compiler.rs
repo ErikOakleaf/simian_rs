@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::{BlockStatement, Expression, Program, Statement};
 use crate::code::{OPERAND_WIDTHS, Opcode, make};
 use crate::object::Object;
@@ -6,6 +8,7 @@ use crate::object::Object;
 pub enum CompilationError {
     UnknownOpcode(u8),
     UnknownOperator(String),
+    UnknownSymbol(String),
     Other(String),
 }
 
@@ -21,6 +24,8 @@ pub struct Compiler {
 
     last_intstruction: EmittedInstruction,
     previous_instruction: EmittedInstruction,
+    
+    symbol_table: SymbolTable,
 }
 
 impl Compiler {
@@ -37,6 +42,7 @@ impl Compiler {
                 opcode: Opcode::LoadConstant,
                 position: 0,
             },
+            symbol_table: SymbolTable::new(),
         }
     }
 
@@ -64,6 +70,12 @@ impl Compiler {
             Statement::Expression(expression_statement) => {
                 self.compile_expression(expression_statement.expression.as_ref())?;
                 self.emit(Opcode::Pop, &[]);
+                Ok(())
+            }
+            Statement::Let(let_statement) => {
+                self.compile_expression(let_statement.value.as_ref())?;
+                let symbol = self.symbol_table.define(&let_statement.name.token.literal);
+                self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
                 Ok(())
             }
             _ => Ok(()),
@@ -144,7 +156,6 @@ impl Compiler {
                 match &if_expression.alternative {
                     None => {
                         self.emit(Opcode::Null, &[]);
-
                     }
                     Some(alternative) => {
                         self.compile_block_statement(alternative)?;
@@ -239,6 +250,51 @@ impl Compiler {
 pub struct Bytecode {
     pub instructions: Box<[u8]>,
     pub constants: Box<[Object]>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum SymbolScope {
+    Global,
+    Local,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Symbol {
+    name: String,
+    scope: SymbolScope,
+    index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct SymbolTable {
+    store: HashMap<String, Symbol>,
+    amount_definitons: usize,
+}
+
+impl SymbolTable {
+    pub fn new() -> Self {
+        SymbolTable {
+            store: HashMap::<String, Symbol>::new(),
+            amount_definitons: 0,
+        }
+    }
+
+    fn define(&mut self, name: &str) -> Symbol {
+        let symbol = Symbol {
+            name: name.to_string(),
+            scope: SymbolScope::Global,
+            index: self.amount_definitons,
+        };
+        self.store.insert(name.to_string(), symbol.clone());
+        self.amount_definitons += 1;
+        symbol
+    }
+
+    fn resolve(&mut self, name: &str) -> Result<&Symbol, CompilationError> {
+        self.store
+            .get(name)
+            .ok_or_else(|| CompilationError::UnknownSymbol(name.to_string()))
+    }
 }
 
 // Helpers
@@ -535,6 +591,46 @@ mod tests {
     }
 
     #[test]
+    fn test_global_let_statements() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "let one = 1; let two = 2;",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::SetGlobal, &[0, 1]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let one = 1; one;",
+                expected_constants: vec![Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let one = 1; let two = one; two;",
+                expected_constants: vec![Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 1]),
+                    make(Opcode::GetGlobal, &[0, 1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
     fn test_read_operands() {
         let tests = vec![(Opcode::LoadConstant, vec![0xFF, 0xFF], 65535, 2)];
 
@@ -595,5 +691,69 @@ mod tests {
                 test.expected, result
             );
         }
+    }
+
+    #[test]
+    fn test_define() {
+        let tests = vec![
+            (
+                "a",
+                Symbol {
+                    name: "a".to_string(),
+                    scope: SymbolScope::Global,
+                    index: 0,
+                },
+            ),
+            (
+                "b",
+                Symbol {
+                    name: "b".to_string(),
+                    scope: SymbolScope::Global,
+                    index: 1,
+                },
+            ),
+        ];
+
+        let mut global = SymbolTable::new();
+
+        let symbols = [global.define("a"), global.define("b")];
+
+        for (i, test) in tests.iter().enumerate() {
+            assert_eq!(test.1, symbols[i]);
+        }
+    }
+
+    #[test]
+    fn test_resolve_global() -> Result<(), CompilationError> {
+        let tests = vec![
+            (
+                "a",
+                Symbol {
+                    name: "a".to_string(),
+                    scope: SymbolScope::Global,
+                    index: 0,
+                },
+            ),
+            (
+                "b",
+                Symbol {
+                    name: "b".to_string(),
+                    scope: SymbolScope::Global,
+                    index: 1,
+                },
+            ),
+        ];
+
+        let mut global = SymbolTable::new();
+
+        global.define("a");
+        global.define("b");
+
+        for test in tests {
+            let symbol = global.resolve(test.0)?;
+            assert_eq!(test.1, *symbol);
+        }
+
+        Ok(())
     }
 }
