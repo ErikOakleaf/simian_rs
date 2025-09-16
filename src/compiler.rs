@@ -24,7 +24,7 @@ pub struct Compiler {
 
     last_intstruction: EmittedInstruction,
     previous_instruction: EmittedInstruction,
-    
+
     symbol_table: SymbolTable,
 }
 
@@ -97,6 +97,16 @@ impl Compiler {
                     false => Opcode::False,
                 };
                 self.emit(bool_opcode, &[]);
+                Ok(())
+            }
+            Expression::Identifier(identifier_expression) => {
+                let index = {
+                    let symbol = self
+                        .symbol_table
+                        .resolve(&identifier_expression.token.literal)?;
+                    symbol.index
+                };
+                self.emit(Opcode::GetGlobal, &index.to_be_bytes());
                 Ok(())
             }
             Expression::Infix(infix_expression) => {
@@ -262,7 +272,7 @@ enum SymbolScope {
 struct Symbol {
     name: String,
     scope: SymbolScope,
-    index: usize,
+    index: u16,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -283,7 +293,7 @@ impl SymbolTable {
         let symbol = Symbol {
             name: name.to_string(),
             scope: SymbolScope::Global,
-            index: self.amount_definitons,
+            index: self.amount_definitons as u16,
         };
         self.store.insert(name.to_string(), symbol.clone());
         self.amount_definitons += 1;
