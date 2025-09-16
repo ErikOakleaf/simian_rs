@@ -288,6 +288,7 @@ impl VM {
     fn is_truthy(object: &Object) -> bool {
         match object {
             Object::Boolean(value) => *value,
+            Object::Null => false,
             _ => true,
         }
     }
@@ -554,6 +555,10 @@ mod tests {
             VMTestCase {
                 input: "if (false) { 10 }",
                 expected: Object::Null,
+            },
+            VMTestCase {
+                input: "if ((if (false) { 10 })) { 10 } else { 20 }",
+                expected: Object::Integer(20),
             },
         ];
 
