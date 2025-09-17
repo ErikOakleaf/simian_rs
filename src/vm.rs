@@ -5,6 +5,7 @@ use crate::compiler::{Bytecode, Compiler};
 use crate::object::Object;
 
 const STACK_SIZE: usize = 2048;
+const GLOBAL_SIZE: usize = 65536;
 
 #[derive(Debug)]
 pub enum VMError {
@@ -20,6 +21,36 @@ pub enum VMError {
         operand: String,
         right: Object,
     },
+    UnboundIdentifier(usize),
+}
+
+pub struct GlobalEnviroment {
+    store: [Option<Object>; STACK_SIZE],
+}
+
+impl GlobalEnviroment {
+    pub fn new() -> Self {
+        GlobalEnviroment {
+            store: std::array::from_fn(|_| None),
+        }
+    }
+
+    pub fn bind(&mut self, index: usize, object: Object) {
+        self.store[index] = Some(object);
+    }
+
+    pub fn lookup(&self, index: usize) -> Result<&Object, VMError> {
+        self.store[index]
+            .as_ref()
+            .ok_or(VMError::UnboundIdentifier(index))
+    }
+
+    pub fn get(&self, index: usize) -> Result<Object, VMError> {
+        match &self.store[index] {
+            Some(value) => Ok(value.clone()),
+            None => Err(VMError::UnboundIdentifier(index))
+        }
+    }
 }
 
 pub struct VM {
@@ -30,6 +61,7 @@ pub struct VM {
     sp: usize,
 
     last_popped: Object,
+    globals: GlobalEnviroment,
 }
 
 impl VM {
@@ -39,12 +71,14 @@ impl VM {
         let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
         let sp = 0;
         let last_popped = Object::Null;
+        let globals = GlobalEnviroment::new();
         VM {
             constants: constants,
             instructions: instructions,
             stack: stack,
             sp: sp,
             last_popped: last_popped,
+            globals: globals,
         }
     }
 
@@ -112,6 +146,8 @@ impl VM {
             const JUMP_NOT_TRUTHY: u8 = Opcode::JumpNotTruthy as u8;
             const JUMP: u8 = Opcode::Jump as u8;
             const NULL: u8 = Opcode::Null as u8;
+            const GET_GLOBAL: u8 = Opcode::GetGlobal as u8;
+            const SET_GLOBAL: u8 = Opcode::SetGlobal as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -222,6 +258,23 @@ impl VM {
                 }
                 NULL => {
                     self.push(Object::Null)?;
+                }
+                GET_GLOBAL => {
+                    let global_index =
+                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
+                            as usize;
+                    ip += 2;
+
+                    self.push(self.globals.get(global_index)?)?;
+                }
+                SET_GLOBAL => {
+                    let global_index =
+                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
+                            as usize;
+                    ip += 2;
+
+                    let global = self.pop()?;
+                    self.globals.bind(global_index, global);
                 }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
@@ -559,6 +612,26 @@ mod tests {
             VMTestCase {
                 input: "if ((if (false) { 10 })) { 10 } else { 20 }",
                 expected: Object::Integer(20),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_global_let_statements() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let one = 1; one;",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let one = 1; let two = 2; one + two",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "let one = 1; let two = one + one; one + two",
+                expected: Object::Integer(3),
             },
         ];
 
