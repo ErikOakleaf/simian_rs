@@ -55,7 +55,7 @@ pub struct VM {
     instructions: Box<[u8]>,
     constants: Box<[Object]>,
 
-    stack: [Option<Object>; STACK_SIZE],
+    pub stack: [Option<Object>; STACK_SIZE],
     sp: usize,
 
     last_popped: Object,
@@ -162,6 +162,7 @@ impl VM {
             const NULL: u8 = Opcode::Null as u8;
             const GET_GLOBAL: u8 = Opcode::GetGlobal as u8;
             const SET_GLOBAL: u8 = Opcode::SetGlobal as u8;
+            const ARRAY: u8 = Opcode::Array as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -306,6 +307,26 @@ impl VM {
 
                     let global = self.pop_with_last()?;
                     self.globals.bind(global_index, global);
+                }
+                ARRAY => {
+                    let array_length =
+                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
+                            as usize;
+                    ip += 2;
+
+                    if self.sp < array_length {
+                        return Err(VMError::EmptyStack);
+                    }
+
+                    let start = self.sp - array_length;
+                    let array: Vec<Object> = self.stack[start..self.sp]
+                        .iter_mut()
+                        .map(|opt| opt.take().unwrap())
+                        .collect();
+
+                    self.sp -= array_length;
+
+                    self.push(Object::Array(array))?;
                 }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
@@ -683,6 +704,34 @@ mod tests {
             VMTestCase {
                 input: "\"mon\" + \"key\" + \"banana\"",
                 expected: Object::String("monkeybanana".to_string()),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_array_literals() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "[]",
+                expected: Object::Array(vec![]),
+            },
+            VMTestCase {
+                input: "[1, 2, 3]",
+                expected: Object::Array(vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                ]),
+            },
+            VMTestCase {
+                input: "[1 + 2, 3 * 4, 5 + 6]",
+                expected: Object::Array(vec![
+                    Object::Integer(3),
+                    Object::Integer(12),
+                    Object::Integer(11),
+                ]),
             },
         ];
 

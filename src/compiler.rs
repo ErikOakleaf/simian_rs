@@ -87,16 +87,15 @@ impl Compiler {
             Statement::Expression(expression_statement) => {
                 self.compile_expression(expression_statement.expression.as_ref())?;
                 self.emit(Opcode::Pop, &[]);
-                Ok(())
             }
             Statement::Let(let_statement) => {
                 self.compile_expression(let_statement.value.as_ref())?;
                 let symbol = self.symbol_table.define(&let_statement.name.token.literal);
                 self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
-                Ok(())
             }
-            _ => Ok(()),
-        }
+            _ => {}
+        };
+        Ok(())
     }
 
     fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompilationError> {
@@ -105,7 +104,6 @@ impl Compiler {
                 let integer = Object::Integer(integer_literal_expression.value);
                 let position = self.add_constant(integer);
                 self.emit(Opcode::LoadConstant, &position.to_be_bytes());
-                Ok(())
             }
             Expression::Boolean(boolean_literal_expression) => {
                 let bool_value = boolean_literal_expression.value;
@@ -114,7 +112,6 @@ impl Compiler {
                     false => Opcode::False,
                 };
                 self.emit(bool_opcode, &[]);
-                Ok(())
             }
             Expression::Identifier(identifier_expression) => {
                 let index = {
@@ -124,13 +121,11 @@ impl Compiler {
                     symbol.index
                 };
                 self.emit(Opcode::GetGlobal, &index.to_be_bytes());
-                Ok(())
             }
             Expression::String(string_token) => {
                 let string_object = Object::String(string_token.literal.clone());
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &index);
-                Ok(())
             }
             Expression::Array(array_literal_expression) => {
                 for element in array_literal_expression.elements.iter() {
@@ -140,8 +135,16 @@ impl Compiler {
                 let length = array_literal_expression.elements.len() as u16;
                 let length_bytes = length.to_be_bytes();
                 self.emit(Opcode::Array, &length_bytes);
+            }
+            Expression::Hash(hash_literal_expression) => {
+                for pair in hash_literal_expression.pairs.iter() {
+                    self.compile_expression(&pair.0)?;
+                    self.compile_expression(&pair.1)?;
+                }
 
-                Ok(())
+                let length = (hash_literal_expression.pairs.len() * 2) as u16;
+                let length_bytes = length.to_be_bytes();
+                self.emit(Opcode::Hash, &length_bytes);
             }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
@@ -166,8 +169,6 @@ impl Compiler {
                     "!=" => self.emit(Opcode::NotEqual, &[]),
                     _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
-
-                Ok(())
             }
             Expression::Prefix(prefix_expression) => {
                 let operator = prefix_expression.token.literal.as_str();
@@ -179,8 +180,6 @@ impl Compiler {
                     "!" => self.emit(Opcode::Bang, &[]),
                     _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
                 };
-
-                Ok(())
             }
             Expression::If(if_expression) => {
                 self.compile_expression(if_expression.condition.as_ref())?;
@@ -212,11 +211,11 @@ impl Compiler {
 
                 let after_alternative_position = self.get_current_position();
                 self.change_operand(jump_position, &after_alternative_position)?;
-
-                Ok(())
             }
-            _ => Ok(()),
-        }
+            _ => {},
+        };
+
+        Ok(())
     }
 
     fn compile_block_statement(
@@ -747,6 +746,66 @@ mod tests {
                     make(Opcode::LoadConstant, &[0, 5]),
                     make(Opcode::Mul, &[]),
                     make(Opcode::Array, &[0, 3]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "{}",
+                expected_constants: vec![],
+                expected_instructions: vec![
+                    make(Opcode::Hash, &[0, 0]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "{1: 2, 3: 4, 5: 6}",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                    Object::Integer(4),
+                    Object::Integer(5),
+                    Object::Integer(6),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::LoadConstant, &[0, 4]),
+                    make(Opcode::LoadConstant, &[0, 5]),
+                    make(Opcode::Hash, &[0, 6]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "{1: 2 + 3, 4: 5 * 6}",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                    Object::Integer(4),
+                    Object::Integer(5),
+                    Object::Integer(6),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Add, &[]),
+                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::LoadConstant, &[0, 4]),
+                    make(Opcode::LoadConstant, &[0, 5]),
+                    make(Opcode::Mul, &[]),
+                    make(Opcode::Hash, &[0, 4]),
                     make(Opcode::Pop, &[]),
                 ],
             },
