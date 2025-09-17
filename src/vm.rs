@@ -24,6 +24,11 @@ pub enum VMError {
     },
     UnboundIdentifier(usize),
     InvalidHashKey(Object),
+    InvalidIndexType {
+        indexable: Object,
+        index: Object,
+    },
+    NotIndexable(Object),
 }
 
 pub struct GlobalEnviroment {
@@ -167,6 +172,7 @@ impl VM {
             const SET_GLOBAL: u8 = Opcode::SetGlobal as u8;
             const ARRAY: u8 = Opcode::Array as u8;
             const HASH: u8 = Opcode::Hash as u8;
+            const INDEX: u8 = Opcode::Index as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -345,7 +351,6 @@ impl VM {
                     let start = self.sp - hash_length;
                     let mut hash = HashMap::<HashKey, Object>::with_capacity(hash_length / 2);
 
-
                     let mut i = start;
                     while i < hash_length {
                         let key = match self.stack[i].take().unwrap() {
@@ -362,6 +367,48 @@ impl VM {
 
                     self.sp -= hash_length;
                     self.push(Object::Hash(hash))?;
+                }
+                INDEX => {
+                    let index_object = self.pop()?;
+                    let indexable_object = self.pop()?;
+
+                    match &indexable_object {
+                        Object::Array(array) => {
+                            let index = match index_object {
+                                Object::Integer(value) => value,
+                                other => {
+                                    return Err(VMError::InvalidIndexType {
+                                        indexable: indexable_object,
+                                        index: other,
+                                    });
+                                }
+                            };
+
+                            match array.get(index as usize) {
+                                Some(obj) => self.push(obj.clone())?,
+                                None => self.push(Object::Null)?,
+                            }
+                        }
+                        Object::Hash(hash) => {
+                            let key = match index_object {
+                                Object::Integer(value) => HashKey::Integer(value),
+                                Object::String(value) => HashKey::String(value),
+                                other => {
+                                    return Err(VMError::InvalidIndexType {
+                                        indexable: indexable_object,
+                                        index: other,
+                                    });
+                                }
+                            };
+
+                            if let Some(value) = hash.get(&key) {
+                                self.push(value.clone())?;
+                            } else {
+                                self.push(Object::Null)?;
+                            }
+                        }
+                        other => return Err(VMError::NotIndexable(other.clone())),
+                    }
                 }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
@@ -795,6 +842,50 @@ mod tests {
                     (HashKey::Integer(2), Object::Integer(4)),
                     (HashKey::Integer(6), Object::Integer(16)),
                 ])),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_index_expressions() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "[1, 2, 3][0 + 2]",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "[[1, 1, 1]][0][0]",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "[][0]",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "[1, 2, 3][99]",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "[1][-1]",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "{1: 1, 2: 2}[1]",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "{1: 1, 2: 2}[2]",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
+                input: "{1: 1}[0]",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "{}[0]",
+                expected: Object::Null,
             },
         ];
 
