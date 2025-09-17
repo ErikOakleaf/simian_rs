@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::code::Opcode;
 use crate::compiler::{Bytecode, Compiler};
-use crate::object::Object;
+use crate::object::{HashKey, Object};
 
 const STACK_SIZE: usize = 2048;
 const GLOBAL_SIZE: usize = 65536;
@@ -21,6 +23,7 @@ pub enum VMError {
         right: Object,
     },
     UnboundIdentifier(usize),
+    InvalidHashKey(Object),
 }
 
 pub struct GlobalEnviroment {
@@ -163,6 +166,7 @@ impl VM {
             const GET_GLOBAL: u8 = Opcode::GetGlobal as u8;
             const SET_GLOBAL: u8 = Opcode::SetGlobal as u8;
             const ARRAY: u8 = Opcode::Array as u8;
+            const HASH: u8 = Opcode::Hash as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -328,6 +332,44 @@ impl VM {
 
                     self.push(Object::Array(array))?;
                 }
+                HASH => {
+                    let hash_length =
+                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
+                            as usize;
+                    ip += 2;
+
+                    if self.sp < hash_length {
+                        return Err(VMError::EmptyStack);
+                    }
+
+                    let start = self.sp - hash_length;
+                    let array: Vec<Object> = self.stack[start..self.sp]
+                        .iter_mut()
+                        .map(|opt| opt.take().unwrap())
+                        .collect();
+
+                    self.sp -= hash_length;
+
+                    let mut hash = HashMap::<HashKey, Object>::new();
+
+
+                    let mut i = 0;
+                    while i < hash_length {
+                        let key = match &array[i] {
+                            Object::Integer(value) => HashKey::Integer(*value),
+                            Object::String(value) => HashKey::String(value.clone()),
+                            other => return Err(VMError::InvalidHashKey(other.clone())),
+                        };
+                        let value = array[i + 1].clone();
+
+                        hash.insert(key, value);
+
+                        i += 2;
+                    }
+
+
+                    self.push(Object::Hash(hash))?;
+                }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
             };
         }
@@ -402,8 +444,10 @@ impl VM {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use super::*;
-    use crate::{ast::Program, lexer::Lexer, parser::Parser};
+    use crate::{ast::Program, lexer::Lexer, object::HashKey, parser::Parser};
 
     #[derive(Debug)]
     struct VMTestCase {
@@ -732,6 +776,32 @@ mod tests {
                     Object::Integer(12),
                     Object::Integer(11),
                 ]),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_hash_literals() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "{}",
+                expected: Object::Hash(HashMap::<HashKey, Object>::new()),
+            },
+            VMTestCase {
+                input: "{1: 2, 2: 3}",
+                expected: Object::Hash(HashMap::from([
+                    (HashKey::Integer(1), Object::Integer(2)),
+                    (HashKey::Integer(2), Object::Integer(3)),
+                ])),
+            },
+            VMTestCase {
+                input: "{1 + 1: 2 * 2, 3 + 3: 4 * 4}",
+                expected: Object::Hash(HashMap::from([
+                    (HashKey::Integer(2), Object::Integer(4)),
+                    (HashKey::Integer(6), Object::Integer(16)),
+                ])),
             },
         ];
 

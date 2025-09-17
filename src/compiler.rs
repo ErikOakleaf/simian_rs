@@ -138,7 +138,9 @@ impl Compiler {
             }
             Expression::Hash(hash_literal_expression) => {
                 for pair in hash_literal_expression.pairs.iter() {
+                    // key
                     self.compile_expression(&pair.0)?;
+                    // value
                     self.compile_expression(&pair.1)?;
                 }
 
