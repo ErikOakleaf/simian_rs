@@ -12,6 +12,8 @@ use std::rc::Rc;
 pub fn start(mode: usize) -> Result<(), String> {
     let stdin = io::stdin();
     let enviroment = Rc::new(RefCell::new(Enviroment::new()));
+    let mut compiler = Compiler::new();
+    let mut vm = VM::new(compiler.bytecode());
 
     loop {
         print!(">> ");
@@ -47,7 +49,7 @@ pub fn start(mode: usize) -> Result<(), String> {
             }
         } else {
             // compiler / vm mode
-            let mut compiler = Compiler::new();
+            compiler = Compiler::new_with_state(compiler.symbol_table, compiler.constants);
             match compiler.compile_program(&program) {
                 Ok(()) => {}
                 Err(e) => {
@@ -56,7 +58,7 @@ pub fn start(mode: usize) -> Result<(), String> {
                 }
             };
 
-            let mut vm = VM::new(compiler.bytecode());
+            vm = VM::new_with_global_store(compiler.bytecode(), vm.globals);
             match vm.run() {
                 Ok(()) => {}
                 Err(e) => {

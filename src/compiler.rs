@@ -20,12 +20,12 @@ struct EmittedInstruction {
 
 pub struct Compiler {
     instructions: Vec<u8>,
-    constants: Vec<Object>,
+    pub constants: Vec<Object>,
 
     last_intstruction: EmittedInstruction,
     previous_instruction: EmittedInstruction,
 
-    symbol_table: SymbolTable,
+    pub symbol_table: SymbolTable,
 }
 
 impl Compiler {
@@ -43,6 +43,23 @@ impl Compiler {
                 position: 0,
             },
             symbol_table: SymbolTable::new(),
+        }
+    }
+
+    pub fn new_with_state(symbol_table: SymbolTable, constants: Vec<Object>) -> Self {
+        Compiler {
+            instructions: Vec::<u8>::new(),
+            constants: constants,
+
+            last_intstruction: EmittedInstruction {
+                opcode: Opcode::LoadConstant,
+                position: 0,
+            },
+            previous_instruction: EmittedInstruction {
+                opcode: Opcode::LoadConstant,
+                position: 0,
+            },
+            symbol_table: symbol_table,
         }
     }
 
@@ -276,7 +293,7 @@ struct Symbol {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct SymbolTable {
+pub struct SymbolTable {
     store: HashMap<String, Symbol>,
     amount_definitons: usize,
 }

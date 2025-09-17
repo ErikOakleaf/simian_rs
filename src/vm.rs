@@ -1,5 +1,3 @@
-use std::mem::MaybeUninit;
-
 use crate::code::Opcode;
 use crate::compiler::{Bytecode, Compiler};
 use crate::object::Object;
@@ -7,6 +5,7 @@ use crate::object::Object;
 const STACK_SIZE: usize = 2048;
 const GLOBAL_SIZE: usize = 65536;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum VMError {
     EmptyStack,
@@ -25,14 +24,13 @@ pub enum VMError {
 }
 
 pub struct GlobalEnviroment {
-    store: [Option<Object>; STACK_SIZE],
+    store: Box<[Option<Object>]>,
 }
 
 impl GlobalEnviroment {
     pub fn new() -> Self {
-        GlobalEnviroment {
-            store: std::array::from_fn(|_| None),
-        }
+        let boxed: Box<[Option<Object>]> = vec![None; GLOBAL_SIZE].into_boxed_slice();
+        GlobalEnviroment { store: boxed }
     }
 
     pub fn bind(&mut self, index: usize, object: Object) {
@@ -48,7 +46,7 @@ impl GlobalEnviroment {
     pub fn get(&self, index: usize) -> Result<Object, VMError> {
         match &self.store[index] {
             Some(value) => Ok(value.clone()),
-            None => Err(VMError::UnboundIdentifier(index))
+            None => Err(VMError::UnboundIdentifier(index)),
         }
     }
 }
@@ -61,7 +59,7 @@ pub struct VM {
     sp: usize,
 
     last_popped: Object,
-    globals: GlobalEnviroment,
+    pub globals: GlobalEnviroment,
 }
 
 impl VM {
@@ -72,6 +70,22 @@ impl VM {
         let sp = 0;
         let last_popped = Object::Null;
         let globals = GlobalEnviroment::new();
+        VM {
+            constants: constants,
+            instructions: instructions,
+            stack: stack,
+            sp: sp,
+            last_popped: last_popped,
+            globals: globals,
+        }
+    }
+
+    pub fn new_with_global_store(bytecode: Bytecode, globals: GlobalEnviroment) -> Self {
+        let constants = bytecode.constants;
+        let instructions = bytecode.instructions;
+        let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
+        let sp = 0;
+        let last_popped = Object::Null;
         VM {
             constants: constants,
             instructions: instructions,
@@ -273,7 +287,7 @@ impl VM {
                             as usize;
                     ip += 2;
 
-                    let global = self.pop()?;
+                    let global = self.pop_with_last()?;
                     self.globals.bind(global_index, global);
                 }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
