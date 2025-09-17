@@ -126,6 +126,12 @@ impl Compiler {
                 self.emit(Opcode::GetGlobal, &index.to_be_bytes());
                 Ok(())
             }
+            Expression::String(string_token) => {
+                let string_object = Object::String(string_token.literal.clone());
+                let index = self.add_constant(string_object).to_be_bytes();
+                self.emit(Opcode::LoadConstant, &index);
+                Ok(())
+            }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
 
@@ -649,6 +655,35 @@ mod tests {
                     make(Opcode::GetGlobal, &[0, 0]),
                     make(Opcode::SetGlobal, &[0, 1]),
                     make(Opcode::GetGlobal, &[0, 1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_string_expression() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "\"monkey\"",
+                expected_constants: vec![Object::String("monkey".to_string())],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "\"mon\" + \"key\"",
+                expected_constants: vec![
+                    Object::String("mon".to_string()),
+                    Object::String("key".to_string()),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Add, &[]),
                     make(Opcode::Pop, &[]),
                 ],
             },
