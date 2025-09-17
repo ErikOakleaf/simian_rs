@@ -172,7 +172,24 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 ADD => {
-                    self.execute_binary_operation(opcode, |x, y| x + y)?;
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    match (&left, &right) {
+                        (Object::Integer(l), Object::Integer(r)) => {
+                            self.push(Object::Integer(*l + *r))?;
+                        }
+                        (Object::String(l), Object::String(r)) => {
+                            self.push(Object::String(format!("{}{}", l, r).to_string()))?;
+                        }
+                        _ => {
+                            return Err(VMError::TypeMismatch {
+                                left,
+                                opcode: Opcode::try_from(opcode).unwrap(),
+                                right,
+                            });
+                        }
+                    };
                 }
                 SUB => {
                     self.execute_binary_operation(opcode, |x, y| x - y)?;
@@ -646,6 +663,26 @@ mod tests {
             VMTestCase {
                 input: "let one = 1; let two = one + one; one + two",
                 expected: Object::Integer(3),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_string_expressions() -> Result<(), VMError> {
+        let tests = vec![
+            VMTestCase {
+                input: "\"monkey\"",
+                expected: Object::String("monkey".to_string()),
+            },
+            VMTestCase {
+                input: "\"mon\" + \"key\"",
+                expected: Object::String("monkey".to_string()),
+            },
+            VMTestCase {
+                input: "\"mon\" + \"key\" + \"banana\"",
+                expected: Object::String("monkeybanana".to_string()),
             },
         ];
 
