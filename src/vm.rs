@@ -343,31 +343,24 @@ impl VM {
                     }
 
                     let start = self.sp - hash_length;
-                    let array: Vec<Object> = self.stack[start..self.sp]
-                        .iter_mut()
-                        .map(|opt| opt.take().unwrap())
-                        .collect();
-
-                    self.sp -= hash_length;
-
-                    let mut hash = HashMap::<HashKey, Object>::new();
+                    let mut hash = HashMap::<HashKey, Object>::with_capacity(hash_length / 2);
 
 
-                    let mut i = 0;
+                    let mut i = start;
                     while i < hash_length {
-                        let key = match &array[i] {
-                            Object::Integer(value) => HashKey::Integer(*value),
-                            Object::String(value) => HashKey::String(value.clone()),
-                            other => return Err(VMError::InvalidHashKey(other.clone())),
+                        let key = match self.stack[i].take().unwrap() {
+                            Object::Integer(value) => HashKey::Integer(value),
+                            Object::String(value) => HashKey::String(value),
+                            other => return Err(VMError::InvalidHashKey(other)),
                         };
-                        let value = array[i + 1].clone();
+                        let value = self.stack[i + 1].take().unwrap();
 
                         hash.insert(key, value);
 
                         i += 2;
                     }
 
-
+                    self.sp -= hash_length;
                     self.push(Object::Hash(hash))?;
                 }
                 _ => return Err(VMError::UnknownOpcode(opcode)),
