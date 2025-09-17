@@ -132,6 +132,17 @@ impl Compiler {
                 self.emit(Opcode::LoadConstant, &index);
                 Ok(())
             }
+            Expression::Array(array_literal_expression) => {
+                for element in array_literal_expression.elements.iter() {
+                    self.compile_expression(element)?;
+                }
+
+                let length = array_literal_expression.elements.len() as u16;
+                let length_bytes = length.to_be_bytes();
+                self.emit(Opcode::Array, &length_bytes);
+
+                Ok(())
+            }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
 
@@ -684,6 +695,58 @@ mod tests {
                     make(Opcode::LoadConstant, &[0, 0]),
                     make(Opcode::LoadConstant, &[0, 1]),
                     make(Opcode::Add, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "[]",
+                expected_constants: vec![],
+                expected_instructions: vec![make(Opcode::Array, &[0, 0]), make(Opcode::Pop, &[])],
+            },
+            CompilerTestCase {
+                input: "[1, 2, 3]",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Array, &[0, 3]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "[1 + 2, 3 - 4, 5 * 6]",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                    Object::Integer(4),
+                    Object::Integer(5),
+                    Object::Integer(6),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Add, &[]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::Sub, &[]),
+                    make(Opcode::LoadConstant, &[0, 4]),
+                    make(Opcode::LoadConstant, &[0, 5]),
+                    make(Opcode::Mul, &[]),
+                    make(Opcode::Array, &[0, 3]),
                     make(Opcode::Pop, &[]),
                 ],
             },

@@ -26,6 +26,7 @@ pub enum Opcode {
     Null = 0xF,
     GetGlobal = 0x10,
     SetGlobal = 0x11,
+    Array = 0x12,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -51,6 +52,7 @@ impl TryFrom<u8> for Opcode {
             0x0F => Ok(Opcode::Null),
             0x10 => Ok(Opcode::GetGlobal),
             0x11 => Ok(Opcode::SetGlobal),
+            0x12 => Ok(Opcode::Array),
             _ => Err(CompilationError::UnknownOpcode(value)),
         }
     }
@@ -77,6 +79,7 @@ impl fmt::Display for Opcode {
             Opcode::Null => "Null",
             Opcode::GetGlobal => "GetGlobal",
             Opcode::SetGlobal => "SetGlobal",
+            Opcode::Array => "Array",
         };
         write!(f, "{}", name)
     }
@@ -102,6 +105,7 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::Null as usize] = 0;
     table[Opcode::GetGlobal as usize] = 2;
     table[Opcode::SetGlobal as usize] = 2;
+    table[Opcode::Array as usize] = 2;
     table
 }
 

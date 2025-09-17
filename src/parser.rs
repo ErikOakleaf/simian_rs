@@ -415,6 +415,7 @@ impl<'a> Parser<'a> {
         let mut elements = Vec::<Expression>::new();
 
         if self.peek_token.token_type == TokenType::RBracket {
+            self.next_token();
             return Ok(elements);
         }
 
