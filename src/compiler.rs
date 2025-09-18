@@ -215,7 +215,7 @@ impl Compiler {
                 self.change_operand(jump_position, &after_alternative_position)?;
             }
             Expression::Index(index_expression) => {
-                self.compile_expression(index_expression.left.as_ref())?; 
+                self.compile_expression(index_expression.left.as_ref())?;
                 self.compile_expression(index_expression.index.as_ref())?;
                 self.emit(Opcode::Index, &[]);
             }
@@ -270,7 +270,7 @@ impl Compiler {
     ) -> Result<(), CompilationError> {
         let opcode = Opcode::try_from(self.instructions[opcode_position])?;
 
-        if new_operand.len() != OPERAND_WIDTHS[opcode as usize] as usize {
+        if new_operand.len() != OPERAND_WIDTHS[opcode as usize] {
             return Err(CompilationError::Other(
                 "New operand is not the correct ammount of bytes".to_string(),
             ));
@@ -374,7 +374,7 @@ fn format_instructions(instructions: &[u8]) -> String {
 }
 
 fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Option<usize>, usize) {
-    let operand_width = OPERAND_WIDTHS[opcode as usize] as usize;
+    let operand_width = OPERAND_WIDTHS[opcode as usize];
     let val: Option<usize> = match operand_width {
         0 => None,
         1 => Some(instructions[0] as usize),
@@ -427,19 +427,19 @@ mod tests {
                 .collect();
 
             assert_eq!(
-                &expected_bytes,
-                bytecode.instructions.as_ref(),
-                "expected instructions:\n{}got:\n{}",
-                format_instructions(&expected_bytes),
-                format_instructions(bytecode.instructions.as_ref()),
-            );
-
-            assert_eq!(
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
                 "expected constants {:?} got {:?}",
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
+            );
+
+            assert_eq!(
+                &expected_bytes,
+                bytecode.instructions.as_ref(),
+                "expected instructions:\n{}got:\n{}",
+                format_instructions(&expected_bytes),
+                format_instructions(bytecode.instructions.as_ref()),
             );
         }
     }
@@ -862,6 +862,35 @@ mod tests {
                 ],
             },
         ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_functions() {
+        let tests = vec![CompilerTestCase {
+            input: "fn() { return 5 + 10 }",
+            expected_constants: vec![
+                Object::Integer(5),
+                Object::Integer(10),
+                Object::CompiledFunction(
+                    vec![
+                        make(Opcode::LoadConstant, &[0, 0]),
+                        make(Opcode::LoadConstant, &[0, 1]),
+                        make(Opcode::Add, &[]),
+                        make(Opcode::ReturnValue, &[]),
+                    ]
+                    .into_iter()
+                    .flat_map(|b| b.into_vec())
+                    .collect::<Vec<u8>>()
+                    .into_boxed_slice(),
+                ),
+            ],
+            expected_instructions: vec![
+                make(Opcode::LoadConstant, &[0, 2]),
+                make(Opcode::Pop, &[]),
+            ],
+        }];
 
         run_compiler_tests(tests);
     }

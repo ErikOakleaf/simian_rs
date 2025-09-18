@@ -29,6 +29,9 @@ pub enum Opcode {
     Array = 0x12,
     Hash = 0x13,
     Index = 0x14,
+    Call = 0x15,
+    ReturnValue = 0x16,
+    Return = 0x17,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -57,6 +60,9 @@ impl TryFrom<u8> for Opcode {
             0x12 => Ok(Opcode::Array),
             0x13 => Ok(Opcode::Hash),
             0x14 => Ok(Opcode::Index),
+            0x15 => Ok(Opcode::Call),
+            0x16 => Ok(Opcode::ReturnValue),
+            0x17 => Ok(Opcode::Return),
             _ => Err(CompilationError::UnknownOpcode(value)),
         }
     }
@@ -86,13 +92,16 @@ impl fmt::Display for Opcode {
             Opcode::Array => "Array",
             Opcode::Hash => "Hash",
             Opcode::Index => "Index",
+            Opcode::Call => "Call",
+            Opcode::ReturnValue => "ReturnValue",
+            Opcode::Return => "Return",
         };
         write!(f, "{}", name)
     }
 }
 
-const fn build_operand_widths() -> [u8; 256] {
-    let mut table = [0u8; 256];
+const fn build_operand_widths() -> [usize; 256] {
+    let mut table = [0usize; 256];
     table[Opcode::LoadConstant as usize] = 2;
     table[Opcode::Add as usize] = 0;
     table[Opcode::Sub as usize] = 0;
@@ -114,18 +123,23 @@ const fn build_operand_widths() -> [u8; 256] {
     table[Opcode::Array as usize] = 2;
     table[Opcode::Hash as usize] = 2;
     table[Opcode::Index as usize] = 0;
+    table[Opcode::Call as usize] = 0;
+    table[Opcode::ReturnValue as usize] = 0;
+    table[Opcode::Return as usize] = 0;
     table
 }
 
-pub static OPERAND_WIDTHS: [u8; 256] = build_operand_widths();
+pub static OPERAND_WIDTHS: [usize; 256] = build_operand_widths();
 
-pub fn make(opcode: Opcode, operands: &[u8]) -> Box<[u8]> {
-    let instruction_length: usize = 1 + operands.len();
+pub fn make(opcode: Opcode, operand: &[u8]) -> Box<[u8]> {
+    debug_assert_eq!(operand.len(), OPERAND_WIDTHS[opcode as usize], "operand {:?} does not have correct width for opcode {}", operand, opcode);
+
+    let instruction_length = 1 + operand.len();
     let mut instruction = allocate_array(instruction_length);
     let instruction_slice = instruction.as_mut();
 
     instruction_slice[0] = opcode as u8;
-    instruction_slice[1..].copy_from_slice(operands);
+    instruction_slice[1..].copy_from_slice(operand);
 
     instruction
 }

@@ -35,8 +35,9 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Function(Function),
-    String(String),
     Builtin(BuiltinFunction),
+    CompiledFunction(Box<[u8]>),
+    String(String),
     Array(Vec<Object>),
     Hash(HashMap<HashKey, Object>),
     Null,
@@ -46,7 +47,7 @@ pub enum Object {
 impl Object {
     pub fn into_value(self) -> EvaluationResult {
         EvaluationResult::Value(self)
-    }   
+    }
 
     pub fn into_return(self) -> EvaluationResult {
         EvaluationResult::Return(self)
@@ -57,7 +58,10 @@ impl Object {
             Object::Integer(value) => Ok(HashKey::Integer(value.clone())),
             Object::Boolean(value) => Ok(HashKey::Boolean(value.clone())),
             Object::String(value) => Ok(HashKey::String(value.clone())),
-            other => Err(EvaluationError::Other(format!("Object type cannot be a hash key: {}", other)))
+            other => Err(EvaluationError::Other(format!(
+                "Object type cannot be a hash key: {}",
+                other
+            ))),
         }
     }
 }
@@ -73,6 +77,9 @@ impl fmt::Display for Object {
             }
             Object::Function(value) => {
                 write!(f, "{}", value)
+            }
+            Object::CompiledFunction(value) => {
+                write!(f, "CompiledFunction{:?}", value)
             }
             Object::String(value) => {
                 write!(f, "{}", value)
