@@ -18,6 +18,28 @@ struct EmittedInstruction {
     position: usize,
 }
 
+struct CompilationScope {
+    instructions: Vec<u8>,
+    last_instruction: EmittedInstruction,
+    previous_instruction: EmittedInstruction,
+}
+
+impl CompilationScope {
+    fn new() -> Self {
+        CompilationScope {
+            instructions: Vec::<u8>::new(),
+            last_instruction: EmittedInstruction {
+                opcode: Opcode::LoadConstant,
+                position: 0,
+            },
+            previous_instruction: EmittedInstruction {
+                opcode: Opcode::LoadConstant,
+                position: 0,
+            },
+        }
+    }
+}
+
 pub struct Compiler {
     instructions: Vec<u8>,
     pub constants: Vec<Object>,
@@ -26,6 +48,9 @@ pub struct Compiler {
     previous_instruction: EmittedInstruction,
 
     pub symbol_table: SymbolTable,
+
+    scopes: Vec<CompilationScope>,
+    scope_index: usize,
 }
 
 impl Compiler {
@@ -33,7 +58,6 @@ impl Compiler {
         Compiler {
             instructions: Vec::<u8>::new(),
             constants: Vec::<Object>::new(),
-
             last_intstruction: EmittedInstruction {
                 opcode: Opcode::LoadConstant,
                 position: 0,
@@ -43,6 +67,8 @@ impl Compiler {
                 position: 0,
             },
             symbol_table: SymbolTable::new(),
+            scopes: vec![CompilationScope::new()],
+            scope_index: 0,
         }
     }
 
@@ -60,6 +86,8 @@ impl Compiler {
                 position: 0,
             },
             symbol_table: symbol_table,
+            scopes: Vec::<CompilationScope>::new(),
+            scope_index: 0,
         }
     }
 
@@ -69,8 +97,9 @@ impl Compiler {
     }
 
     fn add_instruction(&mut self, instruction: &[u8]) -> usize {
-        let position = self.instructions.len();
-        self.instructions.extend_from_slice(instruction);
+        let current_instructions = self.current_intstructions();
+        let position = current_instructions.len();
+        current_instructions.extend_from_slice(instruction);
         position
     }
 
@@ -190,7 +219,7 @@ impl Compiler {
 
                 self.compile_block_statement(&if_expression.consequence)?;
 
-                if self.last_intstruction.opcode == Opcode::Pop {
+                if self.last_instruction_is_pop() {
                     self.remove_last_pop();
                 }
 
@@ -205,7 +234,7 @@ impl Compiler {
                     Some(alternative) => {
                         self.compile_block_statement(alternative)?;
 
-                        if self.last_intstruction.opcode == Opcode::Pop {
+                        if self.last_instruction_is_pop() {
                             self.remove_last_pop();
                         }
                     }
@@ -244,9 +273,27 @@ impl Compiler {
         position
     }
 
+    fn enter_scope(&mut self) {
+        let scope = CompilationScope::new();
+        self.scopes.push(scope);
+        self.scope_index += 1;
+    }
+
+    fn leave_scope(&mut self) -> Box<[u8]> {
+        let instructions = self.scopes[self.scope_index].instructions.clone().into_boxed_slice();
+
+        self.scopes.truncate(self.scopes.len() - 1);
+        self.scope_index -= 1;
+
+        instructions
+    }
+
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
-            instructions: self.instructions.clone().into_boxed_slice(),
+            instructions: self.scopes[self.scope_index]
+                .instructions
+                .clone()
+                .into_boxed_slice(),
             constants: self.constants.clone().into_boxed_slice(),
         }
     }
@@ -255,8 +302,10 @@ impl Compiler {
 
     #[inline]
     fn set_last_instruction(&mut self, opcode: Opcode, position: usize) {
-        self.previous_instruction = self.last_intstruction;
-        self.last_intstruction = EmittedInstruction {
+        let scope = &mut self.scopes[self.scope_index];
+
+        scope.previous_instruction = scope.last_instruction;
+        scope.last_instruction = EmittedInstruction {
             opcode: opcode,
             position: position,
         }
@@ -268,18 +317,22 @@ impl Compiler {
         opcode_position: usize,
         new_operand: &[u8],
     ) -> Result<(), CompilationError> {
-        let opcode = Opcode::try_from(self.instructions[opcode_position])?;
+        let current_instructions = self.current_intstructions();
+        let opcode = Opcode::try_from(current_instructions[opcode_position])?;
 
-        if new_operand.len() != OPERAND_WIDTHS[opcode as usize] {
-            return Err(CompilationError::Other(
-                "New operand is not the correct ammount of bytes".to_string(),
-            ));
-        }
+        debug_assert_eq!(
+            new_operand.len(),
+            OPERAND_WIDTHS[opcode as usize],
+            "operand width mismatch for opcode {}, got {}, want {}",
+            opcode,
+            new_operand.len(),
+            OPERAND_WIDTHS[opcode as usize],
+        );
 
         let operand_position = opcode_position + 1;
 
         for (i, byte) in new_operand.iter().enumerate() {
-            self.instructions[operand_position + i] = *byte;
+            current_instructions[operand_position + i] = *byte;
         }
 
         Ok(())
@@ -287,13 +340,28 @@ impl Compiler {
 
     #[inline(always)]
     fn remove_last_pop(&mut self) {
-        self.instructions.pop();
+        let scope = &mut self.scopes[self.scope_index];
+
+        let last_pos = scope.last_instruction.position;
+        scope.instructions.truncate(last_pos);
+
+        scope.last_instruction = scope.previous_instruction;
     }
 
     #[inline(always)]
     fn get_current_position(&self) -> [u8; 2] {
-        let after_consequence_position = self.instructions.len() as u16;
+        let after_consequence_position = self.scopes[self.scope_index].instructions.len() as u16;
         after_consequence_position.to_be_bytes()
+    }
+
+    #[inline(always)]
+    fn current_intstructions(&mut self) -> &mut Vec<u8> {
+        &mut self.scopes[self.scope_index].instructions
+    }
+
+    #[inline(always)]
+    fn last_instruction_is_pop(&self) -> bool {
+        self.scopes[self.scope_index].last_instruction.opcode == Opcode::Pop
     }
 }
 
@@ -1018,6 +1086,76 @@ mod tests {
             let symbol = global.resolve(test.0)?;
             assert_eq!(test.1, *symbol);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compiler_scopes() -> Result<(), CompilationError> {
+        let mut compiler = Compiler::new();
+
+        assert_eq!(
+            compiler.scope_index, 0,
+            "scope index wrong got: {} want {}",
+            compiler.scope_index, 0
+        );
+
+        compiler.emit(Opcode::Mul, &[]);
+
+        compiler.enter_scope();
+
+        assert_eq!(
+            compiler.scope_index, 1,
+            "scope index wrong got: {} want {}",
+            compiler.scope_index, 1
+        );
+
+        compiler.emit(Opcode::Sub, &[]);
+
+        let mut last = compiler.scopes[compiler.scope_index].last_instruction;
+        assert_eq!(
+            last.opcode,
+            Opcode::Sub,
+            "last instruction opcode wrong got {} want {}",
+            last.opcode,
+            Opcode::Sub
+        );
+
+        compiler.leave_scope();
+
+        assert_eq!(
+            compiler.scope_index, 0,
+            "scope index wrong got: {} want {}",
+            compiler.scope_index, 0
+        );
+
+        compiler.emit(Opcode::Add, &[]);
+
+        assert_eq!(
+            compiler.scopes[compiler.scope_index].instructions.len(),
+            2,
+            "instructions length wrong got {} want {}",
+            compiler.scopes[compiler.scope_index].instructions.len(),
+            2
+        );
+
+        last = compiler.scopes[compiler.scope_index].last_instruction;
+        assert_eq!(
+            last.opcode,
+            Opcode::Add,
+            "last instruction opcode wrong got {} want {}",
+            last.opcode,
+            Opcode::Add
+        );
+
+        let previous = compiler.scopes[compiler.scope_index].previous_instruction;
+        assert_eq!(
+            previous.opcode,
+            Opcode::Mul,
+            "last instruction opcode wrong got {} want {}",
+            previous.opcode,
+            Opcode::Mul
+        );
 
         Ok(())
     }
