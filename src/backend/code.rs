@@ -3,8 +3,6 @@ use std::{
     fmt,
 };
 
-use crate::compiler::CompilationError;
-
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Opcode {

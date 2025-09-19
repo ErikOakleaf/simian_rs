@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::{fmt, rc::Rc};
 
 use crate::{
-    ast::{BlockStatement, IdentifierExpression},
-    evaluator::{EvaluationError, EvaluationResult},
+    frontend::{BlockStatement, IdentifierExpression},
+    runtime::evaluator::{EvaluationError, EvaluationResult},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

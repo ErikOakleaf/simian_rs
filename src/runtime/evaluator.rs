@@ -3,11 +3,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::ast::{
+use crate::frontend::ast::{
     Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
 };
-use crate::object::{BuiltinFunction, HashKey};
-use crate::object::{Enviroment, Function, Object};
+use crate::runtime::object::{BuiltinFunction, HashKey};
+use crate::runtime::object::{Enviroment, Function, Object};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvaluationError {
@@ -548,8 +548,8 @@ fn check_args_length(args_length: usize, expected: usize) -> Result<(), Evaluati
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Lexer;
-    use crate::parser::{ParseError, Parser};
+    use crate::frontend::lexer::Lexer;
+    use crate::frontend::parser::{ParseError, Parser};
 
     // Test helpers
 

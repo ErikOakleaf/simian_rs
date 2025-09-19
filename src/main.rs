@@ -1,15 +1,9 @@
 use std::env;
 
-mod ast;
-mod code;
-mod compiler;
-mod evaluator;
-mod lexer;
-mod object;
-mod parser;
+mod backend;
+mod frontend;
+mod runtime;
 mod repl;
-mod token;
-mod vm;
 
 fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();

@@ -1,9 +1,9 @@
-use crate::compiler::Compiler;
-use crate::evaluator::eval_program;
-use crate::lexer::Lexer;
-use crate::object::{Enviroment, Object};
-use crate::parser::Parser;
-use crate::vm::VM;
+use crate::backend::compiler::Compiler;
+use crate::runtime::evaluator::eval_program;
+use crate::frontend::Lexer;
+use crate::runtime::object::{Enviroment, Object};
+use crate::frontend::parser::Parser;
+use crate::runtime::vm::VM;
 use std::cell::RefCell;
 use std::io;
 use std::io::Write;

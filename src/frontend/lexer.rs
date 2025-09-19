@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::frontend::token::{Token, TokenType};
 
 pub struct Lexer<'a> {
     input: &'a str,

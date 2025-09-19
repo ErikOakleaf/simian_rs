@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::frontend::token::Token;
 use std::fmt;
 
 macro_rules! impl_display_for_enum {
@@ -304,8 +304,8 @@ impl fmt::Display for Program {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::Statement;
-    use crate::token::TokenType;
+    use crate::frontend::ast::Statement;
+    use crate::frontend::token::TokenType;
 
     use super::*;
 

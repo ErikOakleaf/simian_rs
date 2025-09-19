@@ -1,13 +1,13 @@
 use crate::{
-    ast::{
+    frontend::ast::{
         ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression,
         Expression, ExpressionStatement, FunctionLiteralExpression, HashLiteralExpression,
         IdentifierExpression, IfExpression, IndexExpression, InfixExpression,
         IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
         Statement,
     },
-    lexer::Lexer,
-    token::{Token, TokenType},
+    frontend::lexer::Lexer,
+    frontend::token::{Token, TokenType},
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -521,7 +521,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::Statement;
+    use crate::frontend::ast::Statement;
 
     use super::*;
 

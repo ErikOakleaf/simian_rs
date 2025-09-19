@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ast::{BlockStatement, Expression, Program, Statement};
-use crate::code::{OPERAND_WIDTHS, Opcode, make};
-use crate::object::Object;
+use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
+use crate::backend::code::{OPERAND_WIDTHS, Opcode, make};
+use crate::runtime::object::Object;
 
 #[derive(Debug)]
 pub enum CompilationError {
@@ -490,7 +490,7 @@ fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Option<usize>, usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast::Program, lexer::Lexer, parser::Parser};
+    use crate::{frontend::ast::Program, frontend::lexer::Lexer, frontend::parser::Parser};
 
     use super::*;
 

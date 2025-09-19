@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::code::Opcode;
-use crate::compiler::{Bytecode, Compiler};
-use crate::object::{HashKey, Object};
+use crate::backend::code::Opcode;
+use crate::backend::compiler::{Bytecode, Compiler};
+use crate::runtime::object::{HashKey, Object};
 
 const STACK_SIZE: usize = 2048;
 const GLOBAL_SIZE: usize = 65536;
@@ -487,7 +487,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::{ast::Program, lexer::Lexer, object::HashKey, parser::Parser};
+    use crate::{frontend::ast::Program, frontend::lexer::Lexer, runtime::object::HashKey, frontend::parser::Parser};
 
     #[derive(Debug)]
     struct VMTestCase {
