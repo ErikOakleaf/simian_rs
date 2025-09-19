@@ -122,6 +122,10 @@ impl Compiler {
                 let symbol = self.symbol_table.define(&let_statement.name.token.literal);
                 self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
             }
+            Statement::Return(return_statement) => {
+                self.compile_expression(return_statement.return_value.as_ref())?;
+                self.emit(Opcode::ReturnValue, &[]);
+            }
             _ => {}
         };
         Ok(())
@@ -176,6 +180,18 @@ impl Compiler {
                 let length = (hash_literal_expression.pairs.len() * 2) as u16;
                 let length_bytes = length.to_be_bytes();
                 self.emit(Opcode::Hash, &length_bytes);
+            }
+            Expression::Function(function_literal_expression) => {
+                self.enter_scope();
+                self.compile_block_statement(&function_literal_expression.body)?;
+
+                let instructions = self.leave_scope();
+
+                let compiled_function = Object::CompiledFunction(instructions);
+
+                let position = self.add_constant(compiled_function) as u16;
+
+                self.emit(Opcode::LoadConstant, &position.to_be_bytes());
             }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
@@ -280,7 +296,10 @@ impl Compiler {
     }
 
     fn leave_scope(&mut self) -> Box<[u8]> {
-        let instructions = self.scopes[self.scope_index].instructions.clone().into_boxed_slice();
+        let instructions = self.scopes[self.scope_index]
+            .instructions
+            .clone()
+            .into_boxed_slice();
 
         self.scopes.truncate(self.scopes.len() - 1);
         self.scope_index -= 1;
