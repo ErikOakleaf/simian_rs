@@ -337,7 +337,7 @@ impl Compiler {
         new_operand: &[u8],
     ) -> Result<(), CompilationError> {
         let current_instructions = self.current_intstructions();
-        let opcode = Opcode::try_from(current_instructions[opcode_position])?;
+        let opcode = Opcode::from_byte(current_instructions[opcode_position]);
 
         debug_assert_eq!(
             new_operand.len(),
@@ -442,8 +442,7 @@ fn format_instructions(instructions: &[u8]) -> String {
     let mut i = 0;
     while i < instructions.len() {
         let address = i;
-        let opcode = Opcode::try_from(instructions[i])
-            .expect(&format!("opcode not supported {}", instructions[i]));
+        let opcode = Opcode::from_byte(instructions[i]);
         i += 1;
 
         let (operand, offset) = read_operand(opcode.clone(), &instructions[i..]);
@@ -955,29 +954,54 @@ mod tests {
 
     #[test]
     fn test_functions() {
-        let tests = vec![CompilerTestCase {
-            input: "fn() { return 5 + 10 }",
-            expected_constants: vec![
-                Object::Integer(5),
-                Object::Integer(10),
-                Object::CompiledFunction(
-                    vec![
-                        make(Opcode::LoadConstant, &[0, 0]),
-                        make(Opcode::LoadConstant, &[0, 1]),
-                        make(Opcode::Add, &[]),
-                        make(Opcode::ReturnValue, &[]),
-                    ]
-                    .into_iter()
-                    .flat_map(|b| b.into_vec())
-                    .collect::<Vec<u8>>()
-                    .into_boxed_slice(),
-                ),
-            ],
-            expected_instructions: vec![
-                make(Opcode::LoadConstant, &[0, 2]),
-                make(Opcode::Pop, &[]),
-            ],
-        }];
+        let tests = vec![
+            CompilerTestCase {
+                input: "fn() { return 5 + 10 }",
+                expected_constants: vec![
+                    Object::Integer(5),
+                    Object::Integer(10),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() { 5 + 10 }",
+                expected_constants: vec![
+                    Object::Integer(5),
+                    Object::Integer(10),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
 
         run_compiler_tests(tests);
     }
@@ -988,7 +1012,7 @@ mod tests {
 
         for (opcode, operand_bytes, expected_result, expected_offset) in tests {
             let instruction = make(opcode, &operand_bytes);
-            let opcode = Opcode::try_from(instruction[0]).unwrap();
+            let opcode = Opcode::from_byte(instruction[0]);
             let (operand, offset) = read_operand(opcode, &instruction[1..]);
 
             assert_eq!(

@@ -196,7 +196,7 @@ impl VM {
                         _ => {
                             return Err(VMError::TypeMismatch {
                                 left,
-                                opcode: Opcode::try_from(opcode).unwrap(),
+                                opcode: Opcode::from_byte(opcode),
                                 right,
                             });
                         }
@@ -234,7 +234,7 @@ impl VM {
                         _ => {
                             return Err(VMError::TypeMismatch {
                                 left,
-                                opcode: Opcode::try_from(opcode).unwrap(),
+                                opcode: Opcode::from_byte(opcode),
                                 right,
                             });
                         }
@@ -254,7 +254,7 @@ impl VM {
                         _ => {
                             return Err(VMError::TypeMismatch {
                                 left,
-                                opcode: Opcode::try_from(opcode).unwrap(),
+                                opcode: Opcode::from_byte(opcode),
                                 right,
                             });
                         }
@@ -271,7 +271,7 @@ impl VM {
                         _ => {
                             return Err(VMError::TypeMismatch {
                                 left,
-                                opcode: Opcode::try_from(opcode).unwrap(),
+                                opcode: Opcode::from_byte(opcode),
                                 right,
                             });
                         }
@@ -434,7 +434,7 @@ impl VM {
             }
             _ => Err(VMError::TypeMismatch {
                 left,
-                opcode: Opcode::try_from(opcode).unwrap(),
+                opcode: Opcode::from_byte(opcode),
                 right,
             }),
         }

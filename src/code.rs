@@ -34,36 +34,34 @@ pub enum Opcode {
     Return = 0x17,
 }
 
-impl TryFrom<u8> for Opcode {
-    type Error = CompilationError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+impl Opcode {
+    pub fn from_byte(value: u8) -> Opcode {
         match value {
-            0x00 => Ok(Opcode::LoadConstant),
-            0x01 => Ok(Opcode::Add),
-            0x02 => Ok(Opcode::Sub),
-            0x03 => Ok(Opcode::Mul),
-            0x04 => Ok(Opcode::Div),
-            0x05 => Ok(Opcode::Pop),
-            0x06 => Ok(Opcode::True),
-            0x07 => Ok(Opcode::False),
-            0x08 => Ok(Opcode::Equal),
-            0x09 => Ok(Opcode::NotEqual),
-            0x0A => Ok(Opcode::GreaterThan),
-            0x0B => Ok(Opcode::Minus),
-            0x0C => Ok(Opcode::Bang),
-            0x0D => Ok(Opcode::JumpNotTruthy),
-            0x0E => Ok(Opcode::Jump),
-            0x0F => Ok(Opcode::Null),
-            0x10 => Ok(Opcode::GetGlobal),
-            0x11 => Ok(Opcode::SetGlobal),
-            0x12 => Ok(Opcode::Array),
-            0x13 => Ok(Opcode::Hash),
-            0x14 => Ok(Opcode::Index),
-            0x15 => Ok(Opcode::Call),
-            0x16 => Ok(Opcode::ReturnValue),
-            0x17 => Ok(Opcode::Return),
-            _ => Err(CompilationError::UnknownOpcode(value)),
+            0x00 => Opcode::LoadConstant,
+            0x01 => Opcode::Add,
+            0x02 => Opcode::Sub,
+            0x03 => Opcode::Mul,
+            0x04 => Opcode::Div,
+            0x05 => Opcode::Pop,
+            0x06 => Opcode::True,
+            0x07 => Opcode::False,
+            0x08 => Opcode::Equal,
+            0x09 => Opcode::NotEqual,
+            0x0A => Opcode::GreaterThan,
+            0x0B => Opcode::Minus,
+            0x0C => Opcode::Bang,
+            0x0D => Opcode::JumpNotTruthy,
+            0x0E => Opcode::Jump,
+            0x0F => Opcode::Null,
+            0x10 => Opcode::GetGlobal,
+            0x11 => Opcode::SetGlobal,
+            0x12 => Opcode::Array,
+            0x13 => Opcode::Hash,
+            0x14 => Opcode::Index,
+            0x15 => Opcode::Call,
+            0x16 => Opcode::ReturnValue,
+            0x17 => Opcode::Return,
+            _ => unreachable!("unsupported opcode {}", value),
         }
     }
 }
@@ -132,7 +130,13 @@ const fn build_operand_widths() -> [usize; 256] {
 pub static OPERAND_WIDTHS: [usize; 256] = build_operand_widths();
 
 pub fn make(opcode: Opcode, operand: &[u8]) -> Box<[u8]> {
-    debug_assert_eq!(operand.len(), OPERAND_WIDTHS[opcode as usize], "operand {:?} does not have correct width for opcode {}", operand, opcode);
+    debug_assert_eq!(
+        operand.len(),
+        OPERAND_WIDTHS[opcode as usize],
+        "operand {:?} does not have correct width for opcode {}",
+        operand,
+        opcode
+    );
 
     let instruction_length = 1 + operand.len();
     let mut instruction = allocate_array(instruction_length);
