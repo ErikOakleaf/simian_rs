@@ -188,6 +188,9 @@ impl Compiler {
                 if self.last_instruction_is(Opcode::Pop) {
                     self.replace_last_pop_with_return();
                 }
+                if !self.last_instruction_is(Opcode::ReturnValue) {
+                    self.emit(Opcode::Return, &[]);
+                }
 
                 let instructions = self.leave_scope();
 
@@ -1020,7 +1023,7 @@ mod tests {
                     Object::CompiledFunction(
                         vec![
                             make(Opcode::LoadConstant, &[0, 0]),
-                            make(Opcode::Pop, &[],),
+                            make(Opcode::Pop, &[]),
                             make(Opcode::LoadConstant, &[0, 1]),
                             make(Opcode::ReturnValue, &[]),
                         ]
@@ -1036,6 +1039,26 @@ mod tests {
                 ],
             },
         ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_functions_without_return_value() {
+        let tests = vec![CompilerTestCase {
+            input: "fn() {}",
+            expected_constants: vec![Object::CompiledFunction(
+                vec![make(Opcode::Return, &[])]
+                    .into_iter()
+                    .flat_map(|b| b.into_vec())
+                    .collect::<Vec<u8>>()
+                    .into_boxed_slice(),
+            )],
+            expected_instructions: vec![
+                make(Opcode::LoadConstant, &[0, 0]),
+                make(Opcode::Pop, &[]),
+            ],
+        }];
 
         run_compiler_tests(tests);
     }
