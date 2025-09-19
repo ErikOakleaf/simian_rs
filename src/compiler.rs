@@ -118,8 +118,8 @@ impl Compiler {
                 self.emit(Opcode::Pop, &[]);
             }
             Statement::Let(let_statement) => {
-                self.compile_expression(let_statement.value.as_ref())?;
                 let symbol = self.symbol_table.define(&let_statement.name.token.literal);
+                self.compile_expression(let_statement.value.as_ref())?;
                 self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
             }
             Statement::Return(return_statement) => {
@@ -199,6 +199,10 @@ impl Compiler {
                 let position = self.add_constant(compiled_function) as u16;
 
                 self.emit(Opcode::LoadConstant, &position.to_be_bytes());
+            }
+            Expression::Call(call_expression) => {
+                self.compile_expression(call_expression.function.as_ref())?;
+                self.emit(Opcode::Call, &[]);
             }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
@@ -1059,6 +1063,59 @@ mod tests {
                 make(Opcode::Pop, &[]),
             ],
         }];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_function_calls() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "fn() { 24 }();",
+                expected_constants: vec![
+                    Object::Integer(24),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Call, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let noArg = fn() { 24 };
+                        noArg();",
+                expected_constants: vec![
+                    Object::Integer(24),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::Call, &[]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
 
         run_compiler_tests(tests);
     }
