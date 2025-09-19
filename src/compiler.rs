@@ -185,6 +185,10 @@ impl Compiler {
                 self.enter_scope();
                 self.compile_block_statement(&function_literal_expression.body)?;
 
+                if self.last_instruction_is(Opcode::Pop) {
+                    self.replace_last_pop_with_return();
+                }
+
                 let instructions = self.leave_scope();
 
                 let compiled_function = Object::CompiledFunction(instructions);
@@ -235,7 +239,7 @@ impl Compiler {
 
                 self.compile_block_statement(&if_expression.consequence)?;
 
-                if self.last_instruction_is_pop() {
+                if self.last_instruction_is(Opcode::Pop) {
                     self.remove_last_pop();
                 }
 
@@ -250,7 +254,7 @@ impl Compiler {
                     Some(alternative) => {
                         self.compile_block_statement(alternative)?;
 
-                        if self.last_instruction_is_pop() {
+                        if self.last_instruction_is(Opcode::Pop) {
                             self.remove_last_pop();
                         }
                     }
@@ -357,6 +361,13 @@ impl Compiler {
         Ok(())
     }
 
+    fn replace_last_pop_with_return(&mut self) {
+        let last_position = self.scopes[self.scope_index].last_instruction.position;
+        let current_instructions = self.current_intstructions();
+        current_instructions[last_position] = Opcode::ReturnValue as u8;
+        self.scopes[self.scope_index].last_instruction.opcode = Opcode::ReturnValue;
+    }
+
     #[inline(always)]
     fn remove_last_pop(&mut self) {
         let scope = &mut self.scopes[self.scope_index];
@@ -379,8 +390,8 @@ impl Compiler {
     }
 
     #[inline(always)]
-    fn last_instruction_is_pop(&self) -> bool {
-        self.scopes[self.scope_index].last_instruction.opcode == Opcode::Pop
+    fn last_instruction_is(&self, opcode: Opcode) -> bool {
+        self.scopes[self.scope_index].last_instruction.opcode == opcode
     }
 }
 
@@ -988,6 +999,29 @@ mod tests {
                             make(Opcode::LoadConstant, &[0, 0]),
                             make(Opcode::LoadConstant, &[0, 1]),
                             make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() { 1; 2 }",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::Pop, &[],),
+                            make(Opcode::LoadConstant, &[0, 1]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
