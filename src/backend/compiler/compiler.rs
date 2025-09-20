@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::backend::{OPERAND_WIDTHS, Opcode, Symbol, SymbolScope, SymbolTable, make};
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
-use crate::backend::{OPERAND_WIDTHS, Opcode, make, SymbolTable, Symbol, SymbolScope};
 use crate::runtime::object::Object;
 
 #[derive(Debug)]
@@ -73,22 +73,10 @@ impl Compiler {
     }
 
     pub fn new_with_state(symbol_table: SymbolTable, constants: Vec<Object>) -> Self {
-        Compiler {
-            instructions: Vec::<u8>::new(),
-            constants: constants,
-
-            last_intstruction: EmittedInstruction {
-                opcode: Opcode::LoadConstant,
-                position: 0,
-            },
-            previous_instruction: EmittedInstruction {
-                opcode: Opcode::LoadConstant,
-                position: 0,
-            },
-            symbol_table: symbol_table,
-            scopes: Vec::<CompilationScope>::new(),
-            scope_index: 0,
-        }
+        let mut compiler = Compiler::new();
+        compiler.symbol_table = symbol_table;
+        compiler.constants = constants;
+        compiler
     }
 
     fn add_constant(&mut self, object: Object) -> u16 {
