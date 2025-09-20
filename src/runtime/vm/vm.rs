@@ -3,13 +3,15 @@ use std::collections::HashMap;
 use crate::backend::code::Opcode;
 use crate::backend::compiler::{Bytecode, Compiler};
 use crate::runtime::object::{HashKey, Object};
+use crate::runtime::vm::frame::Frame;
 
 const STACK_SIZE: usize = 2048;
 const GLOBAL_SIZE: usize = 65536;
+const FRAMES_SIZE: usize = 1024;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub enum VMError {
+pub enum RuntimeError {
     EmptyStack,
     StackOverflow,
     UnknownOpcode(u8),
@@ -45,22 +47,21 @@ impl GlobalEnviroment {
         self.store[index] = Some(object);
     }
 
-    pub fn lookup(&self, index: usize) -> Result<&Object, VMError> {
+    pub fn lookup(&self, index: usize) -> Result<&Object, RuntimeError> {
         self.store[index]
             .as_ref()
-            .ok_or(VMError::UnboundIdentifier(index))
+            .ok_or(RuntimeError::UnboundIdentifier(index))
     }
 
-    pub fn get(&self, index: usize) -> Result<Object, VMError> {
+    pub fn get(&self, index: usize) -> Result<Object, RuntimeError> {
         match &self.store[index] {
             Some(value) => Ok(value.clone()),
-            None => Err(VMError::UnboundIdentifier(index)),
+            None => Err(RuntimeError::UnboundIdentifier(index)),
         }
     }
 }
 
 pub struct VM {
-    instructions: Box<[u8]>,
     constants: Box<[Object]>,
 
     pub stack: [Option<Object>; STACK_SIZE],
@@ -68,53 +69,49 @@ pub struct VM {
 
     last_popped: Object,
     pub globals: GlobalEnviroment,
+
+    frames: [Option<Frame>; FRAMES_SIZE],
+    frames_index: usize,
 }
 
 impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
         let constants = bytecode.constants;
-        let instructions = bytecode.instructions;
         let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
         let sp = 0;
         let last_popped = Object::Null;
         let globals = GlobalEnviroment::new();
+        let mut frames: [Option<Frame>; FRAMES_SIZE] = std::array::from_fn(|_| None);
+        frames[0] = Some(Frame::new(bytecode.instructions));
+        let frames_index = 1;
         VM {
             constants: constants,
-            instructions: instructions,
             stack: stack,
             sp: sp,
             last_popped: last_popped,
             globals: globals,
+            frames: frames,
+            frames_index: frames_index,
         }
     }
 
     pub fn new_with_global_store(bytecode: Bytecode, globals: GlobalEnviroment) -> Self {
-        let constants = bytecode.constants;
-        let instructions = bytecode.instructions;
-        let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
-        let sp = 0;
-        let last_popped = Object::Null;
-        VM {
-            constants: constants,
-            instructions: instructions,
-            stack: stack,
-            sp: sp,
-            last_popped: last_popped,
-            globals: globals,
-        }
+        let mut vm = VM::new(bytecode);
+        vm.globals = globals;
+        vm
     }
 
-    pub fn stack_top(&self) -> Result<&Object, VMError> {
+    pub fn stack_top(&self) -> Result<&Object, RuntimeError> {
         if self.sp == 0 {
-            Err(VMError::EmptyStack)
+            Err(RuntimeError::EmptyStack)
         } else {
             Ok(&self.stack[self.sp - 1].as_ref().unwrap())
         }
     }
 
-    fn push(&mut self, object: Object) -> Result<(), VMError> {
+    fn push(&mut self, object: Object) -> Result<(), RuntimeError> {
         if self.sp == STACK_SIZE {
-            return Err(VMError::StackOverflow);
+            return Err(RuntimeError::StackOverflow);
         }
 
         self.stack[self.sp] = Some(object);
@@ -123,18 +120,18 @@ impl VM {
         Ok(())
     }
 
-    fn pop(&mut self) -> Result<Object, VMError> {
+    fn pop(&mut self) -> Result<Object, RuntimeError> {
         if self.sp == 0 {
-            return Err(VMError::EmptyStack);
+            return Err(RuntimeError::EmptyStack);
         }
 
         self.sp -= 1;
         Ok(self.stack[self.sp].take().unwrap())
     }
 
-    fn pop_with_last(&mut self) -> Result<Object, VMError> {
+    fn pop_with_last(&mut self) -> Result<Object, RuntimeError> {
         if self.sp == 0 {
-            return Err(VMError::EmptyStack);
+            return Err(RuntimeError::EmptyStack);
         }
 
         self.sp -= 1;
@@ -146,11 +143,36 @@ impl VM {
         &self.last_popped
     }
 
-    pub fn run(&mut self) -> Result<(), VMError> {
-        let mut ip = 0;
-        while ip < self.instructions.len() {
-            let opcode = self.instructions[ip];
-            ip += 1;
+    fn current_frame(&self) -> &Frame {
+        self.frames[self.frames_index - 1]
+            .as_ref()
+            .expect("no current frame")
+    }
+
+    fn current_frame_mut(&mut self) -> &mut Frame {
+        self.frames[self.frames_index - 1]
+            .as_mut()
+            .expect("no current frame")
+    }
+
+    fn push_frame(&mut self, frame: Frame) {
+        self.frames[self.frames_index] = Some(frame);
+        self.frames_index += 1;
+    }
+
+    fn pop_frame(&mut self) -> Frame {
+        self.frames_index -= 1;
+        let frame = self.frames[self.frames_index]
+            .take()
+            .expect("no frame to pop");
+        frame
+    }
+
+    pub fn run(&mut self) -> Result<(), RuntimeError> {
+        while self.current_frame().ip < self.current_frame().function.len() {
+            let current_frame = self.current_frame_mut();
+            let opcode = current_frame.function[current_frame.ip];
+            current_frame.ip += 1;
 
             const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
             const ADD: u8 = Opcode::Add as u8;
@@ -176,9 +198,9 @@ impl VM {
 
             match opcode {
                 LOAD_CONSTANT => {
-                    let constant_index = ((self.instructions[ip] as usize) << 8)
-                        | (self.instructions[ip + 1] as usize);
-                    ip += 2;
+                    let constant_index = ((current_frame.function[current_frame.ip] as usize) << 8)
+                        | (current_frame.function[current_frame.ip + 1] as usize);
+                    current_frame.ip += 2;
 
                     self.push(self.constants[constant_index].clone())?;
                 }
@@ -194,7 +216,7 @@ impl VM {
                             self.push(Object::String(format!("{}{}", l, r).to_string()))?;
                         }
                         _ => {
-                            return Err(VMError::TypeMismatch {
+                            return Err(RuntimeError::TypeMismatch {
                                 left,
                                 opcode: Opcode::from_byte(opcode),
                                 right,
@@ -232,7 +254,7 @@ impl VM {
                             self.push(Object::Boolean(l == r))?;
                         }
                         _ => {
-                            return Err(VMError::TypeMismatch {
+                            return Err(RuntimeError::TypeMismatch {
                                 left,
                                 opcode: Opcode::from_byte(opcode),
                                 right,
@@ -252,7 +274,7 @@ impl VM {
                             self.push(Object::Boolean(l != r))?;
                         }
                         _ => {
-                            return Err(VMError::TypeMismatch {
+                            return Err(RuntimeError::TypeMismatch {
                                 left,
                                 opcode: Opcode::from_byte(opcode),
                                 right,
@@ -269,7 +291,7 @@ impl VM {
                             self.push(Object::Boolean(l > r))?;
                         }
                         _ => {
-                            return Err(VMError::TypeMismatch {
+                            return Err(RuntimeError::TypeMismatch {
                                 left,
                                 opcode: Opcode::from_byte(opcode),
                                 right,
@@ -284,48 +306,58 @@ impl VM {
                     self.execute_bang_operator()?;
                 }
                 JUMP_NOT_TRUTHY => {
-                    let position = ((self.instructions[ip] as usize) << 8)
-                        | (self.instructions[ip + 1] as usize);
-                    ip += 2;
+                    let position = {
+                        let frame = self.current_frame_mut();
+                        let pos = ((frame.function[frame.ip] as usize) << 8)
+                            | (frame.function[frame.ip + 1] as usize);
+                        frame.ip += 2;
+                        pos
+                    };
 
                     let condition = self.pop()?;
                     if !Self::is_truthy(&condition) {
-                        ip = position;
+                        self.current_frame_mut().ip = position;
                     }
                 }
                 JUMP => {
-                    let position = ((self.instructions[ip] as usize) << 8)
-                        | (self.instructions[ip + 1] as usize);
-                    ip = position;
+                    let position = ((current_frame.function[current_frame.ip] as usize) << 8)
+                        | (current_frame.function[current_frame.ip + 1] as usize);
+                    current_frame.ip = position;
                 }
                 NULL => {
                     self.push(Object::Null)?;
                 }
                 GET_GLOBAL => {
-                    let global_index =
-                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
-                            as usize;
-                    ip += 2;
+                    let global_index = u16::from_be_bytes(
+                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
 
                     self.push(self.globals.get(global_index)?)?;
                 }
                 SET_GLOBAL => {
-                    let global_index =
-                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
-                            as usize;
-                    ip += 2;
+                    let global_index = u16::from_be_bytes(
+                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
 
                     let global = self.pop_with_last()?;
                     self.globals.bind(global_index, global);
                 }
                 ARRAY => {
-                    let array_length =
-                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
-                            as usize;
-                    ip += 2;
+                    let array_length = u16::from_be_bytes(
+                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
 
                     if self.sp < array_length {
-                        return Err(VMError::EmptyStack);
+                        return Err(RuntimeError::EmptyStack);
                     }
 
                     let start = self.sp - array_length;
@@ -339,13 +371,15 @@ impl VM {
                     self.push(Object::Array(array))?;
                 }
                 HASH => {
-                    let hash_length =
-                        u16::from_be_bytes(self.instructions[ip..ip + 2].try_into().unwrap())
-                            as usize;
-                    ip += 2;
+                    let hash_length = u16::from_be_bytes(
+                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
 
                     if self.sp < hash_length {
-                        return Err(VMError::EmptyStack);
+                        return Err(RuntimeError::EmptyStack);
                     }
 
                     let start = self.sp - hash_length;
@@ -356,7 +390,7 @@ impl VM {
                         let key = match self.stack[i].take().unwrap() {
                             Object::Integer(value) => HashKey::Integer(value),
                             Object::String(value) => HashKey::String(value),
-                            other => return Err(VMError::InvalidHashKey(other)),
+                            other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
                         let value = self.stack[i + 1].take().unwrap();
 
@@ -377,7 +411,7 @@ impl VM {
                             let index = match index_object {
                                 Object::Integer(value) => value,
                                 other => {
-                                    return Err(VMError::InvalidIndexType {
+                                    return Err(RuntimeError::InvalidIndexType {
                                         indexable: indexable_object,
                                         index: other,
                                     });
@@ -394,7 +428,7 @@ impl VM {
                                 Object::Integer(value) => HashKey::Integer(value),
                                 Object::String(value) => HashKey::String(value),
                                 other => {
-                                    return Err(VMError::InvalidIndexType {
+                                    return Err(RuntimeError::InvalidIndexType {
                                         indexable: indexable_object,
                                         index: other,
                                     });
@@ -407,10 +441,10 @@ impl VM {
                                 self.push(Object::Null)?;
                             }
                         }
-                        other => return Err(VMError::NotIndexable(other.clone())),
+                        other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
                 }
-                _ => return Err(VMError::UnknownOpcode(opcode)),
+                _ => return Err(RuntimeError::UnknownOpcode(opcode)),
             };
         }
 
@@ -420,7 +454,7 @@ impl VM {
     // Helpers
 
     #[inline(always)]
-    fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), VMError>
+    fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), RuntimeError>
     where
         F: Fn(i64, i64) -> i64,
     {
@@ -432,7 +466,7 @@ impl VM {
                 self.push(Object::Integer(op(*l, *r)))?;
                 Ok(())
             }
-            _ => Err(VMError::TypeMismatch {
+            _ => Err(RuntimeError::TypeMismatch {
                 left,
                 opcode: Opcode::from_byte(opcode),
                 right,
@@ -440,7 +474,7 @@ impl VM {
         }
     }
 
-    fn execute_minus_operator(&mut self) -> Result<(), VMError> {
+    fn execute_minus_operator(&mut self) -> Result<(), RuntimeError> {
         let operand = self.pop()?;
 
         match operand {
@@ -448,7 +482,7 @@ impl VM {
                 self.push(Object::Integer(-value))?;
             }
             _ => {
-                return Err(VMError::UnknownOperator {
+                return Err(RuntimeError::UnknownOperator {
                     operand: "-".to_string(),
                     right: operand,
                 });
@@ -458,7 +492,7 @@ impl VM {
         Ok(())
     }
 
-    fn execute_bang_operator(&mut self) -> Result<(), VMError> {
+    fn execute_bang_operator(&mut self) -> Result<(), RuntimeError> {
         let operand = self.pop()?;
 
         let result: Object = match operand {
@@ -487,7 +521,10 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::{frontend::ast::Program, frontend::lexer::Lexer, runtime::object::HashKey, frontend::parser::Parser};
+    use crate::{
+        frontend::ast::Program, frontend::lexer::Lexer, frontend::parser::Parser,
+        runtime::object::HashKey,
+    };
 
     #[derive(Debug)]
     struct VMTestCase {
@@ -503,7 +540,7 @@ mod tests {
         parser.parse_program().unwrap()
     }
 
-    fn run_vm_tests(tests: &[VMTestCase]) -> Result<(), VMError> {
+    fn run_vm_tests(tests: &[VMTestCase]) -> Result<(), RuntimeError> {
         for test in tests {
             let program = parse_input(test.input);
             let mut compiler = Compiler::new();
@@ -527,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_integer_arithmetic() -> Result<(), VMError> {
+    fn test_integer_arithmetic() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "1",
@@ -595,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn test_boolean_expressions() -> Result<(), VMError> {
+    fn test_boolean_expressions() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "true",
@@ -707,7 +744,7 @@ mod tests {
     }
 
     #[test]
-    fn test_conditionals() -> Result<(), VMError> {
+    fn test_conditionals() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "if (true) { 10 }",
@@ -755,7 +792,7 @@ mod tests {
     }
 
     #[test]
-    fn test_global_let_statements() -> Result<(), VMError> {
+    fn test_global_let_statements() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "let one = 1; one;",
@@ -775,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn test_string_expressions() -> Result<(), VMError> {
+    fn test_string_expressions() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "\"monkey\"",
@@ -795,7 +832,7 @@ mod tests {
     }
 
     #[test]
-    fn test_array_literals() -> Result<(), VMError> {
+    fn test_array_literals() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "[]",
@@ -823,7 +860,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_literals() -> Result<(), VMError> {
+    fn test_hash_literals() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "{}",
@@ -849,7 +886,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_expressions() -> Result<(), VMError> {
+    fn test_index_expressions() -> Result<(), RuntimeError> {
         let tests = vec![
             VMTestCase {
                 input: "[1, 2, 3][0 + 2]",
