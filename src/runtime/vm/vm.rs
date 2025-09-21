@@ -449,7 +449,7 @@ impl VM {
                 CALL => {
                     match self.stack[self.sp - 1].as_ref().unwrap().clone() {
                         Object::CompiledFunction(function) => {
-                            let frame = Frame::new(function);
+                            let frame = Frame::new(function.instructions);
                             self.push_frame(frame);
                             // comment is just here now to not make the formatting freak out
                         }
@@ -976,6 +976,50 @@ mod tests {
                         let c = fn() { b() + 1 };
                         c();",
                 expected: Object::Integer(3),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+
+    #[test]
+    fn test_calling_functions_with_bindings() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let one = fn() { let one = 1; one };
+                        one();",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let oneAndTwo = fn() { let one = 1; let two = 2; one + two; };
+                        oneAndTwo();",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "let oneAndTwo = fn() { let one = 1; let two = 2; one + two; };
+                        let threeAndFour = fn() { let three = 3; let four = 4; three + four; };
+                        oneAndTwo() + threeAndFour();",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let firstFoobar = fn() { let foobar = 50; foobar; };
+                        let secondFoobar = fn() { let foobar = 100; foobar; };
+                        firstFoobar() + secondFoobar();",
+                expected: Object::Integer(150),
+            },
+            VMTestCase {
+                input: "let globalSeed = 50;
+                        let minusOne = fn() {
+                            let num = 1;
+                            globalSeed - num;
+                        }
+                        let minusTwo = fn() {
+                            let num = 2;
+                            globalSeed - num;
+                        }
+                        minusOne() + minusTwo();",
+                expected: Object::Integer(97),
             },
         ];
 

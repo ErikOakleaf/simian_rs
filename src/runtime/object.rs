@@ -36,7 +36,7 @@ pub enum Object {
     Boolean(bool),
     Function(Function),
     Builtin(BuiltinFunction),
-    CompiledFunction(Box<[u8]>),
+    CompiledFunction(CompiledFunction),
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<HashKey, Object>),
@@ -79,7 +79,7 @@ impl fmt::Display for Object {
                 write!(f, "{}", value)
             }
             Object::CompiledFunction(value) => {
-                write!(f, "CompiledFunction{:?}", value)
+                write!(f, "CompiledFunction{:?}", value.instructions)
             }
             Object::String(value) => {
                 write!(f, "{}", value)
@@ -181,5 +181,18 @@ impl PartialEq for BuiltinFunction {
 impl fmt::Display for BuiltinFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompiledFunction {
+    pub instructions: Box<[u8]>,
+    pub amount_locals: usize,
+}
+
+impl CompiledFunction {
+    pub fn new(instructions: Box<[u8]>) -> Self {
+        CompiledFunction { instructions: instructions, amount_locals: 0 }
     }
 }
