@@ -108,18 +108,24 @@ impl Compiler {
                 self.emit(Opcode::Pop, &[]);
             }
             Statement::Let(let_statement) => {
+                self.compile_expression(let_statement.value.as_ref())?;
+
                 let symbol = self
                     .symbol_table
                     .borrow_mut()
                     .define(&let_statement.name.token.literal);
-                self.compile_expression(let_statement.value.as_ref())?;
-                self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
+                if symbol.scope == SymbolScope::Global {
+                    let index = symbol.index.to_be_bytes();
+                    self.emit(Opcode::SetGlobal, &index);
+                } else {
+                    let index = [symbol.index as u8];
+                    self.emit(Opcode::SetLocal, &index);
+                }
             }
             Statement::Return(return_statement) => {
                 self.compile_expression(return_statement.return_value.as_ref())?;
                 self.emit(Opcode::ReturnValue, &[]);
             }
-            _ => {}
         };
         Ok(())
     }
@@ -140,14 +146,18 @@ impl Compiler {
                 self.emit(bool_opcode, &[]);
             }
             Expression::Identifier(identifier_expression) => {
-                let index = {
-                    let symbol = self
-                        .symbol_table
-                        .borrow()
-                        .resolve(&identifier_expression.token.literal)?;
-                    symbol.index
-                };
-                self.emit(Opcode::GetGlobal, &index.to_be_bytes());
+                let symbol = self
+                    .symbol_table
+                    .borrow()
+                    .resolve(&identifier_expression.token.literal)?;
+
+                if symbol.scope == SymbolScope::Global {
+                    let index = symbol.index.to_be_bytes();
+                    self.emit(Opcode::GetGlobal, &index);
+                } else {
+                    let index = [symbol.index as u8];
+                    self.emit(Opcode::GetLocal, &index);
+                }
             }
             Expression::String(string_token) => {
                 let string_object = Object::String(string_token.literal.clone());
@@ -318,9 +328,9 @@ impl Compiler {
             .outer
             .as_ref()
             .expect("No outer scope to return to!")
-            .clone(); 
+            .clone();
 
-        self.symbol_table = outer; 
+        self.symbol_table = outer;
 
         instructions
     }
