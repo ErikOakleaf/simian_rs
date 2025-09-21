@@ -31,6 +31,7 @@ pub enum RuntimeError {
         index: Object,
     },
     NotIndexable(Object),
+    CallNonFunction(Object),
 }
 
 pub struct GlobalEnviroment {
@@ -120,13 +121,11 @@ impl VM {
         Ok(())
     }
 
-    fn pop(&mut self) -> Result<Object, RuntimeError> {
-        if self.sp == 0 {
-            return Err(RuntimeError::EmptyStack);
-        }
+    fn pop(&mut self) -> Object {
+        debug_assert!(self.sp > 0, "VM bug: attempted to pop from empty stack");
 
         self.sp -= 1;
-        Ok(self.stack[self.sp].take().unwrap())
+        self.stack[self.sp].take().unwrap()
     }
 
     fn pop_with_last(&mut self) -> Result<Object, RuntimeError> {
@@ -195,6 +194,9 @@ impl VM {
             const ARRAY: u8 = Opcode::Array as u8;
             const HASH: u8 = Opcode::Hash as u8;
             const INDEX: u8 = Opcode::Index as u8;
+            const CALL: u8 = Opcode::Call as u8;
+            const RETURN_VALUE: u8 = Opcode::ReturnValue as u8;
+            const RETURN: u8 = Opcode::Return as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -205,8 +207,8 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 ADD => {
-                    let right = self.pop()?;
-                    let left = self.pop()?;
+                    let right = self.pop();
+                    let left = self.pop();
 
                     match (&left, &right) {
                         (Object::Integer(l), Object::Integer(r)) => {
@@ -243,8 +245,8 @@ impl VM {
                     self.push(Object::Boolean(false))?;
                 }
                 EQUAL => {
-                    let right = self.pop()?;
-                    let left = self.pop()?;
+                    let right = self.pop();
+                    let left = self.pop();
 
                     match (&left, &right) {
                         (Object::Integer(l), Object::Integer(r)) => {
@@ -263,8 +265,8 @@ impl VM {
                     };
                 }
                 NOT_EQUAL => {
-                    let right = self.pop()?;
-                    let left = self.pop()?;
+                    let right = self.pop();
+                    let left = self.pop();
 
                     match (&left, &right) {
                         (Object::Integer(l), Object::Integer(r)) => {
@@ -283,8 +285,8 @@ impl VM {
                     };
                 }
                 GREATER_THAN => {
-                    let right = self.pop()?;
-                    let left = self.pop()?;
+                    let right = self.pop();
+                    let left = self.pop();
 
                     match (&left, &right) {
                         (Object::Integer(l), Object::Integer(r)) => {
@@ -314,7 +316,7 @@ impl VM {
                         pos
                     };
 
-                    let condition = self.pop()?;
+                    let condition = self.pop();
                     if !Self::is_truthy(&condition) {
                         self.current_frame_mut().ip = position;
                     }
@@ -403,8 +405,8 @@ impl VM {
                     self.push(Object::Hash(hash))?;
                 }
                 INDEX => {
-                    let index_object = self.pop()?;
-                    let indexable_object = self.pop()?;
+                    let index_object = self.pop();
+                    let indexable_object = self.pop();
 
                     match &indexable_object {
                         Object::Array(array) => {
@@ -444,6 +446,27 @@ impl VM {
                         other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
                 }
+                CALL => {
+                    match self.stack[self.sp - 1].as_ref().unwrap().clone() {
+                        Object::CompiledFunction(function) => {
+                            let frame = Frame::new(function);
+                            self.push_frame(frame);
+                            // comment is just here now to not make the formatting freak out
+                        }
+                        other => {
+                            return Err(RuntimeError::CallNonFunction(other));
+                        }
+                    }
+                }
+                RETURN_VALUE => {
+                    let return_value = self.pop();
+
+                    self.pop_frame();
+                    self.pop();
+
+                    self.push(return_value)?;
+                }
+                RETURN => {}
                 _ => return Err(RuntimeError::UnknownOpcode(opcode)),
             };
         }
@@ -458,8 +481,8 @@ impl VM {
     where
         F: Fn(i64, i64) -> i64,
     {
-        let right = self.pop()?;
-        let left = self.pop()?;
+        let right = self.pop();
+        let left = self.pop();
 
         match (&left, &right) {
             (Object::Integer(l), Object::Integer(r)) => {
@@ -475,7 +498,7 @@ impl VM {
     }
 
     fn execute_minus_operator(&mut self) -> Result<(), RuntimeError> {
-        let operand = self.pop()?;
+        let operand = self.pop();
 
         match operand {
             Object::Integer(value) => {
@@ -493,7 +516,7 @@ impl VM {
     }
 
     fn execute_bang_operator(&mut self) -> Result<(), RuntimeError> {
-        let operand = self.pop()?;
+        let operand = self.pop();
 
         let result: Object = match operand {
             Object::Boolean(value) => Object::Boolean(!value),
@@ -925,6 +948,17 @@ mod tests {
                 expected: Object::Null,
             },
         ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_calling_functions_without_arguments() -> Result<(), RuntimeError> {
+        let tests = vec![VMTestCase {
+            input: "let fivePlusTen = fn() { 5 + 10; };
+                    fivePlusTen();",
+            expected: Object::Integer(15),
+        }];
 
         run_vm_tests(&tests)
     }
