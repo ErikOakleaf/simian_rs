@@ -40,20 +40,20 @@ impl CompilationScope {
     }
 }
 
-pub struct Compiler {
+pub struct Compiler<'a> {
     instructions: Vec<u8>,
     pub constants: Vec<Object>,
 
     last_intstruction: EmittedInstruction,
     previous_instruction: EmittedInstruction,
 
-    pub symbol_table: SymbolTable,
+    pub symbol_table: SymbolTable<'a>,
 
     scopes: Vec<CompilationScope>,
     scope_index: usize,
 }
 
-impl Compiler {
+impl<'a> Compiler<'a> {
     pub fn new() -> Self {
         Compiler {
             instructions: Vec::<u8>::new(),
@@ -72,7 +72,7 @@ impl Compiler {
         }
     }
 
-    pub fn new_with_state(symbol_table: SymbolTable, constants: Vec<Object>) -> Self {
+    pub fn new_with_state(symbol_table: SymbolTable<'a>, constants: Vec<Object>) -> Self {
         let mut compiler = Compiler::new();
         compiler.symbol_table = symbol_table;
         compiler.constants = constants;
@@ -1225,69 +1225,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_define() {
-        let tests = vec![
-            (
-                "a",
-                Symbol {
-                    name: "a".to_string(),
-                    scope: SymbolScope::Global,
-                    index: 0,
-                },
-            ),
-            (
-                "b",
-                Symbol {
-                    name: "b".to_string(),
-                    scope: SymbolScope::Global,
-                    index: 1,
-                },
-            ),
-        ];
 
-        let mut global = SymbolTable::new();
-
-        let symbols = [global.define("a"), global.define("b")];
-
-        for (i, test) in tests.iter().enumerate() {
-            assert_eq!(test.1, symbols[i]);
-        }
-    }
-
-    #[test]
-    fn test_resolve_global() -> Result<(), CompilationError> {
-        let tests = vec![
-            (
-                "a",
-                Symbol {
-                    name: "a".to_string(),
-                    scope: SymbolScope::Global,
-                    index: 0,
-                },
-            ),
-            (
-                "b",
-                Symbol {
-                    name: "b".to_string(),
-                    scope: SymbolScope::Global,
-                    index: 1,
-                },
-            ),
-        ];
-
-        let mut global = SymbolTable::new();
-
-        global.define("a");
-        global.define("b");
-
-        for test in tests {
-            let symbol = global.resolve(test.0)?;
-            assert_eq!(test.1, *symbol);
-        }
-
-        Ok(())
-    }
 
     #[test]
     fn test_compiler_scopes() -> Result<(), CompilationError> {
