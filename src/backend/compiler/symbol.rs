@@ -15,27 +15,27 @@ pub struct Symbol {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SymbolTable<'a> {
-    pub outer: Option<&'a SymbolTable<'a>>,
+pub struct SymbolTable {
+    pub outer: Option<Rc<RefCell<SymbolTable>>>,
     store: HashMap<String, Symbol>,
     amount_definitons: usize,
 }
 
-impl<'a> SymbolTable<'a> {
-    pub fn new() -> Self {
-        SymbolTable {
+impl SymbolTable {
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(SymbolTable {
             outer: None,
             store: HashMap::<String, Symbol>::new(),
             amount_definitons: 0,
-        }
+        }))
     }
 
-    pub fn new_enclosed(outer: &'a SymbolTable<'a>) -> Self {
-        SymbolTable {
+    pub fn new_enclosed(outer: Rc<RefCell<SymbolTable>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(SymbolTable {
             outer: Some(outer),
             store: HashMap::<String, Symbol>::new(),
             amount_definitons: 0,
-        }
+        }))
     }
 
     pub fn define(&mut self, name: &str) -> Symbol {
@@ -56,16 +56,16 @@ impl<'a> SymbolTable<'a> {
         symbol
     }
 
-    pub fn resolve(&self, name: &str) -> Result<&Symbol, CompilationError> {
+    pub fn resolve(&self, name: &str) -> Result<Symbol, CompilationError> {
         match self.store.get(name) {
             None => {
                 if let Some(outer) = &self.outer {
-                    outer.resolve(name)
+                    outer.as_ref().borrow().resolve(name)
                 } else {
                     Err(CompilationError::UnknownSymbol(name.to_string()))
                 }
             }
-            Some(symbol) => Ok(symbol),
+            Some(symbol) => Ok(symbol.clone()),
         }
     }
 }
@@ -109,26 +109,26 @@ mod tests {
             },
         ];
 
-        let mut global = SymbolTable::new();
+        let global = SymbolTable::new();
 
-        let a = global.define("a");
-        let b = global.define("b");
+        let a = global.borrow_mut().define("a");
+        let b = global.borrow_mut().define("b");
 
         assert_eq!(tests[0], a);
         assert_eq!(tests[1], b);
 
-        let mut first_local = SymbolTable::new_enclosed(&global);
+        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
 
-        let c = first_local.define("c");
-        let d = first_local.define("d");
+        let c = first_local.borrow_mut().define("c");
+        let d = first_local.borrow_mut().define("d");
 
         assert_eq!(tests[2], c);
         assert_eq!(tests[3], d);
 
-        let mut second_local = SymbolTable::new_enclosed(&global);
+        let second_local = SymbolTable::new_enclosed(Rc::clone(&global));
 
-        let e = second_local.define("e");
-        let f = second_local.define("f");
+        let e = second_local.borrow_mut().define("e");
+        let f = second_local.borrow_mut().define("f");
 
         assert_eq!(tests[4], e);
         assert_eq!(tests[5], f);
@@ -138,8 +138,8 @@ mod tests {
     fn test_resolve_global() -> Result<(), CompilationError> {
         let mut global = SymbolTable::new();
 
-        global.define("a");
-        global.define("b");
+        global.borrow_mut().define("a");
+        global.borrow_mut().define("b");
 
         let tests = vec![
             (
@@ -161,8 +161,8 @@ mod tests {
         ];
 
         for test in tests {
-            let symbol = global.resolve(test.0)?;
-            assert_eq!(test.1, *symbol);
+            let symbol = global.borrow().resolve(test.0)?;
+            assert_eq!(test.1, symbol);
         }
 
         Ok(())
@@ -170,13 +170,13 @@ mod tests {
 
     #[test]
     fn test_resolve_local() -> Result<(), CompilationError> {
-        let mut global = SymbolTable::new();
-        global.define("a");
-        global.define("b");
+        let global = SymbolTable::new();
+        global.borrow_mut().define("a");
+        global.borrow_mut().define("b");
 
-        let mut local = SymbolTable::new_enclosed(&global);
-        local.define("c");
-        local.define("d");
+        let local = SymbolTable::new_enclosed(Rc::clone(&global));
+        local.borrow_mut().define("c");
+        local.borrow_mut().define("d");
 
         let tests = vec![
             (
@@ -214,8 +214,8 @@ mod tests {
         ];
 
         for test in tests {
-            let symbol = local.resolve(test.0)?;
-            assert_eq!(test.1, *symbol);
+            let symbol = local.borrow().resolve(test.0)?;
+            assert_eq!(test.1, symbol);
         }
 
         Ok(())
@@ -223,26 +223,26 @@ mod tests {
 
     #[test]
     fn test_resolve_nested_local() -> Result<(), CompilationError> {
-        let mut global = SymbolTable::new();
-        global.define("a");
-        global.define("b");
+        let global = SymbolTable::new();
+        global.borrow_mut().define("a");
+        global.borrow_mut().define("b");
 
-        let mut first_local = SymbolTable::new_enclosed(&global);
-        first_local.define("c");
-        first_local.define("d");
+        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
+        first_local.borrow_mut().define("c");
+        first_local.borrow_mut().define("d");
 
-        let mut second_local = SymbolTable::new_enclosed(&global);
-        second_local.define("e");
-        second_local.define("f");
+        let second_local = SymbolTable::new_enclosed(Rc::clone(&global));
+        second_local.borrow_mut().define("e");
+        second_local.borrow_mut().define("f");
 
-        struct Test<'a> {
-            table: SymbolTable<'a>,
+        struct Test {
+            table: SymbolTable,
             expected_symbols: Vec<(&'static str, Symbol)>,
         }
 
         let tests = vec![
             Test {
-                table: first_local,
+                table: first_local.borrow().clone(),
                 expected_symbols: vec![
                     (
                         "a",
@@ -279,7 +279,7 @@ mod tests {
                 ],
             },
             Test {
-                table: second_local,
+                table: second_local.borrow().clone(),
                 expected_symbols: vec![
                     (
                         "a",
@@ -320,7 +320,7 @@ mod tests {
         for test in tests {
             for expected_symbol in test.expected_symbols {
                 let symbol = test.table.resolve(expected_symbol.0)?;
-                assert_eq!(expected_symbol.1, *symbol);
+                assert_eq!(expected_symbol.1, symbol);
             }
         }
 

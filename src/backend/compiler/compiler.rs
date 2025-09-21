@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::backend::{OPERAND_WIDTHS, Opcode, Symbol, SymbolScope, SymbolTable, make};
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
@@ -40,20 +42,20 @@ impl CompilationScope {
     }
 }
 
-pub struct Compiler<'a> {
+pub struct Compiler {
     instructions: Vec<u8>,
     pub constants: Vec<Object>,
 
     last_intstruction: EmittedInstruction,
     previous_instruction: EmittedInstruction,
 
-    pub symbol_table: SymbolTable<'a>,
+    pub symbol_table: Rc<RefCell<SymbolTable>>,
 
     scopes: Vec<CompilationScope>,
     scope_index: usize,
 }
 
-impl<'a> Compiler<'a> {
+impl Compiler {
     pub fn new() -> Self {
         Compiler {
             instructions: Vec::<u8>::new(),
@@ -72,7 +74,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub fn new_with_state(symbol_table: SymbolTable<'a>, constants: Vec<Object>) -> Self {
+    pub fn new_with_state(symbol_table: Rc<RefCell<SymbolTable>>, constants: Vec<Object>) -> Self {
         let mut compiler = Compiler::new();
         compiler.symbol_table = symbol_table;
         compiler.constants = constants;
@@ -106,7 +108,10 @@ impl<'a> Compiler<'a> {
                 self.emit(Opcode::Pop, &[]);
             }
             Statement::Let(let_statement) => {
-                let symbol = self.symbol_table.define(&let_statement.name.token.literal);
+                let symbol = self
+                    .symbol_table
+                    .borrow_mut()
+                    .define(&let_statement.name.token.literal);
                 self.compile_expression(let_statement.value.as_ref())?;
                 self.emit(Opcode::SetGlobal, &symbol.index.to_be_bytes());
             }
@@ -138,6 +143,7 @@ impl<'a> Compiler<'a> {
                 let index = {
                     let symbol = self
                         .symbol_table
+                        .borrow()
                         .resolve(&identifier_expression.token.literal)?;
                     symbol.index
                 };
@@ -292,6 +298,9 @@ impl<'a> Compiler<'a> {
         let scope = CompilationScope::new();
         self.scopes.push(scope);
         self.scope_index += 1;
+
+        let new_table = SymbolTable::new_enclosed(Rc::clone(&self.symbol_table));
+        self.symbol_table = new_table;
     }
 
     fn leave_scope(&mut self) -> Box<[u8]> {
@@ -302,6 +311,16 @@ impl<'a> Compiler<'a> {
 
         self.scopes.truncate(self.scopes.len() - 1);
         self.scope_index -= 1;
+
+        let outer = self
+            .symbol_table
+            .borrow()
+            .outer
+            .as_ref()
+            .expect("No outer scope to return to!")
+            .clone(); 
+
+        self.symbol_table = outer; 
 
         instructions
     }
@@ -1225,8 +1244,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn test_compiler_scopes() -> Result<(), CompilationError> {
         let mut compiler = Compiler::new();
@@ -1252,7 +1269,7 @@ mod tests {
         compiler.emit(Opcode::Sub, &[]);
 
         let mut last = compiler.scopes[compiler.scope_index].last_instruction;
-        
+
         assert_eq!(
             last.opcode,
             Opcode::Sub,
@@ -1261,11 +1278,13 @@ mod tests {
             Opcode::Sub
         );
 
-        assert_eq!(*compiler.symbol_table.outer.unwrap(), global_symbol_table, "compiler did not enclose symbolTable");
+        assert_eq!(
+            compiler.symbol_table.borrow().outer.clone().unwrap(),
+            global_symbol_table,
+            "compiler did not enclose symbolTable"
+        );
 
         compiler.leave_scope();
-
-
 
         assert_eq!(
             compiler.scope_index, 0,
@@ -1273,9 +1292,16 @@ mod tests {
             compiler.scope_index, 0
         );
 
-        assert_eq!(compiler.symbol_table, global_symbol_table, "compiler did not enclose symbolTable");
+        assert_eq!(
+            compiler.symbol_table, global_symbol_table,
+            "compiler did not restore global symbol table"
+        );
 
-        assert_eq!(compiler.symbol_table.outer, None, "compiler did not enclose symbolTable");
+        assert_eq!(
+            compiler.symbol_table.borrow().outer,
+            None,
+            "compiler modified global symbol table incorrectly"
+        );
 
         compiler.emit(Opcode::Add, &[]);
 
