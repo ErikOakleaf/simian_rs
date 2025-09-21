@@ -1064,8 +1064,98 @@ mod tests {
     }
 
     #[test]
+    fn test_let_statement_scopes() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "let num = 55;
+                        fn() { num }",
+                expected_constants: vec![
+                    Object::Integer(55),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::GetGlobal, &[0, 0]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() {
+                            let num = 55;
+                            num
+                        }",
+                expected_constants: vec![
+                    Object::Integer(55),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::SetLocal, &[0]),
+                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() {
+                                let a = 55;
+                                let b = 77;
+                                a + b
+                        }",
+                expected_constants: vec![
+                    Object::Integer(55),
+                    Object::Integer(77),
+                    Object::CompiledFunction(
+                        vec![
+                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::SetLocal, &[0]),
+                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::SetLocal, &[1]),
+                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::GetLocal, &[1]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                    ),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
     fn test_read_operands() {
-        let tests = vec![(Opcode::LoadConstant, vec![0xFF, 0xFF], 65535, 2)];
+        let tests = vec![
+            (Opcode::LoadConstant, vec![0xFF, 0xFF], 65535, 2),
+            (Opcode::GetLocal, vec![0xFF], 255, 1),
+        ];
 
         for (opcode, operand_bytes, expected_result, expected_offset) in tests {
             let instruction = make(opcode, &operand_bytes);
@@ -1105,6 +1195,15 @@ mod tests {
                     make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
                 ],
                 expected: "0000 Add\n0001 LoadConstant 2\n0004 LoadConstant 65535\n",
+            },
+            FormattingTestCase {
+                instructions: vec![
+                    make(Opcode::Add, &vec![]),
+                    make(Opcode::GetLocal, &vec![0x01]),
+                    make(Opcode::LoadConstant, &vec![0x0, 0x02]),
+                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                ],
+                expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n",
             },
         ];
 

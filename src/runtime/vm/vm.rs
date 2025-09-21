@@ -466,7 +466,11 @@ impl VM {
 
                     self.push(return_value)?;
                 }
-                RETURN => {}
+                RETURN => {
+                    self.pop_frame();
+                    self.pop();
+                    self.push(Object::Null)?;
+                }
                 _ => return Err(RuntimeError::UnknownOpcode(opcode)),
             };
         }
@@ -954,11 +958,65 @@ mod tests {
 
     #[test]
     fn test_calling_functions_without_arguments() -> Result<(), RuntimeError> {
-        let tests = vec![VMTestCase {
-            input: "let fivePlusTen = fn() { 5 + 10; };
-                    fivePlusTen();",
-            expected: Object::Integer(15),
-        }];
+        let tests = vec![
+            VMTestCase {
+                input: "let fivePlusTen = fn() { 5 + 10; };
+                        fivePlusTen();",
+                expected: Object::Integer(15),
+            },
+            VMTestCase {
+                input: "let one = fn() { 1; };
+                        let two = fn() { 2; };
+                        one() + two()",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "let a = fn() { 1 };
+                        let b = fn() { a() + 1 };
+                        let c = fn() { b() + 1 };
+                        c();",
+                expected: Object::Integer(3),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+
+    #[test]
+    fn test_functions_with_return_statement() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let earlyExit = fn() { return 99; 100; };
+                        earlyExit();",
+                expected: Object::Integer(99),
+            },
+            VMTestCase {
+                input: "let earlyExit = fn() { return 99; return 100; };
+                        earlyExit();",
+                expected: Object::Integer(99),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_functions_without_return_value() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let noReturn = fn() { };
+                        noReturn();",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "let noReturn = fn() { };
+                        let noReturnTwo = fn() { noReturn(); };
+                        noReturn();
+                        noReturnTwo();",
+                expected: Object::Null,
+            },
+        ];
 
         run_vm_tests(&tests)
     }

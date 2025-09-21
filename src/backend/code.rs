@@ -30,6 +30,8 @@ pub enum Opcode {
     Call = 0x15,
     ReturnValue = 0x16,
     Return = 0x17,
+    GetLocal = 0x18,
+    SetLocal = 0x19,
 }
 
 impl Opcode {
@@ -59,6 +61,8 @@ impl Opcode {
             0x15 => Opcode::Call,
             0x16 => Opcode::ReturnValue,
             0x17 => Opcode::Return,
+            0x18 => Opcode::GetLocal,
+            0x19 => Opcode::SetLocal,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -91,6 +95,8 @@ impl fmt::Display for Opcode {
             Opcode::Call => "Call",
             Opcode::ReturnValue => "ReturnValue",
             Opcode::Return => "Return",
+            Opcode::GetLocal => "GetLocal",
+            Opcode::SetLocal => "SetLocal",
         };
         write!(f, "{}", name)
     }
@@ -122,6 +128,8 @@ const fn build_operand_widths() -> [usize; 256] {
     table[Opcode::Call as usize] = 0;
     table[Opcode::ReturnValue as usize] = 0;
     table[Opcode::Return as usize] = 0;
+    table[Opcode::GetLocal as usize] = 1;
+    table[Opcode::SetLocal as usize] = 1;
     table
 }
 
@@ -187,6 +195,11 @@ mod tests {
                 opcode: Opcode::Add,
                 operand: &[],
                 expected: &[Opcode::Add as u8],
+            },
+            MakeTestCase {
+                opcode: Opcode::GetLocal,
+                operand: &[0xFF],
+                expected: &[Opcode::GetLocal as u8, 0xFF],
             },
         ];
 
