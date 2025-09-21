@@ -16,7 +16,7 @@ pub struct Symbol {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SymbolTable<'a> {
-    outer: Option<&'a SymbolTable<'a>>,
+    pub outer: Option<&'a SymbolTable<'a>>,
     store: HashMap<String, Symbol>,
     amount_definitons: usize,
 }

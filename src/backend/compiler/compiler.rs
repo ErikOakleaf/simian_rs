@@ -1237,6 +1237,8 @@ mod tests {
             compiler.scope_index, 0
         );
 
+        let global_symbol_table = SymbolTable::new();
+
         compiler.emit(Opcode::Mul, &[]);
 
         compiler.enter_scope();
@@ -1250,6 +1252,7 @@ mod tests {
         compiler.emit(Opcode::Sub, &[]);
 
         let mut last = compiler.scopes[compiler.scope_index].last_instruction;
+        
         assert_eq!(
             last.opcode,
             Opcode::Sub,
@@ -1258,13 +1261,21 @@ mod tests {
             Opcode::Sub
         );
 
+        assert_eq!(*compiler.symbol_table.outer.unwrap(), global_symbol_table, "compiler did not enclose symbolTable");
+
         compiler.leave_scope();
+
+
 
         assert_eq!(
             compiler.scope_index, 0,
             "scope index wrong got: {} want {}",
             compiler.scope_index, 0
         );
+
+        assert_eq!(compiler.symbol_table, global_symbol_table, "compiler did not enclose symbolTable");
+
+        assert_eq!(compiler.symbol_table.outer, None, "compiler did not enclose symbolTable");
 
         compiler.emit(Opcode::Add, &[]);
 
