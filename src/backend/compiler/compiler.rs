@@ -43,12 +43,7 @@ impl CompilationScope {
 }
 
 pub struct Compiler {
-    instructions: Vec<u8>,
     pub constants: Vec<Object>,
-
-    last_intstruction: EmittedInstruction,
-    previous_instruction: EmittedInstruction,
-
     pub symbol_table: Rc<RefCell<SymbolTable>>,
 
     scopes: Vec<CompilationScope>,
@@ -58,16 +53,7 @@ pub struct Compiler {
 impl Compiler {
     pub fn new() -> Self {
         Compiler {
-            instructions: Vec::<u8>::new(),
             constants: Vec::<Object>::new(),
-            last_intstruction: EmittedInstruction {
-                opcode: Opcode::LoadConstant,
-                position: 0,
-            },
-            previous_instruction: EmittedInstruction {
-                opcode: Opcode::LoadConstant,
-                position: 0,
-            },
             symbol_table: SymbolTable::new(),
             scopes: vec![CompilationScope::new()],
             scope_index: 0,
@@ -196,12 +182,13 @@ impl Compiler {
                     self.emit(Opcode::Return, &[]);
                 }
 
+                let amount_locals = self.symbol_table.borrow().amount_definitions;
                 let instructions = self.leave_scope();
 
                 let compiled_function =
-                    Object::CompiledFunction(CompiledFunction::new(instructions));
+                    Object::CompiledFunction(CompiledFunction::new(instructions, amount_locals));
 
-                let position = self.add_constant(compiled_function) as u16;
+                let position = self.add_constant(compiled_function);
 
                 self.emit(Opcode::LoadConstant, &position.to_be_bytes());
             }
@@ -962,6 +949,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -985,6 +973,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1008,6 +997,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1030,6 +1020,7 @@ mod tests {
                     .flat_map(|b| b.into_vec())
                     .collect::<Vec<u8>>()
                     .into_boxed_slice(),
+                0,
             ))],
             expected_instructions: vec![
                 make(Opcode::LoadConstant, &[0, 0]),
@@ -1056,6 +1047,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1078,6 +1070,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1110,6 +1103,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1137,6 +1131,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        1,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1168,6 +1163,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        2,
                     )),
                 ],
                 expected_instructions: vec![

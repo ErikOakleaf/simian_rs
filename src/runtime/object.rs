@@ -192,7 +192,7 @@ pub struct CompiledFunction {
 }
 
 impl CompiledFunction {
-    pub fn new(instructions: Box<[u8]>) -> Self {
-        CompiledFunction { instructions: instructions, amount_locals: 0 }
+    pub fn new(instructions: Box<[u8]>, amount_locals: usize) -> Self {
+        CompiledFunction { instructions: instructions, amount_locals: amount_locals }
     }
 }

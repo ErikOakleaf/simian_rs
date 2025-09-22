@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::thread::current;
 
 use crate::backend::code::Opcode;
 use crate::backend::compiler::{Bytecode, Compiler};
@@ -14,7 +15,6 @@ const FRAMES_SIZE: usize = 1024;
 pub enum RuntimeError {
     EmptyStack,
     StackOverflow,
-    UnknownOpcode(u8),
     TypeMismatch {
         left: Object,
         opcode: Opcode,
@@ -83,7 +83,7 @@ impl VM {
         let last_popped = Object::Null;
         let globals = GlobalEnviroment::new();
         let mut frames: [Option<Frame>; FRAMES_SIZE] = std::array::from_fn(|_| None);
-        frames[0] = Some(Frame::new(bytecode.instructions));
+        frames[0] = Some(Frame::new(bytecode.instructions, 0));
         let frames_index = 1;
         VM {
             constants: constants,
@@ -197,6 +197,8 @@ impl VM {
             const CALL: u8 = Opcode::Call as u8;
             const RETURN_VALUE: u8 = Opcode::ReturnValue as u8;
             const RETURN: u8 = Opcode::Return as u8;
+            const GET_LOCAL: u8 = Opcode::GetLocal as u8;
+            const SET_LOCAL: u8 = Opcode::SetLocal as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -449,7 +451,8 @@ impl VM {
                 CALL => {
                     match self.stack[self.sp - 1].as_ref().unwrap().clone() {
                         Object::CompiledFunction(function) => {
-                            let frame = Frame::new(function.instructions);
+                            let frame = Frame::new(function.instructions, self.sp);
+                            self.sp = frame.base_pointer + function.amount_locals;
                             self.push_frame(frame);
                             // comment is just here now to not make the formatting freak out
                         }
@@ -461,17 +464,47 @@ impl VM {
                 RETURN_VALUE => {
                     let return_value = self.pop();
 
-                    self.pop_frame();
-                    self.pop();
+                    let frame = self.pop_frame();
+                    self.sp = frame.base_pointer - 1;
 
                     self.push(return_value)?;
                 }
                 RETURN => {
-                    self.pop_frame();
-                    self.pop();
+                    let frame = self.pop_frame();
+                    self.sp = frame.base_pointer - 1;
+
                     self.push(Object::Null)?;
                 }
-                _ => return Err(RuntimeError::UnknownOpcode(opcode)),
+                GET_LOCAL => {
+                    let local_index;
+                    let base_pointer;
+                    {
+                        let current_frame = self.current_frame_mut();
+                        local_index = current_frame.function[current_frame.ip] as usize;
+                        current_frame.ip += 1;
+                        base_pointer = current_frame.base_pointer;
+                    }
+
+                    let value = self.stack[base_pointer + local_index]
+                        .as_ref()
+                        .unwrap()
+                        .clone();
+                    self.push(value)?;
+                }
+                SET_LOCAL => {
+                    let local_index;
+                    let base_pointer;
+                    {
+                        let current_frame = self.current_frame_mut();
+                        local_index = current_frame.function[current_frame.ip] as usize;
+                        current_frame.ip += 1;
+                        base_pointer = current_frame.base_pointer;
+                    }
+
+                    let value = self.pop();
+                    self.stack[base_pointer + local_index] = Some(value);
+                }
+                other => unreachable!("Unkown opcode {}", other),
             };
         }
 
@@ -982,7 +1015,6 @@ mod tests {
         run_vm_tests(&tests)
     }
 
-
     #[test]
     fn test_calling_functions_with_bindings() -> Result<(), RuntimeError> {
         let tests = vec![
@@ -1025,7 +1057,6 @@ mod tests {
 
         run_vm_tests(&tests)
     }
-
 
     #[test]
     fn test_functions_with_return_statement() -> Result<(), RuntimeError> {
