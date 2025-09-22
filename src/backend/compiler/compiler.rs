@@ -173,6 +173,11 @@ impl Compiler {
             }
             Expression::Function(function_literal_expression) => {
                 self.enter_scope();
+
+                for parameter in function_literal_expression.parameters.iter() {
+                    self.symbol_table.borrow_mut().define(&parameter.token.literal);
+                }
+
                 self.compile_block_statement(&function_literal_expression.body)?;
 
                 if self.last_instruction_is(Opcode::Pop) {
@@ -1096,7 +1101,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
+                        1,
                     )),
                     Object::Integer(24),
                 ],
@@ -1121,7 +1126,67 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
+                        3,
+                    )),
+                    Object::Integer(24),
+                    Object::Integer(25),
+                    Object::Integer(26),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::Call, &[3]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let oneArg = fn(a) { a };
+                        oneArg(24);",
+                expected_constants: vec![
+                    Object::CompiledFunction(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                    )),
+                    Object::Integer(24),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Call, &[1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let manyArg = fn(a, b, c) { a; b; c; };
+                        manyArg(24, 25, 26);",
+                expected_constants: vec![
+                    Object::CompiledFunction(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::Pop, &[]),
+                            make(Opcode::GetLocal, &[1]),
+                            make(Opcode::Pop, &[]),
+                            make(Opcode::GetLocal, &[2]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        3,
                     )),
                     Object::Integer(24),
                     Object::Integer(25),
