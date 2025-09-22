@@ -194,7 +194,10 @@ impl Compiler {
             }
             Expression::Call(call_expression) => {
                 self.compile_expression(call_expression.function.as_ref())?;
-                self.emit(Opcode::Call, &[]);
+                for argument in call_expression.arguments.iter() {
+                    self.compile_expression(argument)?;
+                }
+                self.emit(Opcode::Call, &[call_expression.arguments.len() as u8]);
             }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
@@ -1052,7 +1055,7 @@ mod tests {
                 ],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::Call, &[]),
+                    make(Opcode::Call, &[0]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1077,7 +1080,61 @@ mod tests {
                     make(Opcode::LoadConstant, &[0, 1]),
                     make(Opcode::SetGlobal, &[0, 0]),
                     make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::Call, &[]),
+                    make(Opcode::Call, &[0]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let oneArg = fn(a) { };
+                        oneArg(24);",
+                expected_constants: vec![
+                    Object::CompiledFunction(CompiledFunction::new(
+                        vec![
+                            make(Opcode::Return, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                    )),
+                    Object::Integer(24),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::Call, &[1]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let manyArg = fn(a, b, c) { };
+                        manyArg(24, 25, 26);",
+                expected_constants: vec![
+                    Object::CompiledFunction(CompiledFunction::new(
+                        vec![
+                            make(Opcode::Return, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                    )),
+                    Object::Integer(24),
+                    Object::Integer(25),
+                    Object::Integer(26),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::SetGlobal, &[0, 0]),
+                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::Call, &[3]),
                     make(Opcode::Pop, &[]),
                 ],
             },

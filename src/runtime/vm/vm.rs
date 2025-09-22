@@ -451,6 +451,7 @@ impl VM {
                 CALL => {
                     match self.stack[self.sp - 1].as_ref().unwrap().clone() {
                         Object::CompiledFunction(function) => {
+                            self.current_frame_mut().ip += 1;
                             let frame = Frame::new(function.instructions, self.sp);
                             self.sp = frame.base_pointer + function.amount_locals;
                             self.push_frame(frame);
@@ -1090,6 +1091,28 @@ mod tests {
                         noReturn();
                         noReturnTwo();",
                 expected: Object::Null,
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_first_class_functions() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let returnsOne = fn() { 1; };
+                        let returnsOneReturner = fn() { returnsOne; };
+                        returnsOneReturner()();",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let returnsOneReturner = fn() {
+                        let returnsOne = fn() { 1; };
+                        returnsOne;
+                        };
+                        returnsOneReturner()();",
+                expected: Object::Integer(1),
             },
         ];
 

@@ -125,7 +125,7 @@ const fn build_operand_widths() -> [usize; 256] {
     table[Opcode::Array as usize] = 2;
     table[Opcode::Hash as usize] = 2;
     table[Opcode::Index as usize] = 0;
-    table[Opcode::Call as usize] = 0;
+    table[Opcode::Call as usize] = 1;
     table[Opcode::ReturnValue as usize] = 0;
     table[Opcode::Return as usize] = 0;
     table[Opcode::GetLocal as usize] = 1;
