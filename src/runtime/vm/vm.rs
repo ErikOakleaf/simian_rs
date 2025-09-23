@@ -449,18 +449,11 @@ impl VM {
                     }
                 }
                 CALL => {
-                    match self.stack[self.sp - 1].as_ref().unwrap().clone() {
-                        Object::CompiledFunction(function) => {
-                            self.current_frame_mut().ip += 1;
-                            let frame = Frame::new(function.instructions, self.sp);
-                            self.sp = frame.base_pointer + function.amount_locals;
-                            self.push_frame(frame);
-                            // comment is just here now to not make the formatting freak out
-                        }
-                        other => {
-                            return Err(RuntimeError::CallNonFunction(other));
-                        }
-                    }
+                    let current_frame = self.current_frame_mut();
+                    let amount_arguments = current_frame.function[current_frame.ip] as usize;
+                    current_frame.ip += 1;
+
+                    self.call_function(amount_arguments);
                 }
                 RETURN_VALUE => {
                     let return_value = self.pop();
@@ -513,6 +506,24 @@ impl VM {
     }
 
     // Helpers
+
+    fn call_function(&mut self, amount_arguments: usize) -> Result<(), RuntimeError>{
+        match self.stack[self.sp - 1 - amount_arguments]
+            .as_ref()
+            .unwrap()
+            .clone()
+        {
+            Object::CompiledFunction(function) => {
+                let frame = Frame::new(function.instructions, self.sp - amount_arguments);
+                self.sp = frame.base_pointer + function.amount_locals;
+                self.push_frame(frame);
+            }
+            other => {
+                return Err(RuntimeError::CallNonFunction(other));
+            }
+        };
+        Ok(())
+    }
 
     #[inline(always)]
     fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), RuntimeError>
@@ -1053,6 +1064,63 @@ mod tests {
                         }
                         minusOne() + minusTwo();",
                 expected: Object::Integer(97),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_calling_functions_with_arguments_and_bindings() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let identity = fn(a) { a; };
+                        identity(4);",
+                expected: Object::Integer(4),
+            },
+            VMTestCase {
+                input: "let sum = fn(a, b) { a + b; };
+                        sum(1, 2);",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "let sum = fn(a, b) {
+                            let c = a + b;
+                            c;
+                        };
+                        sum(1, 2);",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "let sum = fn(a, b) {
+                        let c = a + b;
+                        c;
+                        };
+                        sum(1, 2) + sum(3, 4);",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let sum = fn(a, b) {
+                        let c = a + b;
+                        c;
+                        };
+                        let outer = fn() {
+                        sum(1, 2) + sum(3, 4);
+                        };
+                        outer();",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let globalNum = 10;
+                        let sum = fn(a, b) {
+                        let c = a + b;
+                        c + globalNum;
+                        };
+                        let outer = fn() {
+                        sum(1, 2) + sum(3, 4) + globalNum;
+                        };
+                        outer() + globalNum;",
+                expected: Object::Integer(50),
             },
         ];
 
