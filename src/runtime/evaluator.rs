@@ -6,6 +6,7 @@ use std::rc::Rc;
 use crate::frontend::ast::{
     Expression, FunctionLiteralExpression, IdentifierExpression, IfExpression, Program, Statement,
 };
+use crate::runtime::builtins::{get_builtin_by_name, is_builtin, BUILTINS};
 use crate::runtime::object::{BuiltinFunction, HashKey};
 use crate::runtime::object::{Enviroment, Function, Object};
 
@@ -129,7 +130,8 @@ fn eval_expression(
 
             match function_object {
                 Object::Function(function) => apply_function(&function, &arguments)?,
-                Object::Builtin(builtin) => (builtin.func)(&arguments)?,
+                Object::Builtin(builtin) => (builtin.func)(&arguments)
+                    .map_err(|e| EvaluationError::Other(format!("builtin error {:?}", e)))?,
                 other => {
                     return Err(EvaluationError::TypeMismatch {
                         operator: "call".to_string(),
@@ -289,7 +291,8 @@ fn eval_identifier_expression(
 ) -> Result<Object, EvaluationError> {
     if let Some(obj) = enviroment.get(&identifier_expression.token.literal) {
         Ok(obj)
-    } else if let Some(builtin) = BUILTINS.get(identifier_expression.token.literal.as_str()) {
+    } else if is_builtin(identifier_expression.token.literal.as_str()) {
+        let builtin = get_builtin_by_name(identifier_expression.token.literal.as_str());
         Ok(Object::Builtin(builtin.clone()))
     } else {
         Err(EvaluationError::UnknownIdentifier(
@@ -379,170 +382,6 @@ fn extend_function_enviroment(
     }
 
     extended_enviroment
-}
-
-// Builtin functions
-
-pub static BUILTINS: Lazy<HashMap<&'static str, BuiltinFunction>> = Lazy::new(|| {
-    let mut m = HashMap::new();
-
-    m.insert(
-        "len",
-        BuiltinFunction {
-            name: "len",
-            func: len_builtin,
-        },
-    );
-
-    m.insert(
-        "first",
-        BuiltinFunction {
-            name: "first",
-            func: first_builtin,
-        },
-    );
-
-    m.insert(
-        "last",
-        BuiltinFunction {
-            name: "last",
-            func: last_builtin,
-        },
-    );
-
-    m.insert(
-        "rest",
-        BuiltinFunction {
-            name: "rest",
-            func: rest_builtin,
-        },
-    );
-
-    m.insert(
-        "push",
-        BuiltinFunction {
-            name: "push",
-            func: push_builtin,
-        },
-    );
-
-    m.insert(
-        "puts",
-        BuiltinFunction {
-            name: "puts",
-            func: puts_builtin,
-        },
-    );
-
-    m
-});
-
-fn len_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    check_args_length(args.len(), 1)?;
-
-    let string_object = &args[0];
-    if let Object::String(string) = string_object {
-        Ok(Object::Integer(string.len() as i64))
-    } else {
-        Err(EvaluationError::Other(format!(
-            "argument to len not supported, got {}",
-            string_object
-        )))
-    }
-}
-
-fn first_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    check_args_length(args.len(), 1)?;
-
-    let arr_object = &args[0];
-    if let Object::Array(arr) = arr_object {
-        if arr.len() == 0 {
-            return Ok(Object::Null);
-        }
-        Ok(arr[0].clone())
-    } else {
-        Err(EvaluationError::Other(format!(
-            "argument to first not supported, got {}",
-            arr_object
-        )))
-    }
-}
-
-fn last_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    check_args_length(args.len(), 1)?;
-
-    let arr_object = &args[0];
-    if let Object::Array(arr) = arr_object {
-        if arr.len() == 0 {
-            return Ok(Object::Null);
-        }
-        Ok(arr.last().unwrap().clone())
-    } else {
-        Err(EvaluationError::Other(format!(
-            "argument to last not supported, got {}",
-            arr_object
-        )))
-    }
-}
-
-fn rest_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    check_args_length(args.len(), 1)?;
-
-    let arr_object = &args[0];
-    if let Object::Array(arr) = arr_object {
-        if arr.len() < 1 {
-            return Ok(Object::Null);
-        }
-
-        if arr.len() == 1 {
-            return Ok(Object::Array(vec![]));
-        }
-
-        Ok(Object::Array(arr[1..arr.len()].to_vec()))
-    } else {
-        Err(EvaluationError::Other(format!(
-            "argument to rest not supported, got {}",
-            arr_object
-        )))
-    }
-}
-
-fn push_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    check_args_length(args.len(), 2)?;
-
-    let arr_object = &args[0];
-    if let Object::Array(arr) = arr_object {
-        let mut arr_copy = arr.clone();
-        arr_copy.push(args[1].clone());
-        Ok(Object::Array(arr_copy))
-    } else {
-        Err(EvaluationError::Other(format!(
-            "argument to rest not supported, got {}",
-            arr_object
-        )))
-    }
-}
-
-
-fn puts_builtin(args: &[Object]) -> Result<Object, EvaluationError> {
-    for object in args {
-        println!("{}", object);
-    }
-
-    Ok(Object::Void)
-}
-
-// Builtin helpers
-
-fn check_args_length(args_length: usize, expected: usize) -> Result<(), EvaluationError> {
-    if args_length != expected {
-        return Err(EvaluationError::Other(format!(
-            "wrong number of arguments. got: {}, expected: {}",
-            args_length, expected
-        )));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -801,16 +640,6 @@ mod tests {
                     left: Some(Object::String("hello".to_string())),
                     right: Object::String("world".to_string()),
                 },
-            ),
-            (
-                "len(1)",
-                EvaluationError::Other("argument to len not supported, got 1".to_string()),
-            ),
-            (
-                "len(\"one\", \"two\")",
-                EvaluationError::Other(
-                    "wrong number of arguments. got: 2, expected: 1".to_string(),
-                ),
             ),
             (
                 "{ [1, 2]: 5 }",

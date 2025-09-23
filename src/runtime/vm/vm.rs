@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::thread::current;
 
 use crate::backend::code::Opcode;
 use crate::backend::compiler::{Bytecode, Compiler};
@@ -10,7 +9,6 @@ const STACK_SIZE: usize = 2048;
 const GLOBAL_SIZE: usize = 65536;
 const FRAMES_SIZE: usize = 1024;
 
-#[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 pub enum RuntimeError {
     EmptyStack,
@@ -36,6 +34,7 @@ pub enum RuntimeError {
         expected: usize,
         got: usize,
     },
+    Other(String),
 }
 
 pub struct GlobalEnviroment {

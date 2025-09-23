@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::{fmt, rc::Rc};
 
+use crate::runtime::vm::vm::RuntimeError;
 use crate::{
     frontend::{BlockStatement, IdentifierExpression},
     runtime::evaluator::{EvaluationError, EvaluationResult},
@@ -169,7 +170,7 @@ impl fmt::Display for Function {
 #[derive(Debug, Clone)]
 pub struct BuiltinFunction {
     pub name: &'static str,
-    pub func: fn(&[Object]) -> Result<Object, EvaluationError>,
+    pub func: fn(&[Object]) -> Result<Object, RuntimeError>,
 }
 
 impl PartialEq for BuiltinFunction {
