@@ -11,7 +11,7 @@ const GLOBAL_SIZE: usize = 65536;
 const FRAMES_SIZE: usize = 1024;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RuntimeError {
     EmptyStack,
     StackOverflow,
@@ -32,6 +32,10 @@ pub enum RuntimeError {
     },
     NotIndexable(Object),
     CallNonFunction(Object),
+    ArityMismatch {
+        expected: usize,
+        got: usize,
+    },
 }
 
 pub struct GlobalEnviroment {
@@ -453,7 +457,7 @@ impl VM {
                     let amount_arguments = current_frame.function[current_frame.ip] as usize;
                     current_frame.ip += 1;
 
-                    self.call_function(amount_arguments);
+                    self.call_function(amount_arguments)?;
                 }
                 RETURN_VALUE => {
                     let return_value = self.pop();
@@ -507,13 +511,18 @@ impl VM {
 
     // Helpers
 
-    fn call_function(&mut self, amount_arguments: usize) -> Result<(), RuntimeError>{
+    fn call_function(&mut self, amount_arguments: usize) -> Result<(), RuntimeError> {
         match self.stack[self.sp - 1 - amount_arguments]
             .as_ref()
             .unwrap()
             .clone()
         {
             Object::CompiledFunction(function) => {
+                println!("amount_arguments: {}, amount_parameters: {}", amount_arguments, function.amount_parameters);
+                if amount_arguments != function.amount_parameters {
+                    return Err(RuntimeError::ArityMismatch { expected: function.amount_parameters, got: amount_arguments });
+                }
+
                 let frame = Frame::new(function.instructions, self.sp - amount_arguments);
                 self.sp = frame.base_pointer + function.amount_locals;
                 self.push_frame(frame);
@@ -1125,6 +1134,51 @@ mod tests {
         ];
 
         run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_calling_functions_with_wrong_arguments() {
+        let tests = vec![
+            (
+                "fn() { 1; }(1);",
+                RuntimeError::ArityMismatch {
+                    expected: 0,
+                    got: 1,
+                },
+            ),
+            (
+                "fn(a) { a; }();",
+                RuntimeError::ArityMismatch {
+                    expected: 1,
+                    got: 0,
+                },
+            ),
+            (
+                "fn(a, b) { a + b; }(1);",
+                RuntimeError::ArityMismatch {
+                    expected: 2,
+                    got: 1,
+                },
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let program = parse_input(input);
+            let mut compiler = Compiler::new();
+            compiler
+                .compile_program(&program)
+                .expect("compilation error");
+            let mut vm = VM::new(compiler.bytecode());
+            let result = vm.run();
+            match result {
+                Err(err) => assert_eq!(
+                    err, expected,
+                    "Got error {:?}, expected {:?}",
+                    err, expected
+                ),
+                Ok(_) => panic!("Expected error {:?}, but got Ok", expected),
+            }
+        }
     }
 
     #[test]

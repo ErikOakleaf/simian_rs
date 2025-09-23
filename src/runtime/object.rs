@@ -189,10 +189,11 @@ impl fmt::Display for BuiltinFunction {
 pub struct CompiledFunction {
     pub instructions: Box<[u8]>,
     pub amount_locals: usize,
+    pub amount_parameters: usize,
 }
 
 impl CompiledFunction {
-    pub fn new(instructions: Box<[u8]>, amount_locals: usize) -> Self {
-        CompiledFunction { instructions: instructions, amount_locals: amount_locals }
+    pub fn new(instructions: Box<[u8]>, amount_locals: usize, amount_parameters: usize) -> Self {
+        CompiledFunction { instructions: instructions, amount_locals: amount_locals, amount_parameters }
     }
 }

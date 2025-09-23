@@ -188,10 +188,11 @@ impl Compiler {
                 }
 
                 let amount_locals = self.symbol_table.borrow().amount_definitions;
+                let amount_parameters = function_literal_expression.parameters.len();
                 let instructions = self.leave_scope();
 
                 let compiled_function =
-                    Object::CompiledFunction(CompiledFunction::new(instructions, amount_locals));
+                    Object::CompiledFunction(CompiledFunction::new(instructions, amount_locals, amount_parameters));
 
                 let position = self.add_constant(compiled_function);
 
@@ -958,6 +959,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         0,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -981,6 +983,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        0,
                         0,
                     )),
                 ],
@@ -1006,6 +1009,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         0,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1028,6 +1032,7 @@ mod tests {
                     .flat_map(|b| b.into_vec())
                     .collect::<Vec<u8>>()
                     .into_boxed_slice(),
+                0,
                 0,
             ))],
             expected_instructions: vec![
@@ -1056,6 +1061,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         0,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1079,6 +1085,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         0,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1101,6 +1108,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        1,
                         1,
                     )),
                     Object::Integer(24),
@@ -1126,6 +1134,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        3,
                         3,
                     )),
                     Object::Integer(24),
@@ -1157,6 +1166,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         1,
+                        1,
                     )),
                     Object::Integer(24),
                 ],
@@ -1186,6 +1196,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
+                        3,
                         3,
                     )),
                     Object::Integer(24),
@@ -1226,6 +1237,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         0,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1254,6 +1266,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         1,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
@@ -1286,6 +1299,7 @@ mod tests {
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
                         2,
+                        0,
                     )),
                 ],
                 expected_instructions: vec![
