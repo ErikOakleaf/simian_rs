@@ -517,9 +517,15 @@ impl VM {
             .clone()
         {
             Object::CompiledFunction(function) => {
-                println!("amount_arguments: {}, amount_parameters: {}", amount_arguments, function.amount_parameters);
+                println!(
+                    "amount_arguments: {}, amount_parameters: {}",
+                    amount_arguments, function.amount_parameters
+                );
                 if amount_arguments != function.amount_parameters {
-                    return Err(RuntimeError::ArityMismatch { expected: function.amount_parameters, got: amount_arguments });
+                    return Err(RuntimeError::ArityMismatch {
+                        expected: function.amount_parameters,
+                        got: amount_arguments,
+                    });
                 }
 
                 let frame = Frame::new(function.instructions, self.sp - amount_arguments);
@@ -1238,5 +1244,103 @@ mod tests {
         ];
 
         run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_builtin_functions() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "len(\"\")",
+                expected: Object::Integer(0),
+            },
+            VMTestCase {
+                input: "len(\"four\")",
+                expected: Object::Integer(4),
+            },
+            VMTestCase {
+                input: "len(\"hello world\")",
+                expected: Object::Integer(11),
+            },
+            VMTestCase {
+                input: "len([1, 2, 3])",
+                expected: Object::Integer(3),
+            },
+            VMTestCase {
+                input: "len([])",
+                expected: Object::Integer(0),
+            },
+            VMTestCase {
+                input: "puts(\"hello\", \"world!\")",
+                expected: Object::Void,
+            },
+            VMTestCase {
+                input: "first([1, 2, 3])",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "first([])",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "rest([1, 2, 3])",
+                expected: Object::Array(vec![Object::Integer(2), Object::Integer(3)]),
+            },
+            VMTestCase {
+                input: "rest([])",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "push([], 1)",
+                expected: Object::Array(vec![Object::Integer(1)]),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_builtin_errors() {
+        struct Test {
+            input: &'static str,
+            expected: RuntimeError,
+        }
+
+        let tests = vec![
+            Test {
+                input: "len(1)",
+                expected: RuntimeError::Other("argument to len not supported, got Object::Integer(1)".to_string()),
+            },
+            Test {
+                input: "len(\"one\", \"two\")",
+                expected: RuntimeError::Other("wrong number of arguments. got: 2, expected: 1".to_string()),
+            },
+            Test {
+                input: "first(1)",
+                expected: RuntimeError::Other("argument to first not supported, got Object::Integer(1)".to_string()),
+            },
+            Test {
+                input: "last(1)",
+                expected: RuntimeError::Other("argument to last not supported, got Object::Integer(1)".to_string()),
+            },
+            Test {
+                input: "push(1, 1)",
+                expected: RuntimeError::Other("argument to push not supported, got {}".to_string()),
+            },
+        ];
+
+        for test in tests {
+            let program = parse_input(test.input);
+            let mut compiler = Compiler::new();
+            compiler
+                .compile_program(&program)
+                .expect("compilation error");
+            let mut vm = VM::new(compiler.bytecode());
+            let result = vm.run();
+
+            match result {
+                Err(err) => assert_eq!(err, test.expected),
+                Ok(_) => panic!("expected error {:?}, but got Ok", test.expected),
+            }
+        }
     }
 }

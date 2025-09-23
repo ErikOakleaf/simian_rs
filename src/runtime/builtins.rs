@@ -1,15 +1,33 @@
-use crate::runtime::{object::BuiltinFunction, vm::vm::RuntimeError, Object};
+use crate::runtime::{Object, object::BuiltinFunction, vm::vm::RuntimeError};
 
 pub static BUILTINS: &[BuiltinFunction] = &[
-    BuiltinFunction { name: "len", func: len_builtin },
-    BuiltinFunction { name: "puts", func: puts_builtin },
-    BuiltinFunction { name: "first", func: first_builtin },
-    BuiltinFunction { name: "last", func: last_builtin },
-    BuiltinFunction { name: "rest", func: rest_builtin },
-    BuiltinFunction { name: "push", func: push_builtin },
+    BuiltinFunction {
+        name: "len",
+        func: len_builtin,
+    },
+    BuiltinFunction {
+        name: "puts",
+        func: puts_builtin,
+    },
+    BuiltinFunction {
+        name: "first",
+        func: first_builtin,
+    },
+    BuiltinFunction {
+        name: "last",
+        func: last_builtin,
+    },
+    BuiltinFunction {
+        name: "rest",
+        func: rest_builtin,
+    },
+    BuiltinFunction {
+        name: "push",
+        func: push_builtin,
+    },
 ];
 
-pub fn get_builtin_by_name(name: &str) -> &'static BuiltinFunction  {
+pub fn get_builtin_by_name(name: &str) -> &'static BuiltinFunction {
     match name {
         "len" => &BUILTINS[0],
         "puts" => &BUILTINS[1],
@@ -28,14 +46,15 @@ pub fn is_builtin(name: &str) -> bool {
 fn len_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     check_args_length(args.len(), 1)?;
 
-    let string_object = &args[0];
-    if let Object::String(string) = string_object {
-        Ok(Object::Integer(string.len() as i64))
-    } else {
-        Err(RuntimeError::Other(format!(
+    let object = &args[0];
+
+    match object {
+        Object::String(string) => Ok(Object::Integer(string.len() as i64)),
+        Object::Array(array) => Ok(Object::Integer(array.len() as i64)),
+        other => Err(RuntimeError::Other(format!(
             "argument to len not supported, got {}",
-            string_object
-        )))
+            other
+        ))),
     }
 }
 
@@ -110,7 +129,6 @@ fn push_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
         )))
     }
 }
-
 
 fn puts_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     for object in args {

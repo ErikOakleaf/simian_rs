@@ -344,8 +344,6 @@ mod tests {
     #[test]
     fn test_resolve_builtin() -> Result<(), CompilationError> {
         let global = SymbolTable::new();
-        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
-        let second_local = SymbolTable::new_enclosed(Rc::clone(&global));
 
         let tests = vec![
             (
