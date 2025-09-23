@@ -36,7 +36,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Function(Function),
-    Builtin(BuiltinFunction),
+    Builtin(&'static BuiltinFunction),
     CompiledFunction(CompiledFunction),
     String(String),
     Array(Vec<Object>),

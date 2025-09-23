@@ -13,7 +13,7 @@ pub static BUILTINS: &[BuiltinFunction] = &[
     BuiltinFunction { name: "puts", func: puts_builtin },
 ];
 
-pub fn get_builtin_by_name(name: &str) -> &BuiltinFunction  {
+pub fn get_builtin_by_name(name: &str) -> &'static BuiltinFunction  {
     match name {
         "len" => &BUILTINS[0],
         "first" => &BUILTINS[1],

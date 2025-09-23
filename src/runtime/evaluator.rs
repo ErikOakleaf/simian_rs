@@ -293,7 +293,7 @@ fn eval_identifier_expression(
         Ok(obj)
     } else if is_builtin(identifier_expression.token.literal.as_str()) {
         let builtin = get_builtin_by_name(identifier_expression.token.literal.as_str());
-        Ok(Object::Builtin(builtin.clone()))
+        Ok(Object::Builtin(builtin))
     } else {
         Err(EvaluationError::UnknownIdentifier(
             identifier_expression.token.literal.clone(),
