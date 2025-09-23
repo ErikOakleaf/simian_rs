@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::backend::code::Opcode;
 use crate::backend::compiler::{Bytecode, Compiler};
-use crate::runtime::object::{HashKey, Object};
+use crate::runtime::builtins::BUILTINS;
+use crate::runtime::object::{BuiltinFunction, CompiledFunction, HashKey, Object};
 use crate::runtime::vm::frame::Frame;
 
 const STACK_SIZE: usize = 2048;
@@ -202,6 +203,7 @@ impl VM {
             const RETURN: u8 = Opcode::Return as u8;
             const GET_LOCAL: u8 = Opcode::GetLocal as u8;
             const SET_LOCAL: u8 = Opcode::SetLocal as u8;
+            const GET_BUILTIN: u8 = Opcode::GetBuiltin as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -456,7 +458,7 @@ impl VM {
                     let amount_arguments = current_frame.function[current_frame.ip] as usize;
                     current_frame.ip += 1;
 
-                    self.call_function(amount_arguments)?;
+                    self.execute_call(amount_arguments)?;
                 }
                 RETURN_VALUE => {
                     let return_value = self.pop();
@@ -501,6 +503,13 @@ impl VM {
                     let value = self.pop();
                     self.stack[base_pointer + local_index] = Some(value);
                 }
+                GET_BUILTIN => {
+                    let builtin_index = current_frame.function[current_frame.ip] as usize;
+                    current_frame.ip += 1;
+
+                    let definiton = Object::Builtin(&BUILTINS[builtin_index]);
+                    self.push(definiton)?;
+                }
                 other => unreachable!("Unkown opcode {}", other),
             };
         }
@@ -510,32 +519,59 @@ impl VM {
 
     // Helpers
 
-    fn call_function(&mut self, amount_arguments: usize) -> Result<(), RuntimeError> {
-        match self.stack[self.sp - 1 - amount_arguments]
+    fn execute_call(&mut self, amount_arguments: usize) -> Result<(), RuntimeError> {
+        let calee = self.stack[self.sp - 1 - amount_arguments]
             .as_ref()
             .unwrap()
-            .clone()
-        {
-            Object::CompiledFunction(function) => {
-                println!(
-                    "amount_arguments: {}, amount_parameters: {}",
-                    amount_arguments, function.amount_parameters
-                );
-                if amount_arguments != function.amount_parameters {
-                    return Err(RuntimeError::ArityMismatch {
-                        expected: function.amount_parameters,
-                        got: amount_arguments,
-                    });
-                }
+            .clone();
 
-                let frame = Frame::new(function.instructions, self.sp - amount_arguments);
-                self.sp = frame.base_pointer + function.amount_locals;
-                self.push_frame(frame);
+        match calee {
+            Object::CompiledFunction(compiled_function) => {
+                self.call_function(&compiled_function, amount_arguments)
+            }
+            Object::Builtin(builtin_function) => {
+                self.call_builtin(&builtin_function, amount_arguments)
             }
             other => {
                 return Err(RuntimeError::CallNonFunction(other));
             }
-        };
+        }
+    }
+
+    fn call_function(
+        &mut self,
+        compiled_function: &CompiledFunction,
+        amount_arguments: usize,
+    ) -> Result<(), RuntimeError> {
+        if amount_arguments != compiled_function.amount_parameters {
+            return Err(RuntimeError::ArityMismatch {
+                expected: compiled_function.amount_parameters,
+                got: amount_arguments,
+            });
+        }
+
+        let frame = Frame::new(
+            compiled_function.instructions.clone(),
+            self.sp - amount_arguments,
+        );
+        self.sp = frame.base_pointer + compiled_function.amount_locals;
+        self.push_frame(frame);
+        Ok(())
+    }
+
+    fn call_builtin(
+        &mut self,
+        builtin: &BuiltinFunction,
+        amount_arguments: usize,
+    ) -> Result<(), RuntimeError> {
+        let arguments: Vec<Object> = self.stack[self.sp - amount_arguments..self.sp]
+            .iter()
+            .map(|opt| opt.as_ref().unwrap().clone())
+            .collect();
+
+        let result = (builtin.func)(&arguments)?;
+        self.sp -= amount_arguments + 1;
+        self.push(result)?;
         Ok(())
     }
 
@@ -1308,23 +1344,31 @@ mod tests {
         let tests = vec![
             Test {
                 input: "len(1)",
-                expected: RuntimeError::Other("argument to len not supported, got Object::Integer(1)".to_string()),
+                expected: RuntimeError::Other(
+                    "argument to len not supported, got 1".to_string(),
+                ),
             },
             Test {
                 input: "len(\"one\", \"two\")",
-                expected: RuntimeError::Other("wrong number of arguments. got: 2, expected: 1".to_string()),
+                expected: RuntimeError::Other(
+                    "wrong number of arguments. got: 2, expected: 1".to_string(),
+                ),
             },
             Test {
                 input: "first(1)",
-                expected: RuntimeError::Other("argument to first not supported, got Object::Integer(1)".to_string()),
+                expected: RuntimeError::Other(
+                    "argument to first not supported, got 1".to_string(),
+                ),
             },
             Test {
                 input: "last(1)",
-                expected: RuntimeError::Other("argument to last not supported, got Object::Integer(1)".to_string()),
+                expected: RuntimeError::Other(
+                    "argument to last not supported, got 1".to_string(),
+                ),
             },
             Test {
                 input: "push(1, 1)",
-                expected: RuntimeError::Other("argument to push not supported, got {}".to_string()),
+                expected: RuntimeError::Other("argument to push not supported, got 1".to_string()),
             },
         ];
 
@@ -1338,7 +1382,7 @@ mod tests {
             let result = vm.run();
 
             match result {
-                Err(err) => assert_eq!(err, test.expected),
+                Err(err) => assert_eq!(test.expected, err, "expected error {:?} got {:?}", test.expected, err),
                 Ok(_) => panic!("expected error {:?}, but got Ok", test.expected),
             }
         }

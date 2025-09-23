@@ -124,7 +124,7 @@ fn push_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
         Ok(Object::Array(arr_copy))
     } else {
         Err(RuntimeError::Other(format!(
-            "argument to rest not supported, got {}",
+            "argument to push not supported, got {}",
             arr_object
         )))
     }
