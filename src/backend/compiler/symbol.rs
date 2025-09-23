@@ -5,6 +5,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 pub enum SymbolScope {
     Global,
     Local,
+    Builtin,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +54,18 @@ impl SymbolTable {
 
         self.store.insert(name.to_string(), symbol.clone());
         self.amount_definitions += 1;
+        symbol
+    }
+
+
+    pub fn define_builtin(&mut self,index: u16, name: &str) -> Symbol {
+        let symbol = Symbol {
+            name: name.to_string(),
+            scope: SymbolScope::Builtin,
+            index: index,
+        };
+
+        self.store.insert(name.to_string(), symbol.clone());
         symbol
     }
 
@@ -136,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_resolve_global() -> Result<(), CompilationError> {
-        let mut global = SymbolTable::new();
+        let global = SymbolTable::new();
 
         global.borrow_mut().define("a");
         global.borrow_mut().define("b");
@@ -322,6 +335,60 @@ mod tests {
                 let symbol = test.table.resolve(expected_symbol.0)?;
                 assert_eq!(expected_symbol.1, symbol);
             }
+        }
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_resolve_builtin() -> Result<(), CompilationError> {
+        let global = SymbolTable::new();
+        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
+        let second_local = SymbolTable::new_enclosed(Rc::clone(&global));
+
+        let tests = vec![
+            (
+                "a",
+                Symbol {
+                    name: "a".to_string(),
+                    scope: SymbolScope::Builtin,
+                    index: 0,
+                },
+            ),
+            (
+                "c",
+                Symbol {
+                    name: "c".to_string(),
+                    scope: SymbolScope::Builtin,
+                    index: 1,
+                },
+            ),
+            (
+                "e",
+                Symbol {
+                    name: "e".to_string(),
+                    scope: SymbolScope::Builtin,
+                    index: 2,
+                },
+            ),
+            (
+                "f",
+                Symbol {
+                    name: "f".to_string(),
+                    scope: SymbolScope::Builtin,
+                    index: 3,
+                },
+            ),
+        ];
+
+        for (i, test) in tests.iter().enumerate() {
+            global.borrow_mut().define_builtin(i as u16, test.0);
+        }
+
+        for test in tests {
+            let symbol = global.borrow().resolve(test.0)?;
+            assert_eq!(test.1, symbol);
         }
 
         Ok(())

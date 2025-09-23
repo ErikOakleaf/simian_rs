@@ -1,26 +1,22 @@
-use std::collections::HashMap;
-
-use once_cell::sync::Lazy;
-
 use crate::runtime::{object::BuiltinFunction, vm::vm::RuntimeError, Object};
 
 pub static BUILTINS: &[BuiltinFunction] = &[
     BuiltinFunction { name: "len", func: len_builtin },
+    BuiltinFunction { name: "puts", func: puts_builtin },
     BuiltinFunction { name: "first", func: first_builtin },
     BuiltinFunction { name: "last", func: last_builtin },
     BuiltinFunction { name: "rest", func: rest_builtin },
     BuiltinFunction { name: "push", func: push_builtin },
-    BuiltinFunction { name: "puts", func: puts_builtin },
 ];
 
 pub fn get_builtin_by_name(name: &str) -> &'static BuiltinFunction  {
     match name {
         "len" => &BUILTINS[0],
-        "first" => &BUILTINS[1],
-        "last" => &BUILTINS[2],
-        "rest" => &BUILTINS[3],
-        "push" => &BUILTINS[4],
-        "puts" => &BUILTINS[5],
+        "puts" => &BUILTINS[1],
+        "first" => &BUILTINS[2],
+        "last" => &BUILTINS[3],
+        "rest" => &BUILTINS[4],
+        "push" => &BUILTINS[5],
         other => unreachable!("builtin {} does not exist", other),
     }
 }

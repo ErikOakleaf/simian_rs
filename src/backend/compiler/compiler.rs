@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::backend::{OPERAND_WIDTHS, Opcode, Symbol, SymbolScope, SymbolTable, make};
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
+use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{CompiledFunction, Object};
 
 #[derive(Debug)]
@@ -52,9 +53,16 @@ pub struct Compiler {
 
 impl Compiler {
     pub fn new() -> Self {
+        let symbol_table = SymbolTable::new();
+        for (i, builtin) in BUILTINS.iter().enumerate() {
+            symbol_table
+                .borrow_mut()
+                .define_builtin(i as u16, builtin.name);
+        }
+
         Compiler {
             constants: Vec::<Object>::new(),
-            symbol_table: SymbolTable::new(),
+            symbol_table: symbol_table,
             scopes: vec![CompilationScope::new()],
             scope_index: 0,
         }
@@ -137,13 +145,7 @@ impl Compiler {
                     .borrow()
                     .resolve(&identifier_expression.token.literal)?;
 
-                if symbol.scope == SymbolScope::Global {
-                    let index = symbol.index.to_be_bytes();
-                    self.emit(Opcode::GetGlobal, &index);
-                } else {
-                    let index = [symbol.index as u8];
-                    self.emit(Opcode::GetLocal, &index);
-                }
+                self.load_symbol(symbol);
             }
             Expression::String(string_token) => {
                 let string_object = Object::String(string_token.literal.clone());
@@ -175,7 +177,9 @@ impl Compiler {
                 self.enter_scope();
 
                 for parameter in function_literal_expression.parameters.iter() {
-                    self.symbol_table.borrow_mut().define(&parameter.token.literal);
+                    self.symbol_table
+                        .borrow_mut()
+                        .define(&parameter.token.literal);
                 }
 
                 self.compile_block_statement(&function_literal_expression.body)?;
@@ -191,8 +195,11 @@ impl Compiler {
                 let amount_parameters = function_literal_expression.parameters.len();
                 let instructions = self.leave_scope();
 
-                let compiled_function =
-                    Object::CompiledFunction(CompiledFunction::new(instructions, amount_locals, amount_parameters));
+                let compiled_function = Object::CompiledFunction(CompiledFunction::new(
+                    instructions,
+                    amount_locals,
+                    amount_parameters,
+                ));
 
                 let position = self.add_constant(compiled_function);
 
@@ -380,6 +387,15 @@ impl Compiler {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn load_symbol(&mut self, symbol: Symbol) {
+        match symbol.scope {
+            SymbolScope::Global => self.emit(Opcode::GetGlobal, &symbol.index.to_be_bytes()),
+            SymbolScope::Local => self.emit(Opcode::GetLocal, &[symbol.index as u8]),
+            SymbolScope::Builtin => self.emit(Opcode::GetBuiltin, &[symbol.index as u8]),
+        };
     }
 
     fn replace_last_pop_with_return(&mut self) {
@@ -1101,13 +1117,11 @@ mod tests {
                         oneArg(24);",
                 expected_constants: vec![
                     Object::CompiledFunction(CompiledFunction::new(
-                        vec![
-                            make(Opcode::Return, &[]),
-                        ]
-                        .into_iter()
-                        .flat_map(|b| b.into_vec())
-                        .collect::<Vec<u8>>()
-                        .into_boxed_slice(),
+                        vec![make(Opcode::Return, &[])]
+                            .into_iter()
+                            .flat_map(|b| b.into_vec())
+                            .collect::<Vec<u8>>()
+                            .into_boxed_slice(),
                         1,
                         1,
                     )),
@@ -1127,13 +1141,11 @@ mod tests {
                         manyArg(24, 25, 26);",
                 expected_constants: vec![
                     Object::CompiledFunction(CompiledFunction::new(
-                        vec![
-                            make(Opcode::Return, &[]),
-                        ]
-                        .into_iter()
-                        .flat_map(|b| b.into_vec())
-                        .collect::<Vec<u8>>()
-                        .into_boxed_slice(),
+                        vec![make(Opcode::Return, &[])]
+                            .into_iter()
+                            .flat_map(|b| b.into_vec())
+                            .collect::<Vec<u8>>()
+                            .into_boxed_slice(),
                         3,
                         3,
                     )),
@@ -1157,14 +1169,11 @@ mod tests {
                         oneArg(24);",
                 expected_constants: vec![
                     Object::CompiledFunction(CompiledFunction::new(
-                        vec![
-                            make(Opcode::GetLocal, &[0]),
-                            make(Opcode::ReturnValue, &[]),
-                        ]
-                        .into_iter()
-                        .flat_map(|b| b.into_vec())
-                        .collect::<Vec<u8>>()
-                        .into_boxed_slice(),
+                        vec![make(Opcode::GetLocal, &[0]), make(Opcode::ReturnValue, &[])]
+                            .into_iter()
+                            .flat_map(|b| b.into_vec())
+                            .collect::<Vec<u8>>()
+                            .into_boxed_slice(),
                         1,
                         1,
                     )),
@@ -1313,6 +1322,51 @@ mod tests {
     }
 
     #[test]
+    fn test_builtins() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "len([]);
+                    push([], 1);",
+                expected_constants: vec![Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::GetBuiltin, &[0]),
+                    make(Opcode::Array, &[0, 0]),
+                    make(Opcode::Call, &[1]),
+                    make(Opcode::Pop, &[]),
+                    make(Opcode::GetBuiltin, &[5]),
+                    make(Opcode::Array, &[0, 0]),
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::Call, &[2]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() { len([]) }",
+                expected_constants: vec![Object::CompiledFunction(CompiledFunction::new(
+                    vec![
+                        make(Opcode::GetBuiltin, &[0]),
+                        make(Opcode::Array, &[0, 0]),
+                        make(Opcode::Call, &[1]),
+                        make(Opcode::ReturnValue, &[]),
+                    ]
+                    .into_iter()
+                    .flat_map(|b| b.into_vec())
+                    .collect::<Vec<u8>>()
+                    .into_boxed_slice(),
+                    0,
+                    0,
+                ))],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
     fn test_read_operands() {
         let tests = vec![
             (Opcode::LoadConstant, vec![0xFF, 0xFF], 65535, 2),
@@ -1397,7 +1451,14 @@ mod tests {
             compiler.scope_index, 0
         );
 
+        // add all builtins to the global symbol table to mach the one that is created in the
+        // compiler
         let global_symbol_table = SymbolTable::new();
+        for (i, builtin) in BUILTINS.iter().enumerate() {
+            global_symbol_table
+                .borrow_mut()
+                .define_builtin(i as u16, builtin.name);
+        }
 
         compiler.emit(Opcode::Mul, &[]);
 

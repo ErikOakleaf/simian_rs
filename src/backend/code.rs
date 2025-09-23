@@ -32,6 +32,7 @@ pub enum Opcode {
     Return = 0x17,
     GetLocal = 0x18,
     SetLocal = 0x19,
+    GetBuiltin = 0x1A,
 }
 
 impl Opcode {
@@ -63,6 +64,7 @@ impl Opcode {
             0x17 => Opcode::Return,
             0x18 => Opcode::GetLocal,
             0x19 => Opcode::SetLocal,
+            0x1A => Opcode::GetLocal,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -97,6 +99,7 @@ impl fmt::Display for Opcode {
             Opcode::Return => "Return",
             Opcode::GetLocal => "GetLocal",
             Opcode::SetLocal => "SetLocal",
+            Opcode::GetBuiltin => "GetBuiltin",
         };
         write!(f, "{}", name)
     }
@@ -130,6 +133,7 @@ const fn build_operand_widths() -> [usize; 256] {
     table[Opcode::Return as usize] = 0;
     table[Opcode::GetLocal as usize] = 1;
     table[Opcode::SetLocal as usize] = 1;
+    table[Opcode::GetBuiltin as usize] = 1;
     table
 }
 
