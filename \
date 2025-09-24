@@ -1426,35 +1426,34 @@ mod tests {
                 expected_offset: 2,
             },
             Test {
-                opcode: Opcode::GetLocal,
-                operands: &[&[0xFF]],
-                expected_result: &[255],
-                expected_offset: 1,
-            },
-            Test {
-                opcode: Opcode::Closure,
-                operands: &[&[0xFF, 0xFF], &[0xFF]],
-                expected_result: &[65535, 255],
-                expected_offset: 3,
+                opcode: Opcode::,
+                operands: &[&[0xFF, 0xFF]],
+                expected_result: &[65535],
+                expected_offset: 2,
             },
         ];
 
-        for test in tests {
-            let instruction = make(test.opcode, test.operands);
+        let tests = vec![
+            (Opcode::LoadConstant, &[&[0xFF, 0xFF]], &[65535], 2),
+            (Opcode::GetLocal, &[&[0xFF]], &[255], 1),
+            (Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF]], &[65535, 255], 3),
+        ];
+
+        for (opcode, operand_bytes, expected_result, expected_offset) in tests {
+            let instruction = make(opcode, &[&operand_bytes]);
             let opcode = Opcode::from_byte(instruction[0]);
             let (operands, offset) = read_operand(opcode, &instruction[1..]);
 
             assert_eq!(
-                test.expected_offset, offset,
+                expected_offset, offset,
                 "expected {} bytes, got {} bytes",
-                test.expected_offset, offset
+                expected_offset, offset
             );
-
-            for (operand, expected) in operands.iter().zip(test.expected_result).collect::<Vec<_>>() {
+            for operand in operands {
                 assert_eq!(
-                    expected, operand,
+                    expected_result, operand,
                     "expected operand {:?} got {:?}",
-                    expected, operand
+                    expected_result, operand
                 );
             }
         }
@@ -1492,11 +1491,10 @@ mod tests {
                 instructions: vec![
                     make(Opcode::Add, &[]),
                     make(Opcode::GetLocal, &[&vec![0x01]]),
-                    make(Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
                     make(Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
                     make(Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF]]),
                 ],
-                expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255\n",
+                expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255",
             },
         ];
 
