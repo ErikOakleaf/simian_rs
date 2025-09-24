@@ -110,10 +110,10 @@ impl Compiler {
                     .define(&let_statement.name.token.literal);
                 if symbol.scope == SymbolScope::Global {
                     let index = symbol.index.to_be_bytes();
-                    self.emit(Opcode::SetGlobal, &index);
+                    self.emit(Opcode::SetGlobal, &[&index]);
                 } else {
                     let index = [symbol.index as u8];
-                    self.emit(Opcode::SetLocal, &index);
+                    self.emit(Opcode::SetLocal, &[&index]);
                 }
             }
             Statement::Return(return_statement) => {
@@ -129,7 +129,7 @@ impl Compiler {
             Expression::IntegerLiteral(integer_literal_expression) => {
                 let integer = Object::Integer(integer_literal_expression.value);
                 let position = self.add_constant(integer);
-                self.emit(Opcode::LoadConstant, &position.to_be_bytes());
+                self.emit(Opcode::LoadConstant, &[&position.to_be_bytes()]);
             }
             Expression::Boolean(boolean_literal_expression) => {
                 let bool_value = boolean_literal_expression.value;
@@ -150,7 +150,7 @@ impl Compiler {
             Expression::String(string_token) => {
                 let string_object = Object::String(string_token.literal.clone());
                 let index = self.add_constant(string_object).to_be_bytes();
-                self.emit(Opcode::LoadConstant, &index);
+                self.emit(Opcode::LoadConstant, &[&index]);
             }
             Expression::Array(array_literal_expression) => {
                 for element in array_literal_expression.elements.iter() {
@@ -159,7 +159,7 @@ impl Compiler {
 
                 let length = array_literal_expression.elements.len() as u16;
                 let length_bytes = length.to_be_bytes();
-                self.emit(Opcode::Array, &length_bytes);
+                self.emit(Opcode::Array, &[&length_bytes]);
             }
             Expression::Hash(hash_literal_expression) => {
                 for pair in hash_literal_expression.pairs.iter() {
@@ -171,7 +171,7 @@ impl Compiler {
 
                 let length = (hash_literal_expression.pairs.len() * 2) as u16;
                 let length_bytes = length.to_be_bytes();
-                self.emit(Opcode::Hash, &length_bytes);
+                self.emit(Opcode::Hash, &[&length_bytes]);
             }
             Expression::Function(function_literal_expression) => {
                 self.enter_scope();
@@ -203,14 +203,14 @@ impl Compiler {
 
                 let position = self.add_constant(compiled_function);
 
-                self.emit(Opcode::LoadConstant, &position.to_be_bytes());
+                self.emit(Opcode::LoadConstant, &[&position.to_be_bytes()]);
             }
             Expression::Call(call_expression) => {
                 self.compile_expression(call_expression.function.as_ref())?;
                 for argument in call_expression.arguments.iter() {
                     self.compile_expression(argument)?;
                 }
-                self.emit(Opcode::Call, &[call_expression.arguments.len() as u8]);
+                self.emit(Opcode::Call, &[&[call_expression.arguments.len() as u8]]);
             }
             Expression::Infix(infix_expression) => {
                 let operator = infix_expression.token.literal.as_str();
@@ -250,7 +250,7 @@ impl Compiler {
             Expression::If(if_expression) => {
                 self.compile_expression(if_expression.condition.as_ref())?;
 
-                let jump_not_truthy_position = self.emit(Opcode::JumpNotTruthy, &[0xFF, 0xFF]);
+                let jump_not_truthy_position = self.emit(Opcode::JumpNotTruthy, &[&[0xFF, 0xFF]]);
 
                 self.compile_block_statement(&if_expression.consequence)?;
 
@@ -258,9 +258,9 @@ impl Compiler {
                     self.remove_last_pop();
                 }
 
-                let jump_position = self.emit(Opcode::Jump, &[0xFF, 0xFF]);
+                let jump_position = self.emit(Opcode::Jump, &[&[0xFF, 0xFF]]);
                 let after_consequence_position = self.get_current_position();
-                self.change_operand(jump_not_truthy_position, &after_consequence_position)?;
+                self.change_operands(jump_not_truthy_position, &[&after_consequence_position])?;
 
                 match &if_expression.alternative {
                     None => {
@@ -276,7 +276,7 @@ impl Compiler {
                 };
 
                 let after_alternative_position = self.get_current_position();
-                self.change_operand(jump_position, &after_alternative_position)?;
+                self.change_operands(jump_position, &[&after_alternative_position])?;
             }
             Expression::Index(index_expression) => {
                 self.compile_expression(index_expression.left.as_ref())?;
@@ -299,8 +299,8 @@ impl Compiler {
         Ok(())
     }
 
-    fn emit(&mut self, opcode: Opcode, operand: &[u8]) -> usize {
-        let instruction = make(opcode, operand);
+    fn emit(&mut self, opcode: Opcode, operands: &[&[u8]]) -> usize {
+        let instruction = make(opcode, operands);
         let position = self.add_instruction(instruction.as_ref());
 
         self.set_last_instruction(opcode, position);
@@ -363,28 +363,43 @@ impl Compiler {
     }
 
     #[inline]
-    fn change_operand(
+    fn change_operands(
         &mut self,
         opcode_position: usize,
-        new_operand: &[u8],
+        new_operands: &[&[u8]],
     ) -> Result<(), CompilationError> {
         let current_instructions = self.current_intstructions();
         let opcode = Opcode::from_byte(current_instructions[opcode_position]);
 
+        let expected_operands_amount = OPERAND_WIDTHS[opcode as usize].amount;
         debug_assert_eq!(
-            new_operand.len(),
-            OPERAND_WIDTHS[opcode as usize],
-            "operand width mismatch for opcode {}, got {}, want {}",
+            expected_operands_amount,
+            new_operands.len(),
+            "amount of operands for opcode {} is not correct expected {} got {}",
             opcode,
-            new_operand.len(),
-            OPERAND_WIDTHS[opcode as usize],
+            expected_operands_amount,
+            new_operands.len(),
         );
 
-        let operand_position = opcode_position + 1;
-
-        for (i, byte) in new_operand.iter().enumerate() {
-            current_instructions[operand_position + i] = *byte;
+        for (i, expected_width) in OPERAND_WIDTHS[opcode as usize].widths.iter().enumerate() {
+            let width = new_operands[i].len();
+            debug_assert_eq!(
+                *expected_width, width,
+                "operand {} for opcode {} does not have the correct width expected {} got {}",
+                i, opcode, expected_width, width
+            );
         }
+
+        let total_operands_length: usize = new_operands.iter().map(|op| op.len()).sum();
+        let mut flattened = Vec::with_capacity(total_operands_length);
+        for operand in new_operands {
+            flattened.extend_from_slice(operand);
+        }
+
+        let operand_start = opcode_position + 1;
+        let operand_end = operand_start + total_operands_length;
+
+        current_instructions[operand_start..operand_end].copy_from_slice(&flattened);
 
         Ok(())
     }
@@ -392,9 +407,9 @@ impl Compiler {
     #[inline]
     fn load_symbol(&mut self, symbol: Symbol) {
         match symbol.scope {
-            SymbolScope::Global => self.emit(Opcode::GetGlobal, &symbol.index.to_be_bytes()),
-            SymbolScope::Local => self.emit(Opcode::GetLocal, &[symbol.index as u8]),
-            SymbolScope::Builtin => self.emit(Opcode::GetBuiltin, &[symbol.index as u8]),
+            SymbolScope::Global => self.emit(Opcode::GetGlobal, &[&symbol.index.to_be_bytes()]),
+            SymbolScope::Local => self.emit(Opcode::GetLocal, &[&[symbol.index as u8]]),
+            SymbolScope::Builtin => self.emit(Opcode::GetBuiltin, &[&[symbol.index as u8]]),
         };
     }
 
@@ -448,12 +463,19 @@ fn format_instructions(instructions: &[u8]) -> String {
         let opcode = Opcode::from_byte(instructions[i]);
         i += 1;
 
-        let (operand, offset) = read_operand(opcode.clone(), &instructions[i..]);
+        let (operands, offset) = read_operand(opcode.clone(), &instructions[i..]);
         i += offset;
 
-        let instruction_string = match operand {
-            Some(val) => format!("{:04} {} {}\n", address, opcode, val),
-            None => format!("{:04} {}\n", address, opcode),
+        let operands_str = operands
+            .iter()
+            .map(|val| val.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let instruction_string = if operands_str.is_empty() {
+            format!("{:04} {}\n", address, opcode)
+        } else {
+            format!("{:04} {} {}\n", address, opcode, operands_str)
         };
 
         result.push_str(&instruction_string);
@@ -462,15 +484,30 @@ fn format_instructions(instructions: &[u8]) -> String {
     result
 }
 
-fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Option<usize>, usize) {
-    let operand_width = OPERAND_WIDTHS[opcode as usize];
-    let val: Option<usize> = match operand_width {
-        0 => None,
-        1 => Some(instructions[0] as usize),
-        2 => Some(u16::from_be_bytes([instructions[0], instructions[1]]) as usize),
-        _ => panic!("unsopperted opperand width"),
-    };
-    (val, operand_width)
+fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Box<[usize]>, usize) {
+    let operands_amount = OPERAND_WIDTHS[opcode as usize].amount;
+    let operand_widths = OPERAND_WIDTHS[opcode as usize].widths;
+    let mut operands = Vec::<usize>::new();
+    let mut offset = 0;
+
+    for i in 0..operands_amount {
+        let width = operand_widths[i];
+
+        if width == 0 {
+            continue;
+        }
+
+        let value: usize = match width {
+            1 => instructions[0] as usize,
+            2 => u16::from_be_bytes([instructions[0], instructions[1]]) as usize,
+            _ => panic!("unsopperted opperand width"),
+        };
+
+        operands.push(value);
+        offset += width;
+    }
+
+    (operands.into_boxed_slice(), offset)
 }
 
 #[cfg(test)]
@@ -542,8 +579,8 @@ mod tests {
                 input: "1 + 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
-                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
+                    make(Opcode::LoadConstant, &[&vec![0, 1]]),
                     make(Opcode::Add, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
@@ -552,9 +589,9 @@ mod tests {
                 input: "1; 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
                     make(Opcode::Pop, &vec![]),
-                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::LoadConstant, &[&vec![0, 1]]),
                     make(Opcode::Pop, &vec![]),
                 ],
             },
@@ -562,8 +599,8 @@ mod tests {
                 input: "1 - 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
-                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
+                    make(Opcode::LoadConstant, &[&vec![0, 1]]),
                     make(Opcode::Sub, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
@@ -572,8 +609,8 @@ mod tests {
                 input: "1 * 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
-                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
+                    make(Opcode::LoadConstant, &[&vec![0, 1]]),
                     make(Opcode::Mul, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
@@ -582,8 +619,8 @@ mod tests {
                 input: "2 / 1",
                 expected_constants: vec![Object::Integer(2), Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
-                    make(Opcode::LoadConstant, &vec![0, 1]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
+                    make(Opcode::LoadConstant, &[&vec![0, 1]]),
                     make(Opcode::Div, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
@@ -592,7 +629,7 @@ mod tests {
                 input: "-1",
                 expected_constants: vec![Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0, 0]),
+                    make(Opcode::LoadConstant, &[&vec![0, 0]]),
                     make(Opcode::Minus, &vec![]),
                     make(Opcode::Pop, &vec![]),
                 ],
@@ -628,8 +665,8 @@ mod tests {
                 input: "1 > 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::GreaterThan, &[]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -638,8 +675,8 @@ mod tests {
                 input: "1 < 2",
                 expected_constants: vec![Object::Integer(2), Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::GreaterThan, &[]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -648,8 +685,8 @@ mod tests {
                 input: "1 == 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::Equal, &[]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -658,8 +695,8 @@ mod tests {
                 input: "1 != 2",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::NotEqual, &[]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -697,12 +734,12 @@ mod tests {
                 expected_constants: vec![Object::Integer(10), Object::Integer(3333)],
                 expected_instructions: vec![
                     make(Opcode::True, &[]),
-                    make(Opcode::JumpNotTruthy, &[0x00, 10]),
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::Jump, &[0, 11]),
+                    make(Opcode::JumpNotTruthy, &[&[0x00, 10]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::Jump, &[&[0, 11]]),
                     make(Opcode::Null, &[]),
                     make(Opcode::Pop, &[]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -715,12 +752,12 @@ mod tests {
                 ],
                 expected_instructions: vec![
                     make(Opcode::True, &[]),
-                    make(Opcode::JumpNotTruthy, &[0x00, 10]),
-                    make(Opcode::LoadConstant, &[0x00, 0x00]),
-                    make(Opcode::Jump, &[0x00, 13]),
-                    make(Opcode::LoadConstant, &[0x00, 0x01]),
+                    make(Opcode::JumpNotTruthy, &[&[0x00, 10]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x00]]),
+                    make(Opcode::Jump, &[&[0x00, 13]]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x01]]),
                     make(Opcode::Pop, &[]),
-                    make(Opcode::LoadConstant, &[0x00, 0x02]),
+                    make(Opcode::LoadConstant, &[&[0x00, 0x02]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -736,19 +773,19 @@ mod tests {
                 input: "let one = 1; let two = 2;",
                 expected_constants: vec![Object::Integer(1), Object::Integer(2)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::SetGlobal, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::SetGlobal, &[&[0, 1]]),
                 ],
             },
             CompilerTestCase {
                 input: "let one = 1; one;",
                 expected_constants: vec![Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -756,11 +793,11 @@ mod tests {
                 input: "let one = 1; let two = one; two;",
                 expected_constants: vec![Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 1]),
-                    make(Opcode::GetGlobal, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 1]]),
+                    make(Opcode::GetGlobal, &[&[0, 1]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -776,7 +813,7 @@ mod tests {
                 input: "\"monkey\"",
                 expected_constants: vec![Object::String("monkey".to_string())],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -787,8 +824,8 @@ mod tests {
                     Object::String("key".to_string()),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
                     make(Opcode::Add, &[]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -804,7 +841,10 @@ mod tests {
             CompilerTestCase {
                 input: "[]",
                 expected_constants: vec![],
-                expected_instructions: vec![make(Opcode::Array, &[0, 0]), make(Opcode::Pop, &[])],
+                expected_instructions: vec![
+                    make(Opcode::Array, &[&[0, 0]]),
+                    make(Opcode::Pop, &[]),
+                ],
             },
             CompilerTestCase {
                 input: "[1, 2, 3]",
@@ -814,10 +854,10 @@ mod tests {
                     Object::Integer(3),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::Array, &[0, 3]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Array, &[&[0, 3]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -832,16 +872,16 @@ mod tests {
                     Object::Integer(6),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
                     make(Opcode::Add, &[]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
                     make(Opcode::Sub, &[]),
-                    make(Opcode::LoadConstant, &[0, 4]),
-                    make(Opcode::LoadConstant, &[0, 5]),
+                    make(Opcode::LoadConstant, &[&[0, 4]]),
+                    make(Opcode::LoadConstant, &[&[0, 5]]),
                     make(Opcode::Mul, &[]),
-                    make(Opcode::Array, &[0, 3]),
+                    make(Opcode::Array, &[&[0, 3]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -856,7 +896,7 @@ mod tests {
             CompilerTestCase {
                 input: "{}",
                 expected_constants: vec![],
-                expected_instructions: vec![make(Opcode::Hash, &[0, 0]), make(Opcode::Pop, &[])],
+                expected_instructions: vec![make(Opcode::Hash, &[&[0, 0]]), make(Opcode::Pop, &[])],
             },
             CompilerTestCase {
                 input: "{1: 2, 3: 4, 5: 6}",
@@ -869,13 +909,13 @@ mod tests {
                     Object::Integer(6),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 3]),
-                    make(Opcode::LoadConstant, &[0, 4]),
-                    make(Opcode::LoadConstant, &[0, 5]),
-                    make(Opcode::Hash, &[0, 6]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::LoadConstant, &[&[0, 4]]),
+                    make(Opcode::LoadConstant, &[&[0, 5]]),
+                    make(Opcode::Hash, &[&[0, 6]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -890,15 +930,15 @@ mod tests {
                     Object::Integer(6),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::Add, &[]),
-                    make(Opcode::LoadConstant, &[0, 3]),
-                    make(Opcode::LoadConstant, &[0, 4]),
-                    make(Opcode::LoadConstant, &[0, 5]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::LoadConstant, &[&[0, 4]]),
+                    make(Opcode::LoadConstant, &[&[0, 5]]),
                     make(Opcode::Mul, &[]),
-                    make(Opcode::Hash, &[0, 4]),
+                    make(Opcode::Hash, &[&[0, 4]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -920,12 +960,12 @@ mod tests {
                     Object::Integer(1),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::Array, &[0, 3]),
-                    make(Opcode::LoadConstant, &[0, 3]),
-                    make(Opcode::LoadConstant, &[0, 4]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Array, &[&[0, 3]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::LoadConstant, &[&[0, 4]]),
                     make(Opcode::Add, &[]),
                     make(Opcode::Index, &[]),
                     make(Opcode::Pop, &[]),
@@ -940,11 +980,11 @@ mod tests {
                     Object::Integer(1),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::Hash, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 3]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Hash, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
                     make(Opcode::Sub, &[]),
                     make(Opcode::Index, &[]),
                     make(Opcode::Pop, &[]),
@@ -965,8 +1005,8 @@ mod tests {
                     Object::Integer(10),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
-                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
                             make(Opcode::Add, &[]),
                             make(Opcode::ReturnValue, &[]),
                         ]
@@ -979,7 +1019,7 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -990,8 +1030,8 @@ mod tests {
                     Object::Integer(10),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
-                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
                             make(Opcode::Add, &[]),
                             make(Opcode::ReturnValue, &[]),
                         ]
@@ -1004,7 +1044,7 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1015,9 +1055,9 @@ mod tests {
                     Object::Integer(2),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::Pop, &[]),
-                            make(Opcode::LoadConstant, &[0, 1]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1029,7 +1069,7 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1052,7 +1092,7 @@ mod tests {
                 0,
             ))],
             expected_instructions: vec![
-                make(Opcode::LoadConstant, &[0, 0]),
+                make(Opcode::LoadConstant, &[&[0, 0]]),
                 make(Opcode::Pop, &[]),
             ],
         }];
@@ -1069,7 +1109,7 @@ mod tests {
                     Object::Integer(24),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1081,8 +1121,8 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::Call, &[0]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Call, &[&[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1093,7 +1133,7 @@ mod tests {
                     Object::Integer(24),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1105,10 +1145,10 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::Call, &[0]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::Call, &[&[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1128,11 +1168,11 @@ mod tests {
                     Object::Integer(24),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::Call, &[1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Call, &[&[1]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1154,13 +1194,13 @@ mod tests {
                     Object::Integer(26),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 3]),
-                    make(Opcode::Call, &[3]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::Call, &[&[3]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1169,22 +1209,25 @@ mod tests {
                         oneArg(24);",
                 expected_constants: vec![
                     Object::CompiledFunction(CompiledFunction::new(
-                        vec![make(Opcode::GetLocal, &[0]), make(Opcode::ReturnValue, &[])]
-                            .into_iter()
-                            .flat_map(|b| b.into_vec())
-                            .collect::<Vec<u8>>()
-                            .into_boxed_slice(),
+                        vec![
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
                         1,
                         1,
                     )),
                     Object::Integer(24),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::Call, &[1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Call, &[&[1]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1194,11 +1237,11 @@ mod tests {
                 expected_constants: vec![
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::GetLocal, &[&[0]]),
                             make(Opcode::Pop, &[]),
-                            make(Opcode::GetLocal, &[1]),
+                            make(Opcode::GetLocal, &[&[1]]),
                             make(Opcode::Pop, &[]),
-                            make(Opcode::GetLocal, &[2]),
+                            make(Opcode::GetLocal, &[&[2]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1213,13 +1256,13 @@ mod tests {
                     Object::Integer(26),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::GetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
-                    make(Opcode::LoadConstant, &[0, 2]),
-                    make(Opcode::LoadConstant, &[0, 3]),
-                    make(Opcode::Call, &[3]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::Call, &[&[3]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1238,7 +1281,7 @@ mod tests {
                     Object::Integer(55),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::GetGlobal, &[0, 0]),
+                            make(Opcode::GetGlobal, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1250,9 +1293,9 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::SetGlobal, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1265,9 +1308,9 @@ mod tests {
                     Object::Integer(55),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
-                            make(Opcode::SetLocal, &[0]),
-                            make(Opcode::GetLocal, &[0]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
                             make(Opcode::ReturnValue, &[]),
                         ]
                         .into_iter()
@@ -1279,7 +1322,7 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 1]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1294,12 +1337,12 @@ mod tests {
                     Object::Integer(77),
                     Object::CompiledFunction(CompiledFunction::new(
                         vec![
-                            make(Opcode::LoadConstant, &[0, 0]),
-                            make(Opcode::SetLocal, &[0]),
-                            make(Opcode::LoadConstant, &[0, 1]),
-                            make(Opcode::SetLocal, &[1]),
-                            make(Opcode::GetLocal, &[0]),
-                            make(Opcode::GetLocal, &[1]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
+                            make(Opcode::SetLocal, &[&[1]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[1]]),
                             make(Opcode::Add, &[]),
                             make(Opcode::ReturnValue, &[]),
                         ]
@@ -1312,7 +1355,7 @@ mod tests {
                     )),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 2]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1329,14 +1372,14 @@ mod tests {
                     push([], 1);",
                 expected_constants: vec![Object::Integer(1)],
                 expected_instructions: vec![
-                    make(Opcode::GetBuiltin, &[0]),
-                    make(Opcode::Array, &[0, 0]),
-                    make(Opcode::Call, &[1]),
+                    make(Opcode::GetBuiltin, &[&[0]]),
+                    make(Opcode::Array, &[&[0, 0]]),
+                    make(Opcode::Call, &[&[1]]),
                     make(Opcode::Pop, &[]),
-                    make(Opcode::GetBuiltin, &[5]),
-                    make(Opcode::Array, &[0, 0]),
-                    make(Opcode::LoadConstant, &[0, 0]),
-                    make(Opcode::Call, &[2]),
+                    make(Opcode::GetBuiltin, &[&[5]]),
+                    make(Opcode::Array, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Call, &[&[2]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1344,9 +1387,9 @@ mod tests {
                 input: "fn() { len([]) }",
                 expected_constants: vec![Object::CompiledFunction(CompiledFunction::new(
                     vec![
-                        make(Opcode::GetBuiltin, &[0]),
-                        make(Opcode::Array, &[0, 0]),
-                        make(Opcode::Call, &[1]),
+                        make(Opcode::GetBuiltin, &[&[0]]),
+                        make(Opcode::Array, &[&[0, 0]]),
+                        make(Opcode::Call, &[&[1]]),
                         make(Opcode::ReturnValue, &[]),
                     ]
                     .into_iter()
@@ -1357,7 +1400,7 @@ mod tests {
                     0,
                 ))],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[0, 0]),
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1374,22 +1417,22 @@ mod tests {
         ];
 
         for (opcode, operand_bytes, expected_result, expected_offset) in tests {
-            let instruction = make(opcode, &operand_bytes);
+            let instruction = make(opcode, &[&operand_bytes]);
             let opcode = Opcode::from_byte(instruction[0]);
-            let (operand, offset) = read_operand(opcode, &instruction[1..]);
+            let (operands, offset) = read_operand(opcode, &instruction[1..]);
 
             assert_eq!(
                 expected_offset, offset,
                 "expected {} bytes, got {} bytes",
                 expected_offset, offset
             );
-            assert_eq!(
-                expected_result,
-                operand.unwrap(),
-                "expected operand {:?} got {:?}",
-                expected_result,
-                operand.unwrap()
-            );
+            for operand in operands {
+                assert_eq!(
+                    expected_result, operand,
+                    "expected operand {:?} got {:?}",
+                    expected_result, operand
+                );
+            }
         }
     }
 
@@ -1398,26 +1441,26 @@ mod tests {
         let tests = vec![
             FormattingTestCase {
                 instructions: vec![
-                    make(Opcode::LoadConstant, &vec![0x00, 0x01]),
-                    make(Opcode::LoadConstant, &vec![0x00, 0x02]),
-                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                    make(Opcode::LoadConstant, &[&vec![0x00, 0x01]]),
+                    make(Opcode::LoadConstant, &[&vec![0x00, 0x02]]),
+                    make(Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
                 ],
                 expected: "0000 LoadConstant 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n",
             },
             FormattingTestCase {
                 instructions: vec![
-                    make(Opcode::Add, &vec![]),
-                    make(Opcode::LoadConstant, &vec![0x00, 0x02]),
-                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                    make(Opcode::Add, &[]),
+                    make(Opcode::LoadConstant, &[&vec![0x00, 0x02]]),
+                    make(Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
                 ],
                 expected: "0000 Add\n0001 LoadConstant 2\n0004 LoadConstant 65535\n",
             },
             FormattingTestCase {
                 instructions: vec![
-                    make(Opcode::Add, &vec![]),
-                    make(Opcode::GetLocal, &vec![0x01]),
-                    make(Opcode::LoadConstant, &vec![0x0, 0x02]),
-                    make(Opcode::LoadConstant, &vec![0xFF, 0xFF]),
+                    make(Opcode::Add, &[]),
+                    make(Opcode::GetLocal, &[&vec![0x01]]),
+                    make(Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
+                    make(Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
                 ],
                 expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n",
             },

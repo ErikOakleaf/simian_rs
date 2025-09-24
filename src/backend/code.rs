@@ -33,6 +33,7 @@ pub enum Opcode {
     GetLocal = 0x18,
     SetLocal = 0x19,
     GetBuiltin = 0x1A,
+    Closure = 0x1B,
 }
 
 impl Opcode {
@@ -65,6 +66,7 @@ impl Opcode {
             0x18 => Opcode::GetLocal,
             0x19 => Opcode::SetLocal,
             0x1A => Opcode::GetLocal,
+            0x1B => Opcode::Closure,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -100,60 +102,182 @@ impl fmt::Display for Opcode {
             Opcode::GetLocal => "GetLocal",
             Opcode::SetLocal => "SetLocal",
             Opcode::GetBuiltin => "GetBuiltin",
+            Opcode::Closure => "Closure",
         };
         write!(f, "{}", name)
     }
 }
 
-const fn build_operand_widths() -> [usize; 256] {
-    let mut table = [0usize; 256];
-    table[Opcode::LoadConstant as usize] = 2;
-    table[Opcode::Add as usize] = 0;
-    table[Opcode::Sub as usize] = 0;
-    table[Opcode::Mul as usize] = 0;
-    table[Opcode::Div as usize] = 0;
-    table[Opcode::Pop as usize] = 0;
-    table[Opcode::True as usize] = 0;
-    table[Opcode::False as usize] = 0;
-    table[Opcode::Equal as usize] = 0;
-    table[Opcode::NotEqual as usize] = 0;
-    table[Opcode::GreaterThan as usize] = 0;
-    table[Opcode::Minus as usize] = 0;
-    table[Opcode::Bang as usize] = 0;
-    table[Opcode::JumpNotTruthy as usize] = 2;
-    table[Opcode::Jump as usize] = 2;
-    table[Opcode::Null as usize] = 0;
-    table[Opcode::GetGlobal as usize] = 2;
-    table[Opcode::SetGlobal as usize] = 2;
-    table[Opcode::Array as usize] = 2;
-    table[Opcode::Hash as usize] = 2;
-    table[Opcode::Index as usize] = 0;
-    table[Opcode::Call as usize] = 1;
-    table[Opcode::ReturnValue as usize] = 0;
-    table[Opcode::Return as usize] = 0;
-    table[Opcode::GetLocal as usize] = 1;
-    table[Opcode::SetLocal as usize] = 1;
-    table[Opcode::GetBuiltin as usize] = 1;
+#[derive(Clone, Copy, Debug)]
+pub struct OperandInfo {
+    pub amount: usize,
+    pub widths: &'static [usize],
+}
+
+const fn build_operand_widths() -> [OperandInfo; 28] {
+    let empty_width: &[usize] = &[];
+    let default_operand = OperandInfo {
+        amount: 0,
+        widths: empty_width,
+    };
+
+    let mut table: [OperandInfo; 28] = [default_operand; 28];
+
+    table[Opcode::LoadConstant as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Add as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Sub as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Mul as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Div as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Pop as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::True as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::False as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Equal as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::NotEqual as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::GreaterThan as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Minus as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Bang as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::JumpNotTruthy as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Jump as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Null as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::GetGlobal as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::SetGlobal as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Array as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Hash as usize] = OperandInfo {
+        amount: 1,
+        widths: &[2],
+    };
+    table[Opcode::Index as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Call as usize] = OperandInfo {
+        amount: 1,
+        widths: &[1],
+    };
+    table[Opcode::ReturnValue as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::Return as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
+    table[Opcode::GetLocal as usize] = OperandInfo {
+        amount: 1,
+        widths: &[1],
+    };
+    table[Opcode::SetLocal as usize] = OperandInfo {
+        amount: 1,
+        widths: &[1],
+    };
+    table[Opcode::GetBuiltin as usize] = OperandInfo {
+        amount: 1,
+        widths: &[1],
+    };
+    table[Opcode::Closure as usize] = OperandInfo {
+        amount: 2,
+        widths: &[2, 1],
+    };
     table
 }
 
-pub static OPERAND_WIDTHS: [usize; 256] = build_operand_widths();
+pub static OPERAND_WIDTHS: [OperandInfo; 28] = build_operand_widths();
 
-pub fn make(opcode: Opcode, operand: &[u8]) -> Box<[u8]> {
+pub fn make(opcode: Opcode, operands: &[&[u8]]) -> Box<[u8]> {
+    let expected_amount_operands = OPERAND_WIDTHS[opcode as usize].amount;
+
     debug_assert_eq!(
-        operand.len(),
-        OPERAND_WIDTHS[opcode as usize],
-        "operand {:?} does not have correct width for opcode {}",
-        operand,
-        opcode
+        expected_amount_operands,
+        operands.len(),
+        "opcode {} does not have the correct amount of operands expected {} got {}",
+        opcode,
+        expected_amount_operands,
+        operands.len()
     );
 
-    let instruction_length = 1 + operand.len();
-    let mut instruction = allocate_array(instruction_length);
+    for (i, operand) in operands.iter().enumerate() {
+        let operand_width = OPERAND_WIDTHS[opcode as usize].widths[i];
+
+        debug_assert_eq!(
+            operand_width,
+            operand.len(),
+            "operand {} for opcode {} does not have the correct width expected {} got {}",
+            i,
+            opcode,
+            operand_width,
+            operand.len(),
+        );
+    }
+
+    let operands_length: usize = operands.iter().map(|op| op.len()).sum();
+    let mut instruction = allocate_array(operands_length + 1);
     let instruction_slice = instruction.as_mut();
 
     instruction_slice[0] = opcode as u8;
-    instruction_slice[1..].copy_from_slice(operand);
+
+    let mut flattened = Vec::with_capacity(operands_length);
+    for operand in operands {
+        flattened.extend_from_slice(operand);
+    }
+
+    instruction_slice[1..].copy_from_slice(&flattened);
 
     instruction
 }
@@ -183,7 +307,7 @@ mod tests {
 
     struct MakeTestCase<'a> {
         opcode: Opcode,
-        operand: &'a [u8],
+        operand: &'a[&'a [u8]],
         expected: &'a [u8],
     }
 
@@ -192,7 +316,7 @@ mod tests {
         let tests = [
             MakeTestCase {
                 opcode: Opcode::LoadConstant,
-                operand: &[0xFF, 0xFE],
+                operand: &[&[0xFF, 0xFE]],
                 expected: &[0x00, 0xFF, 0xFE],
             },
             MakeTestCase {
@@ -202,7 +326,7 @@ mod tests {
             },
             MakeTestCase {
                 opcode: Opcode::GetLocal,
-                operand: &[0xFF],
+                operand: &[&[0xFF]],
                 expected: &[Opcode::GetLocal as u8, 0xFF],
             },
         ];

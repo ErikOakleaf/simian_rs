@@ -41,6 +41,7 @@ pub enum Object {
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<HashKey, Object>),
+    Closure(Closure),
     Null,
     Void,
 }
@@ -97,6 +98,9 @@ impl fmt::Display for Object {
                 let pairs: Vec<String> =
                     value.iter().map(|(k, v)| format!("{}: {}", k, v)).collect();
                 write!(f, "{{{}}}", pairs.join(", "))
+            }
+            Object::Closure(value) => {
+                write!(f, "{}", value)
             }
             Object::Null => {
                 write!(f, "null")
@@ -196,5 +200,17 @@ pub struct CompiledFunction {
 impl CompiledFunction {
     pub fn new(instructions: Box<[u8]>, amount_locals: usize, amount_parameters: usize) -> Self {
         CompiledFunction { instructions: instructions, amount_locals: amount_locals, amount_parameters }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Closure {
+    pub function: Rc<CompiledFunction>,
+    pub free: Box<[Object]>,
+}
+
+impl fmt::Display for Closure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Closure{:?}", self.function.instructions)
     }
 }
