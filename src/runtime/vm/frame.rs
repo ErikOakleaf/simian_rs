@@ -1,13 +1,23 @@
-use crate::runtime::Object;
+use std::rc::Rc;
+
+use crate::runtime::object::Closure;
 
 pub struct Frame {
-    pub function: Box<[u8]>,
+    pub closure: Closure,
     pub ip: usize,
     pub base_pointer: usize,
 }
 
 impl Frame {
-    pub fn new(function: Box<[u8]>, base_pointer: usize) -> Self {
-       Frame { function: function, ip: 0, base_pointer: base_pointer }  
+    pub fn new(closure: Closure, base_pointer: usize) -> Self {
+        Frame {
+            closure: closure,
+            ip: 0,
+            base_pointer: base_pointer,
+        }
+    }
+
+    pub fn instructions(&self) -> &[u8] {
+        &self.closure.function.instructions
     }
 }

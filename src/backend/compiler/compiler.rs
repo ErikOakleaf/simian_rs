@@ -195,15 +195,15 @@ impl Compiler {
                 let amount_parameters = function_literal_expression.parameters.len();
                 let instructions = self.leave_scope();
 
-                let compiled_function = Object::CompiledFunction(CompiledFunction::new(
+                let compiled_function = Object::CompiledFunction(Rc::new(CompiledFunction::new(
                     instructions,
                     amount_locals,
                     amount_parameters,
-                ));
+                )));
 
                 let position = self.add_constant(compiled_function);
 
-                self.emit(Opcode::LoadConstant, &[&position.to_be_bytes()]);
+                self.emit(Opcode::Closure, &[&position.to_be_bytes(), &[0]]);
             }
             Expression::Call(call_expression) => {
                 self.compile_expression(call_expression.function.as_ref())?;
@@ -1003,7 +1003,7 @@ mod tests {
                 expected_constants: vec![
                     Object::Integer(5),
                     Object::Integer(10),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1016,10 +1016,10 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1028,7 +1028,7 @@ mod tests {
                 expected_constants: vec![
                     Object::Integer(5),
                     Object::Integer(10),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1041,10 +1041,10 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1053,7 +1053,7 @@ mod tests {
                 expected_constants: vec![
                     Object::Integer(1),
                     Object::Integer(2),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::Pop, &[]),
@@ -1066,10 +1066,10 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1082,7 +1082,7 @@ mod tests {
     fn test_functions_without_return_value() {
         let tests = vec![CompilerTestCase {
             input: "fn() {}",
-            expected_constants: vec![Object::CompiledFunction(CompiledFunction::new(
+            expected_constants: vec![Object::CompiledFunction(Rc::new(CompiledFunction::new(
                 vec![make(Opcode::Return, &[])]
                     .into_iter()
                     .flat_map(|b| b.into_vec())
@@ -1090,9 +1090,9 @@ mod tests {
                     .into_boxed_slice(),
                 0,
                 0,
-            ))],
+            )))],
             expected_instructions: vec![
-                make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                 make(Opcode::Pop, &[]),
             ],
         }];
@@ -1107,7 +1107,7 @@ mod tests {
                 input: "fn() { 24 }();",
                 expected_constants: vec![
                     Object::Integer(24),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
@@ -1118,10 +1118,10 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
                     make(Opcode::Call, &[&[0]]),
                     make(Opcode::Pop, &[]),
                 ],
@@ -1131,7 +1131,7 @@ mod tests {
                         noArg();",
                 expected_constants: vec![
                     Object::Integer(24),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
@@ -1142,10 +1142,10 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::Call, &[&[0]]),
@@ -1156,7 +1156,7 @@ mod tests {
                 input: "let oneArg = fn(a) { };
                         oneArg(24);",
                 expected_constants: vec![
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![make(Opcode::Return, &[])]
                             .into_iter()
                             .flat_map(|b| b.into_vec())
@@ -1164,11 +1164,11 @@ mod tests {
                             .into_boxed_slice(),
                         1,
                         1,
-                    )),
+                    ))),
                     Object::Integer(24),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1180,7 +1180,7 @@ mod tests {
                 input: "let manyArg = fn(a, b, c) { };
                         manyArg(24, 25, 26);",
                 expected_constants: vec![
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![make(Opcode::Return, &[])]
                             .into_iter()
                             .flat_map(|b| b.into_vec())
@@ -1188,13 +1188,13 @@ mod tests {
                             .into_boxed_slice(),
                         3,
                         3,
-                    )),
+                    ))),
                     Object::Integer(24),
                     Object::Integer(25),
                     Object::Integer(26),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1208,7 +1208,7 @@ mod tests {
                 input: "let oneArg = fn(a) { a };
                         oneArg(24);",
                 expected_constants: vec![
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::GetLocal, &[&[0]]),
                             make(Opcode::ReturnValue, &[]),
@@ -1219,11 +1219,11 @@ mod tests {
                         .into_boxed_slice(),
                         1,
                         1,
-                    )),
+                    ))),
                     Object::Integer(24),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1235,7 +1235,7 @@ mod tests {
                 input: "let manyArg = fn(a, b, c) { a; b; c; };
                         manyArg(24, 25, 26);",
                 expected_constants: vec![
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::GetLocal, &[&[0]]),
                             make(Opcode::Pop, &[]),
@@ -1250,13 +1250,13 @@ mod tests {
                         .into_boxed_slice(),
                         3,
                         3,
-                    )),
+                    ))),
                     Object::Integer(24),
                     Object::Integer(25),
                     Object::Integer(26),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
@@ -1279,7 +1279,7 @@ mod tests {
                         fn() { num }",
                 expected_constants: vec![
                     Object::Integer(55),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::GetGlobal, &[&[0, 0]]),
                             make(Opcode::ReturnValue, &[]),
@@ -1290,12 +1290,12 @@ mod tests {
                         .into_boxed_slice(),
                         0,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
-                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1306,7 +1306,7 @@ mod tests {
                         }",
                 expected_constants: vec![
                     Object::Integer(55),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::SetLocal, &[&[0]]),
@@ -1319,10 +1319,10 @@ mod tests {
                         .into_boxed_slice(),
                         1,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1335,7 +1335,7 @@ mod tests {
                 expected_constants: vec![
                     Object::Integer(55),
                     Object::Integer(77),
-                    Object::CompiledFunction(CompiledFunction::new(
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::SetLocal, &[&[0]]),
@@ -1352,10 +1352,10 @@ mod tests {
                         .into_boxed_slice(),
                         2,
                         0,
-                    )),
+                    ))),
                 ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },
@@ -1385,7 +1385,7 @@ mod tests {
             },
             CompilerTestCase {
                 input: "fn() { len([]) }",
-                expected_constants: vec![Object::CompiledFunction(CompiledFunction::new(
+                expected_constants: vec![Object::CompiledFunction(Rc::new(CompiledFunction::new(
                     vec![
                         make(Opcode::GetBuiltin, &[&[0]]),
                         make(Opcode::Array, &[&[0, 0]]),
@@ -1398,9 +1398,9 @@ mod tests {
                     .into_boxed_slice(),
                     0,
                     0,
-                ))],
+                )))],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 0], &[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },

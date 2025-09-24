@@ -37,7 +37,7 @@ pub enum Object {
     Boolean(bool),
     Function(Function),
     Builtin(&'static BuiltinFunction),
-    CompiledFunction(CompiledFunction),
+    CompiledFunction(Rc<CompiledFunction>),
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<HashKey, Object>),
@@ -189,7 +189,6 @@ impl fmt::Display for BuiltinFunction {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompiledFunction {
     pub instructions: Box<[u8]>,
@@ -199,7 +198,11 @@ pub struct CompiledFunction {
 
 impl CompiledFunction {
     pub fn new(instructions: Box<[u8]>, amount_locals: usize, amount_parameters: usize) -> Self {
-        CompiledFunction { instructions: instructions, amount_locals: amount_locals, amount_parameters }
+        CompiledFunction {
+            instructions: instructions,
+            amount_locals: amount_locals,
+            amount_parameters,
+        }
     }
 }
 
@@ -207,6 +210,15 @@ impl CompiledFunction {
 pub struct Closure {
     pub function: Rc<CompiledFunction>,
     pub free: Box<[Object]>,
+}
+
+impl Closure {
+    pub fn new(function: Rc<CompiledFunction>, free: Box<[Object]>) -> Self {
+        Closure {
+            function: function,
+            free: free,
+        }
+    }
 }
 
 impl fmt::Display for Closure {

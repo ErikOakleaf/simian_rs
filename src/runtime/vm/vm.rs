@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::backend::code::Opcode;
 use crate::backend::compiler::{Bytecode, Compiler};
 use crate::runtime::builtins::BUILTINS;
-use crate::runtime::object::{BuiltinFunction, CompiledFunction, HashKey, Object};
+use crate::runtime::object::{BuiltinFunction, Closure, CompiledFunction, HashKey, Object};
 use crate::runtime::vm::frame::Frame;
 
 const STACK_SIZE: usize = 2048;
@@ -87,7 +88,11 @@ impl VM {
         let last_popped = Object::Null;
         let globals = GlobalEnviroment::new();
         let mut frames: [Option<Frame>; FRAMES_SIZE] = std::array::from_fn(|_| None);
-        frames[0] = Some(Frame::new(bytecode.instructions, 0));
+
+        let main_function = Rc::new(CompiledFunction::new(bytecode.instructions, 0, 0));
+        let main_closure = Closure::new(main_function, Box::new([]));
+
+        frames[0] = Some(Frame::new(main_closure, 0));
         let frames_index = 1;
         VM {
             constants: constants,
@@ -171,10 +176,23 @@ impl VM {
         frame
     }
 
+    fn push_closure(&mut self, const_index: usize) -> Result<(), RuntimeError> {
+        let constant = &self.constants[const_index];
+        let function = match constant {
+            Object::CompiledFunction(compiled_function) => compiled_function,
+            _ => unreachable!("pushed non closure in push closure"),
+        };
+
+        let closure = Closure::new(function.clone(), Box::new([]));
+        self.push(Object::Closure(closure))?;
+
+        Ok(())
+    }
+
     pub fn run(&mut self) -> Result<(), RuntimeError> {
-        while self.current_frame().ip < self.current_frame().function.len() {
+        while self.current_frame().ip < self.current_frame().instructions().len() {
             let current_frame = self.current_frame_mut();
-            let opcode = current_frame.function[current_frame.ip];
+            let opcode = current_frame.instructions()[current_frame.ip];
             current_frame.ip += 1;
 
             const LOAD_CONSTANT: u8 = Opcode::LoadConstant as u8;
@@ -204,11 +222,13 @@ impl VM {
             const GET_LOCAL: u8 = Opcode::GetLocal as u8;
             const SET_LOCAL: u8 = Opcode::SetLocal as u8;
             const GET_BUILTIN: u8 = Opcode::GetBuiltin as u8;
+            const CLOSURE: u8 = Opcode::Closure as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
-                    let constant_index = ((current_frame.function[current_frame.ip] as usize) << 8)
-                        | (current_frame.function[current_frame.ip + 1] as usize);
+                    let constant_index =
+                        ((current_frame.instructions()[current_frame.ip] as usize) << 8)
+                            | (current_frame.instructions()[current_frame.ip + 1] as usize);
                     current_frame.ip += 2;
 
                     self.push(self.constants[constant_index].clone())?;
@@ -317,8 +337,8 @@ impl VM {
                 JUMP_NOT_TRUTHY => {
                     let position = {
                         let frame = self.current_frame_mut();
-                        let pos = ((frame.function[frame.ip] as usize) << 8)
-                            | (frame.function[frame.ip + 1] as usize);
+                        let pos = ((frame.instructions()[frame.ip] as usize) << 8)
+                            | (frame.instructions()[frame.ip + 1] as usize);
                         frame.ip += 2;
                         pos
                     };
@@ -329,8 +349,8 @@ impl VM {
                     }
                 }
                 JUMP => {
-                    let position = ((current_frame.function[current_frame.ip] as usize) << 8)
-                        | (current_frame.function[current_frame.ip + 1] as usize);
+                    let position = ((current_frame.instructions()[current_frame.ip] as usize) << 8)
+                        | (current_frame.instructions()[current_frame.ip + 1] as usize);
                     current_frame.ip = position;
                 }
                 NULL => {
@@ -338,7 +358,7 @@ impl VM {
                 }
                 GET_GLOBAL => {
                     let global_index = u16::from_be_bytes(
-                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
                             .try_into()
                             .unwrap(),
                     ) as usize;
@@ -348,7 +368,7 @@ impl VM {
                 }
                 SET_GLOBAL => {
                     let global_index = u16::from_be_bytes(
-                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
                             .try_into()
                             .unwrap(),
                     ) as usize;
@@ -359,7 +379,7 @@ impl VM {
                 }
                 ARRAY => {
                     let array_length = u16::from_be_bytes(
-                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
                             .try_into()
                             .unwrap(),
                     ) as usize;
@@ -381,7 +401,7 @@ impl VM {
                 }
                 HASH => {
                     let hash_length = u16::from_be_bytes(
-                        current_frame.function[current_frame.ip..current_frame.ip + 2]
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
                             .try_into()
                             .unwrap(),
                     ) as usize;
@@ -455,7 +475,7 @@ impl VM {
                 }
                 CALL => {
                     let current_frame = self.current_frame_mut();
-                    let amount_arguments = current_frame.function[current_frame.ip] as usize;
+                    let amount_arguments = current_frame.instructions()[current_frame.ip] as usize;
                     current_frame.ip += 1;
 
                     self.execute_call(amount_arguments)?;
@@ -479,7 +499,7 @@ impl VM {
                     let base_pointer;
                     {
                         let current_frame = self.current_frame_mut();
-                        local_index = current_frame.function[current_frame.ip] as usize;
+                        local_index = current_frame.instructions()[current_frame.ip] as usize;
                         current_frame.ip += 1;
                         base_pointer = current_frame.base_pointer;
                     }
@@ -495,7 +515,7 @@ impl VM {
                     let base_pointer;
                     {
                         let current_frame = self.current_frame_mut();
-                        local_index = current_frame.function[current_frame.ip] as usize;
+                        local_index = current_frame.instructions()[current_frame.ip] as usize;
                         current_frame.ip += 1;
                         base_pointer = current_frame.base_pointer;
                     }
@@ -504,11 +524,25 @@ impl VM {
                     self.stack[base_pointer + local_index] = Some(value);
                 }
                 GET_BUILTIN => {
-                    let builtin_index = current_frame.function[current_frame.ip] as usize;
+                    let builtin_index = current_frame.instructions()[current_frame.ip] as usize;
                     current_frame.ip += 1;
 
                     let definiton = Object::Builtin(&BUILTINS[builtin_index]);
                     self.push(definiton)?;
+                }
+                CLOSURE => {
+                    let current_frame = self.current_frame_mut();
+                    let const_index = u16::from_be_bytes(
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
+
+                    let _ = current_frame.instructions()[current_frame.ip];
+                    current_frame.ip += 1;
+
+                    self.push_closure(const_index)?;
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
@@ -526,11 +560,11 @@ impl VM {
             .clone();
 
         match calee {
-            Object::CompiledFunction(compiled_function) => {
-                self.call_function(&compiled_function, amount_arguments)
+            Object::Closure(closure) => {
+                self.call_closure(closure, amount_arguments)
             }
             Object::Builtin(builtin_function) => {
-                self.call_builtin(&builtin_function, amount_arguments)
+                self.call_builtin(builtin_function, amount_arguments)
             }
             other => {
                 return Err(RuntimeError::CallNonFunction(other));
@@ -538,23 +572,22 @@ impl VM {
         }
     }
 
-    fn call_function(
+    fn call_closure(
         &mut self,
-        compiled_function: &CompiledFunction,
+        closure: Closure,
         amount_arguments: usize,
     ) -> Result<(), RuntimeError> {
-        if amount_arguments != compiled_function.amount_parameters {
+        if amount_arguments != closure.function.amount_parameters {
             return Err(RuntimeError::ArityMismatch {
-                expected: compiled_function.amount_parameters,
+                expected: closure.function.amount_parameters,
                 got: amount_arguments,
             });
         }
 
-        let frame = Frame::new(
-            compiled_function.instructions.clone(),
-            self.sp - amount_arguments,
-        );
-        self.sp = frame.base_pointer + compiled_function.amount_locals;
+        let amount_locals = closure.function.amount_locals;
+        let frame = Frame::new(closure, self.sp - amount_arguments);
+
+        self.sp = frame.base_pointer + amount_locals;
         self.push_frame(frame);
         Ok(())
     }
@@ -1344,9 +1377,7 @@ mod tests {
         let tests = vec![
             Test {
                 input: "len(1)",
-                expected: RuntimeError::Other(
-                    "argument to len not supported, got 1".to_string(),
-                ),
+                expected: RuntimeError::Other("argument to len not supported, got 1".to_string()),
             },
             Test {
                 input: "len(\"one\", \"two\")",
@@ -1356,15 +1387,11 @@ mod tests {
             },
             Test {
                 input: "first(1)",
-                expected: RuntimeError::Other(
-                    "argument to first not supported, got 1".to_string(),
-                ),
+                expected: RuntimeError::Other("argument to first not supported, got 1".to_string()),
             },
             Test {
                 input: "last(1)",
-                expected: RuntimeError::Other(
-                    "argument to last not supported, got 1".to_string(),
-                ),
+                expected: RuntimeError::Other("argument to last not supported, got 1".to_string()),
             },
             Test {
                 input: "push(1, 1)",
@@ -1382,7 +1409,11 @@ mod tests {
             let result = vm.run();
 
             match result {
-                Err(err) => assert_eq!(test.expected, err, "expected error {:?} got {:?}", test.expected, err),
+                Err(err) => assert_eq!(
+                    test.expected, err,
+                    "expected error {:?} got {:?}",
+                    test.expected, err
+                ),
                 Ok(_) => panic!("expected error {:?}, but got Ok", test.expected),
             }
         }
