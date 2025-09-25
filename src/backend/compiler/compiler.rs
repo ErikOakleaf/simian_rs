@@ -1092,7 +1092,7 @@ mod tests {
                 0,
             )))],
             expected_instructions: vec![
-                    make(Opcode::Closure, &[&[0, 0], &[0]]),
+                make(Opcode::Closure, &[&[0, 0], &[0]]),
                 make(Opcode::Pop, &[]),
             ],
         }];
@@ -1410,6 +1410,188 @@ mod tests {
     }
 
     #[test]
+    fn test_closures() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "fn(a) {
+                            fn(b) {
+                                a + b
+                            }
+                        }",
+                expected_constants: vec![
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetFree, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Closure, &[&[0, 0], &[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn(a) {
+                            fn(b) {
+                                fn(c) {
+                                    a + b + c
+                                }
+                            }
+                        };",
+                expected_constants: vec![
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetFree, &[&[0]]),
+                            make(Opcode::GetFree, &[&[1]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetFree, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Closure, &[&[0, 0], &[2]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Closure, &[&[0, 1], &[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let global = 55;
+                        fn() {
+                            let a = 66;
+                            fn() {
+                                let b = 77;
+                                fn() {
+                                    let c = 88;
+                                    global + a + b + c;
+                                }
+                            }
+                        }",
+                expected_constants: vec![
+                    Object::Integer(55),
+                    Object::Integer(55),
+                    Object::Integer(55),
+                    Object::Integer(55),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 3]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetGlobal, &[&[0, 0]]),
+                            make(Opcode::GetFree, &[&[0]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::GetFree, &[&[1]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Add, &[]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 2]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetFree, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Closure, &[&[0, 4], &[2]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::Closure, &[&[0, 5], &[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 6], &[0]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
     fn test_read_operands() {
         struct Test {
             opcode: Opcode,
@@ -1450,7 +1632,11 @@ mod tests {
                 test.expected_offset, offset
             );
 
-            for (operand, expected) in operands.iter().zip(test.expected_result).collect::<Vec<_>>() {
+            for (operand, expected) in operands
+                .iter()
+                .zip(test.expected_result)
+                .collect::<Vec<_>>()
+            {
                 assert_eq!(
                     expected, operand,
                     "expected operand {:?} got {:?}",

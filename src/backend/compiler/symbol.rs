@@ -6,6 +6,7 @@ pub enum SymbolScope {
     Global,
     Local,
     Builtin,
+    Free,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,8 +58,7 @@ impl SymbolTable {
         symbol
     }
 
-
-    pub fn define_builtin(&mut self,index: u16, name: &str) -> Symbol {
+    pub fn define_builtin(&mut self, index: u16, name: &str) -> Symbol {
         let symbol = Symbol {
             name: name.to_string(),
             scope: SymbolScope::Builtin,
@@ -340,7 +340,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_resolve_builtin() -> Result<(), CompilationError> {
         let global = SymbolTable::new();
@@ -387,6 +386,194 @@ mod tests {
         for test in tests {
             let symbol = global.borrow().resolve(test.0)?;
             assert_eq!(test.1, symbol);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_free() -> Result<(), CompilationError> {
+        struct Test {
+            table: Rc<RefCell<SymbolTable>>,
+            expected_symbols: Vec<Symbol>,
+            expected_free_symbols: Vec<Symbol>,
+        }
+
+        let global = SymbolTable::new();
+        global.borrow_mut().define("a");
+        global.borrow_mut().define("b");
+
+        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
+        first_local.borrow_mut().define("c");
+        first_local.borrow_mut().define("d");
+
+        let second_local = SymbolTable::new_enclosed(Rc::clone(&first_local));
+        second_local.borrow_mut().define("e");
+        second_local.borrow_mut().define("f");
+
+        let tests = vec![
+            Test {
+                table: first_local.clone(),
+                expected_symbols: vec![
+                    Symbol {
+                        name: "a".to_string(),
+                        scope: SymbolScope::Global,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "b".to_string(),
+                        scope: SymbolScope::Global,
+                        index: 1,
+                    },
+                    Symbol {
+                        name: "c".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "d".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 1,
+                    },
+                ],
+                expected_free_symbols: vec![],
+            },
+            Test {
+                table: second_local,
+                expected_symbols: vec![
+                    Symbol {
+                        name: "a".to_string(),
+                        scope: SymbolScope::Global,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "b".to_string(),
+                        scope: SymbolScope::Global,
+                        index: 1,
+                    },
+                    Symbol {
+                        name: "c".to_string(),
+                        scope: SymbolScope::Free,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "d".to_string(),
+                        scope: SymbolScope::Free,
+                        index: 1,
+                    },
+                    Symbol {
+                        name: "e".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "f".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 1,
+                    },
+                ],
+                expected_free_symbols: vec![
+                    Symbol {
+                        name: "c".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 0,
+                    },
+                    Symbol {
+                        name: "d".to_string(),
+                        scope: SymbolScope::Local,
+                        index: 1,
+                    },
+                ],
+            },
+        ];
+
+        for test in tests {
+            for expected in test.expected_symbols {
+                let result = test.table.borrow().resolve(&expected.name)?;
+                assert_eq!(
+                    expected, result,
+                    "for resolving {} expected symbol {:?} got symbol {:?}",
+                    expected.name, expected, result
+                );
+            }
+
+            let free_symbols = test.table.borrow().free_symbols;
+            assert_eq!(
+                free_symbols.len(),
+                test.expected_free_symbols.len(),
+                "wrong number of free symbols. got={}, want={}",
+                free_symbols.len(),
+                test.expected_free_symbols.len()
+            );
+
+            for (i, expected_free) in test.expected_free_symbols.iter().enumerate() {
+                assert_eq!(
+                    free_symbols[i], *expected_free,
+                    "wrong free symbol at {}. got={:?}, want={:?}",
+                    i, free_symbols[i], expected_free
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_unresolvable_free() -> Result<(), CompilationError> {
+        struct Test {
+            table: Rc<RefCell<SymbolTable>>,
+            expected_symbols: Vec<Symbol>,
+            expected_free_symbols: Vec<Symbol>,
+        }
+
+        let global = SymbolTable::new();
+        global.borrow_mut().define("a");
+
+        let first_local = SymbolTable::new_enclosed(Rc::clone(&global));
+        first_local.borrow_mut().define("c");
+
+        let second_local = SymbolTable::new_enclosed(Rc::clone(&first_local));
+        second_local.borrow_mut().define("e");
+        second_local.borrow_mut().define("f");
+
+        let expected = vec![
+            Symbol {
+                name: "a".to_string(),
+                scope: SymbolScope::Global,
+                index: 0,
+            },
+            Symbol {
+                name: "c".to_string(),
+                scope: SymbolScope::Free,
+                index: 0,
+            },
+            Symbol {
+                name: "e".to_string(),
+                scope: SymbolScope::Local,
+                index: 0,
+            },
+            Symbol {
+                name: "f".to_string(),
+                scope: SymbolScope::Local,
+                index: 1,
+            },
+        ];
+
+        for symbol in expected {
+            let result = second_local.borrow().resolve(&symbol.name)?;
+            assert_eq!(symbol, result, "name {} not resolvable", symbol.name);
+        }
+
+        let expected_unresolvable = vec!["b", "d"];
+
+        for name in expected_unresolvable {
+            let result = second_local.borrow().resolve(name);
+            match result {
+                Ok(_) => {
+                    panic!("name {} resolved but was not expected to", name)
+                }
+                Err(_) => {}
+            }
         }
 
         Ok(())
