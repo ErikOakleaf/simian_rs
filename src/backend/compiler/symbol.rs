@@ -22,7 +22,7 @@ pub struct SymbolTable {
     store: HashMap<String, Symbol>,
     pub amount_definitions: usize,
 
-    free_symbols: Vec<Symbol>,
+    pub free_symbols: Vec<Symbol>,
 }
 
 impl SymbolTable {

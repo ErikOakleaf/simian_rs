@@ -191,19 +191,24 @@ impl Compiler {
                     self.emit(Opcode::Return, &[]);
                 }
 
+                let free_symbols = self.symbol_table.borrow().free_symbols.clone();
+                let free_symbols_amount = free_symbols.len() as u8;
                 let amount_locals = self.symbol_table.borrow().amount_definitions;
-                let amount_parameters = function_literal_expression.parameters.len();
                 let instructions = self.leave_scope();
+
+                for symbol in free_symbols {
+                    self.load_symbol(symbol);
+                }
 
                 let compiled_function = Object::CompiledFunction(Rc::new(CompiledFunction::new(
                     instructions,
                     amount_locals,
-                    amount_parameters,
+                    function_literal_expression.parameters.len(),
                 )));
 
-                let position = self.add_constant(compiled_function);
+                let function_index = self.add_constant(compiled_function);
 
-                self.emit(Opcode::Closure, &[&position.to_be_bytes(), &[0]]);
+                self.emit(Opcode::Closure, &[&function_index.to_be_bytes(), &[free_symbols_amount]]);
             }
             Expression::Call(call_expression) => {
                 self.compile_expression(call_expression.function.as_ref())?;
@@ -556,7 +561,7 @@ mod tests {
             assert_eq!(
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
-                "expected constants {:?} got {:?}",
+                "expected constants:\n{:?} got:\n{:?}",
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
             );
@@ -1431,8 +1436,8 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
-                        0,
+                        1,
+                        1,
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
@@ -1444,8 +1449,8 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
-                        0,
+                        1,
+                        1,
                     ))),
                 ],
                 expected_instructions: vec![
@@ -1475,8 +1480,8 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
-                        0,
+                        1,
+                        1,
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
@@ -1489,8 +1494,8 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
-                        0,
+                        1,
+                        1,
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
@@ -1502,8 +1507,8 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
-                        0,
+                        1,
+                        1,
                     ))),
                 ],
                 expected_instructions: vec![
@@ -1525,9 +1530,9 @@ mod tests {
                         }",
                 expected_constants: vec![
                     Object::Integer(55),
-                    Object::Integer(55),
-                    Object::Integer(55),
-                    Object::Integer(55),
+                    Object::Integer(66),
+                    Object::Integer(77),
+                    Object::Integer(88),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         vec![
                             make(Opcode::LoadConstant, &[&[0, 3]]),
@@ -1545,7 +1550,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
+                        1,
                         0,
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
@@ -1561,7 +1566,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
+                        1,
                         0,
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
@@ -1576,7 +1581,7 @@ mod tests {
                         .flat_map(|b| b.into_vec())
                         .collect::<Vec<u8>>()
                         .into_boxed_slice(),
-                        0,
+                        1,
                         0,
                     ))),
                 ],
