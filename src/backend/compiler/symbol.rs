@@ -21,6 +21,8 @@ pub struct SymbolTable {
     pub outer: Option<Rc<RefCell<SymbolTable>>>,
     store: HashMap<String, Symbol>,
     pub amount_definitions: usize,
+
+    free_symbols: Vec<Symbol>,
 }
 
 impl SymbolTable {
@@ -29,6 +31,7 @@ impl SymbolTable {
             outer: None,
             store: HashMap::<String, Symbol>::new(),
             amount_definitions: 0,
+            free_symbols: Vec::<Symbol>::new(),
         }))
     }
 
@@ -37,6 +40,7 @@ impl SymbolTable {
             outer: Some(outer),
             store: HashMap::<String, Symbol>::new(),
             amount_definitions: 0,
+            free_symbols: Vec::<Symbol>::new(),
         }))
     }
 
@@ -69,16 +73,35 @@ impl SymbolTable {
         symbol
     }
 
-    pub fn resolve(&self, name: &str) -> Result<Symbol, CompilationError> {
-        match self.store.get(name) {
-            None => {
-                if let Some(outer) = &self.outer {
-                    outer.as_ref().borrow().resolve(name)
-                } else {
-                    Err(CompilationError::UnknownSymbol(name.to_string()))
+    pub fn define_free(&mut self, original: Symbol) -> Symbol {
+        self.free_symbols.push(original.clone());
+
+        let symbol = Symbol {
+            name: original.name.clone(),
+            index: self.free_symbols.len() as u16 - 1,
+            scope: SymbolScope::Free,
+        };
+        self.store.insert(original.name, symbol.clone());
+
+        symbol
+    }
+
+    pub fn resolve(&mut self, name: &str) -> Result<Symbol, CompilationError> {
+        if let Some(symbol) = self.store.get(name) {
+            return Ok(symbol.clone());
+        }
+
+        if let Some(outer) = &self.outer {
+            let resolved = outer.borrow_mut().resolve(name)?;
+            match resolved.scope {
+                SymbolScope::Global | SymbolScope::Builtin => Ok(resolved),
+                _ => {
+                    let free = self.define_free(resolved);
+                    Ok(free)
                 }
             }
-            Some(symbol) => Ok(symbol.clone()),
+        } else {
+            Err(CompilationError::UnknownSymbol(name.to_string()))
         }
     }
 }
@@ -174,7 +197,7 @@ mod tests {
         ];
 
         for test in tests {
-            let symbol = global.borrow().resolve(test.0)?;
+            let symbol = global.borrow_mut().resolve(test.0)?;
             assert_eq!(test.1, symbol);
         }
 
@@ -227,7 +250,7 @@ mod tests {
         ];
 
         for test in tests {
-            let symbol = local.borrow().resolve(test.0)?;
+            let symbol = local.borrow_mut().resolve(test.0)?;
             assert_eq!(test.1, symbol);
         }
 
@@ -330,7 +353,7 @@ mod tests {
             },
         ];
 
-        for test in tests {
+        for mut test in tests {
             for expected_symbol in test.expected_symbols {
                 let symbol = test.table.resolve(expected_symbol.0)?;
                 assert_eq!(expected_symbol.1, symbol);
@@ -384,7 +407,7 @@ mod tests {
         }
 
         for test in tests {
-            let symbol = global.borrow().resolve(test.0)?;
+            let symbol = global.borrow_mut().resolve(test.0)?;
             assert_eq!(test.1, symbol);
         }
 
@@ -489,7 +512,7 @@ mod tests {
 
         for test in tests {
             for expected in test.expected_symbols {
-                let result = test.table.borrow().resolve(&expected.name)?;
+                let result = test.table.borrow_mut().resolve(&expected.name)?;
                 assert_eq!(
                     expected, result,
                     "for resolving {} expected symbol {:?} got symbol {:?}",
@@ -497,7 +520,7 @@ mod tests {
                 );
             }
 
-            let free_symbols = test.table.borrow().free_symbols;
+            let free_symbols = &test.table.borrow().free_symbols;
             assert_eq!(
                 free_symbols.len(),
                 test.expected_free_symbols.len(),
@@ -560,14 +583,14 @@ mod tests {
         ];
 
         for symbol in expected {
-            let result = second_local.borrow().resolve(&symbol.name)?;
+            let result = second_local.borrow_mut().resolve(&symbol.name)?;
             assert_eq!(symbol, result, "name {} not resolvable", symbol.name);
         }
 
         let expected_unresolvable = vec!["b", "d"];
 
         for name in expected_unresolvable {
-            let result = second_local.borrow().resolve(name);
+            let result = second_local.borrow_mut().resolve(name);
             match result {
                 Ok(_) => {
                     panic!("name {} resolved but was not expected to", name)

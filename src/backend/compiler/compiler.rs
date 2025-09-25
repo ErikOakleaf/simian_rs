@@ -142,7 +142,7 @@ impl Compiler {
             Expression::Identifier(identifier_expression) => {
                 let symbol = self
                     .symbol_table
-                    .borrow()
+                    .borrow_mut()
                     .resolve(&identifier_expression.token.literal)?;
 
                 self.load_symbol(symbol);
@@ -410,6 +410,7 @@ impl Compiler {
             SymbolScope::Global => self.emit(Opcode::GetGlobal, &[&symbol.index.to_be_bytes()]),
             SymbolScope::Local => self.emit(Opcode::GetLocal, &[&[symbol.index as u8]]),
             SymbolScope::Builtin => self.emit(Opcode::GetBuiltin, &[&[symbol.index as u8]]),
+            SymbolScope::Free => self.emit(Opcode::GetFree, &[&[symbol.index as u8]]),
         };
     }
 
