@@ -176,14 +176,25 @@ impl VM {
         frame
     }
 
-    fn push_closure(&mut self, const_index: usize) -> Result<(), RuntimeError> {
+    fn push_closure(&mut self, const_index: usize, amount_free: usize) -> Result<(), RuntimeError> {
         let constant = &self.constants[const_index];
         let function = match constant {
             Object::CompiledFunction(compiled_function) => compiled_function,
             _ => unreachable!("pushed non closure in push closure"),
         };
 
-        let closure = Closure::new(function.clone(), Box::new([]));
+        let mut free = Vec::<Object>::with_capacity(amount_free);
+        for i in 0..amount_free {
+            free.push(
+                self.stack[self.sp - amount_free + i]
+                    .as_ref()
+                    .unwrap()
+                    .clone(),
+            );
+        }
+        self.sp = self.sp - amount_free;
+
+        let closure = Closure::new(function.clone(), free.into_boxed_slice());
         self.push(Object::Closure(closure))?;
 
         Ok(())
@@ -223,6 +234,7 @@ impl VM {
             const SET_LOCAL: u8 = Opcode::SetLocal as u8;
             const GET_BUILTIN: u8 = Opcode::GetBuiltin as u8;
             const CLOSURE: u8 = Opcode::Closure as u8;
+            const GET_FREE: u8 = Opcode::GetFree as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -539,10 +551,21 @@ impl VM {
                     ) as usize;
                     current_frame.ip += 2;
 
-                    let _ = current_frame.instructions()[current_frame.ip];
+                    let amount_free = current_frame.instructions()[current_frame.ip];
                     current_frame.ip += 1;
 
-                    self.push_closure(const_index)?;
+                    self.push_closure(const_index, amount_free as usize)?;
+                }
+                GET_FREE => {
+                    let object = {
+                        let frame = self.current_frame_mut();
+                        let free_index = frame.instructions()[frame.ip];
+                        frame.ip += 1;
+                        let object = frame.closure.free[free_index as usize].clone();
+                        object
+                    };
+
+                    self.push(object)?;
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
@@ -560,9 +583,7 @@ impl VM {
             .clone();
 
         match calee {
-            Object::Closure(closure) => {
-                self.call_closure(closure, amount_arguments)
-            }
+            Object::Closure(closure) => self.call_closure(closure, amount_arguments),
             Object::Builtin(builtin_function) => {
                 self.call_builtin(builtin_function, amount_arguments)
             }
@@ -1417,5 +1438,73 @@ mod tests {
                 Ok(_) => panic!("expected error {:?}, but got Ok", test.expected),
             }
         }
+    }
+
+    #[test]
+    fn test_closures() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let newClosure = fn(a) {
+                            fn() { a; };
+                        };
+                        let closure = newClosure(99);
+                        closure();",
+                expected: Object::Integer(99),
+            },
+            VMTestCase {
+                input: "let newAdder = fn(a, b) {
+                            fn(c) { a + b + c };
+                        };
+                        let adder = newAdder(1, 2);
+                        adder(8);",
+                expected: Object::Integer(11),
+            },
+            VMTestCase {
+                input: "let newAdder = fn(a, b) {
+                            let c = a + b;
+                            fn(d) { c + d };
+                        };
+                        let adder = newAdder(1, 2);
+                        adder(8);",
+                expected: Object::Integer(11),
+            },
+            VMTestCase {
+                input: "let newAdderOuter = fn(a, b) {
+                            let c = a + b;
+                            fn(d) {
+                                let e = d + c;
+                                fn(f) { e + f; };
+                            };
+                        };
+                        let newAdderInner = newAdderOuter(1, 2)
+                        let adder = newAdderInner(3);
+                        adder(8);",
+                expected: Object::Integer(14),
+            },
+            VMTestCase {
+                input: "let a = 1;
+                        let newAdderOuter = fn(b) {
+                            fn(c) {
+                                fn(d) { a + b + c + d };
+                            };
+                        };
+                        let newAdderInner = newAdderOuter(2)
+                        let adder = newAdderInner(3);
+                        adder(8);",
+                expected: Object::Integer(14),
+            },
+            VMTestCase {
+                input: "let newClosure = fn(a, b) {
+                            let one = fn() { a; };
+                            let two = fn() { b; };
+                            fn() { one() + two(); };
+                        };
+                        let closure = newClosure(9, 90);
+                        closure();",
+                expected: Object::Integer(99),
+            },
+        ];
+
+        run_vm_tests(&tests)
     }
 }
