@@ -1,5 +1,3 @@
 An interpreter for the monkey programming language as defined by https://monkeylang.org/
 
-Interpreter fully tested and working ✅
-
-Currently working on compiler
+Compiles to bytecode and runs in a VM all made in rust !
