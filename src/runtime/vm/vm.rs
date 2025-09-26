@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::mem::MaybeUninit;
 use std::rc::Rc;
 
 use crate::backend::code::Opcode;
@@ -70,7 +71,7 @@ impl GlobalEnviroment {
 pub struct VM {
     constants: Box<[Object]>,
 
-    pub stack: [Option<Object>; STACK_SIZE],
+    pub stack: [MaybeUninit<Object>; STACK_SIZE],
     sp: usize,
 
     last_popped: Object,
@@ -83,7 +84,7 @@ pub struct VM {
 impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
         let constants = bytecode.constants;
-        let stack: [Option<Object>; STACK_SIZE] = std::array::from_fn(|_| None);
+        let stack = unsafe { MaybeUninit::uninit().assume_init() };
         let sp = 0;
         let last_popped = Object::Null;
         let globals = GlobalEnviroment::new();
@@ -111,20 +112,12 @@ impl VM {
         vm
     }
 
-    pub fn stack_top(&self) -> Result<&Object, RuntimeError> {
-        if self.sp == 0 {
-            Err(RuntimeError::EmptyStack)
-        } else {
-            Ok(&self.stack[self.sp - 1].as_ref().unwrap())
-        }
-    }
-
     fn push(&mut self, object: Object) -> Result<(), RuntimeError> {
         if self.sp == STACK_SIZE {
             return Err(RuntimeError::StackOverflow);
         }
 
-        self.stack[self.sp] = Some(object);
+        self.stack[self.sp] = MaybeUninit::new(object);
         self.sp += 1;
 
         Ok(())
@@ -134,17 +127,17 @@ impl VM {
         debug_assert!(self.sp > 0, "VM bug: attempted to pop from empty stack");
 
         self.sp -= 1;
-        self.stack[self.sp].take().unwrap()
+        unsafe { self.stack[self.sp].assume_init_read() }
     }
 
     fn pop_with_last(&mut self) -> Result<Object, RuntimeError> {
-        if self.sp == 0 {
-            return Err(RuntimeError::EmptyStack);
-        }
+        debug_assert!(self.sp > 0, "VM bug: attempted to pop from empty stack");
 
         self.sp -= 1;
-        self.last_popped = self.stack[self.sp].clone().unwrap();
-        Ok(self.stack[self.sp].take().unwrap())
+        let popped = unsafe { self.stack[self.sp].assume_init_read() };
+
+        self.last_popped = popped.clone();
+        Ok(popped)
     }
 
     pub fn last_popped_stack_element(&self) -> &Object {
@@ -184,15 +177,14 @@ impl VM {
         };
 
         let mut free = Vec::<Object>::with_capacity(amount_free);
+        let start = self.sp - amount_free;
         for i in 0..amount_free {
-            free.push(
-                self.stack[self.sp - amount_free + i]
-                    .as_ref()
-                    .unwrap()
-                    .clone(),
-            );
+            unsafe {
+                free.push(self.stack[start + i].assume_init_read());
+            }
         }
-        self.sp = self.sp - amount_free;
+
+        self.sp = start;
 
         let closure = Closure::new(function.clone(), free.into_boxed_slice());
         self.push(Object::Closure(closure))?;
@@ -403,12 +395,15 @@ impl VM {
                     }
 
                     let start = self.sp - array_length;
-                    let array: Vec<Object> = self.stack[start..self.sp]
-                        .iter_mut()
-                        .map(|opt| opt.take().unwrap())
-                        .collect();
 
-                    self.sp -= array_length;
+                    let mut array = Vec::with_capacity(array_length);
+                    for i in start..self.sp {
+                        unsafe {
+                            array.push(self.stack[i].assume_init_read());
+                        }
+                    }
+
+                    self.sp = start;
 
                     self.push(Object::Array(array))?;
                 }
@@ -429,12 +424,12 @@ impl VM {
 
                     let mut i = start;
                     while i < hash_length {
-                        let key = match self.stack[i].take().unwrap() {
+                        let key = match unsafe { self.stack[i].assume_init_read() } {
                             Object::Integer(value) => HashKey::Integer(value),
                             Object::String(value) => HashKey::String(value),
                             other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
-                        let value = self.stack[i + 1].take().unwrap();
+                        let value = unsafe { self.stack[i + 1].assume_init_read() };
 
                         hash.insert(key, value);
 
@@ -517,10 +512,8 @@ impl VM {
                         base_pointer = current_frame.base_pointer;
                     }
 
-                    let value = self.stack[base_pointer + local_index]
-                        .as_ref()
-                        .unwrap()
-                        .clone();
+                    let value =
+                        unsafe { self.stack[base_pointer + local_index].assume_init_read() };
                     self.push(value)?;
                 }
                 SET_LOCAL => {
@@ -534,7 +527,7 @@ impl VM {
                     }
 
                     let value = self.pop();
-                    self.stack[base_pointer + local_index] = Some(value);
+                    self.stack[base_pointer + local_index] = MaybeUninit::new(value);
                 }
                 GET_BUILTIN => {
                     let builtin_index = current_frame.instructions()[current_frame.ip] as usize;
@@ -582,10 +575,7 @@ impl VM {
     // Helpers
 
     fn execute_call(&mut self, amount_arguments: usize) -> Result<(), RuntimeError> {
-        let calee = self.stack[self.sp - 1 - amount_arguments]
-            .as_ref()
-            .unwrap()
-            .clone();
+        let calee = unsafe { self.stack[self.sp - 1 - amount_arguments].assume_init_read() };
 
         match calee {
             Object::Closure(closure) => self.call_closure(closure, amount_arguments),
@@ -623,13 +613,14 @@ impl VM {
         builtin: &BuiltinFunction,
         amount_arguments: usize,
     ) -> Result<(), RuntimeError> {
-        let arguments: Vec<Object> = self.stack[self.sp - amount_arguments..self.sp]
+        let start = self.sp - amount_arguments;
+        let arguments: Vec<Object> = self.stack[start..self.sp]
             .iter()
-            .map(|opt| opt.as_ref().unwrap().clone())
+            .map(|arg| unsafe { arg.assume_init_read() })
             .collect();
 
         let result = (builtin.func)(&arguments)?;
-        self.sp -= amount_arguments + 1;
+        self.sp = start;
         self.push(result)?;
         Ok(())
     }

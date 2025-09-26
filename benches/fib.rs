@@ -26,7 +26,7 @@ fibonacci(35);
 "#;
 
 pub fn run_evaluator(c: &mut Criterion) {
-    c.bench_function("fibonacci_evaluator", |b| {
+    c.bench_function("eval", |b| {
         b.iter(|| {
             let mut lexer = Lexer::new(PROGRAM);
             let mut parser = Parser::new(&mut lexer);
@@ -43,7 +43,7 @@ pub fn run_evaluator(c: &mut Criterion) {
 }
 
 pub fn run_vm(c: &mut Criterion) {
-    c.bench_function("fibonacci_vm", |b| {
+    c.bench_function("vm", |b| {
         b.iter(|| {
             let mut lexer = Lexer::new(PROGRAM);
             let mut parser = Parser::new(&mut lexer);
