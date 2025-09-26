@@ -35,6 +35,7 @@ pub enum Opcode {
     GetBuiltin = 0x1A,
     Closure = 0x1B,
     GetFree = 0x1C,
+    CurrentClosure = 0x1D,
 }
 
 impl Opcode {
@@ -69,6 +70,7 @@ impl Opcode {
             0x1A => Opcode::GetLocal,
             0x1B => Opcode::Closure,
             0x1C => Opcode::GetFree,
+            0x1D => Opcode::CurrentClosure,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -106,6 +108,7 @@ impl fmt::Display for Opcode {
             Opcode::GetBuiltin => "GetBuiltin",
             Opcode::Closure => "Closure",
             Opcode::GetFree => "GetFree",
+            Opcode::CurrentClosure => "CurrentClosure",
         };
         write!(f, "{}", name)
     }
@@ -117,14 +120,14 @@ pub struct OperandInfo {
     pub widths: &'static [usize],
 }
 
-const fn build_operand_widths() -> [OperandInfo; 29] {
+const fn build_operand_widths() -> [OperandInfo; 30] {
     let empty_width: &[usize] = &[];
     let default_operand = OperandInfo {
         amount: 0,
         widths: empty_width,
     };
 
-    let mut table: [OperandInfo; 29] = [default_operand; 29];
+    let mut table: [OperandInfo; 30] = [default_operand; 30];
 
     table[Opcode::LoadConstant as usize] = OperandInfo {
         amount: 1,
@@ -242,10 +245,14 @@ const fn build_operand_widths() -> [OperandInfo; 29] {
         amount: 1,
         widths: &[1],
     };
+    table[Opcode::CurrentClosure as usize] = OperandInfo {
+        amount: 0,
+        widths: &[],
+    };
     table
 }
 
-pub static OPERAND_WIDTHS: [OperandInfo; 29] = build_operand_widths();
+pub static OPERAND_WIDTHS: [OperandInfo; 30] = build_operand_widths();
 
 pub fn make(opcode: Opcode, operands: &[&[u8]]) -> Box<[u8]> {
     let expected_amount_operands = OPERAND_WIDTHS[opcode as usize].amount;

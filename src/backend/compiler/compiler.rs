@@ -102,12 +102,13 @@ impl Compiler {
                 self.emit(Opcode::Pop, &[]);
             }
             Statement::Let(let_statement) => {
-                self.compile_expression(let_statement.value.as_ref())?;
-
                 let symbol = self
                     .symbol_table
                     .borrow_mut()
                     .define(&let_statement.name.token.literal);
+
+                self.compile_expression(let_statement.value.as_ref())?;
+
                 if symbol.scope == SymbolScope::Global {
                     let index = symbol.index.to_be_bytes();
                     self.emit(Opcode::SetGlobal, &[&index]);
@@ -176,6 +177,10 @@ impl Compiler {
             Expression::Function(function_literal_expression) => {
                 self.enter_scope();
 
+                if let Some(ref name) = function_literal_expression.name {
+                    self.symbol_table.borrow_mut().define_function_name(name);
+                }
+
                 for parameter in function_literal_expression.parameters.iter() {
                     self.symbol_table
                         .borrow_mut()
@@ -208,7 +213,10 @@ impl Compiler {
 
                 let function_index = self.add_constant(compiled_function);
 
-                self.emit(Opcode::Closure, &[&function_index.to_be_bytes(), &[free_symbols_amount]]);
+                self.emit(
+                    Opcode::Closure,
+                    &[&function_index.to_be_bytes(), &[free_symbols_amount]],
+                );
             }
             Expression::Call(call_expression) => {
                 self.compile_expression(call_expression.function.as_ref())?;
@@ -416,6 +424,7 @@ impl Compiler {
             SymbolScope::Local => self.emit(Opcode::GetLocal, &[&[symbol.index as u8]]),
             SymbolScope::Builtin => self.emit(Opcode::GetBuiltin, &[&[symbol.index as u8]]),
             SymbolScope::Free => self.emit(Opcode::GetFree, &[&[symbol.index as u8]]),
+            SymbolScope::Function => self.emit(Opcode::CurrentClosure, &[]),
         };
     }
 
@@ -1589,6 +1598,96 @@ mod tests {
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::Closure, &[&[0, 6], &[0]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_recursive_functions() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "let countDown = fn(x) { countDown(x - 1); };
+                        countDown(1);",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::CurrentClosure, &[]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::Sub, &[]),
+                            make(Opcode::Call, &[&[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        1,
+                    ))),
+                    Object::Integer(1),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::Closure, &[&[0, 1], &[0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::Call, &[&[1]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let wrapper = fn() {
+                            let countDown = fn(x) { countDown(x - 1); };
+                            countDown(1);
+                            };
+                        wrapper();",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::CurrentClosure, &[]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::Sub, &[]),
+                            make(Opcode::Call, &[&[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        1,
+                    ))),
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::Closure, &[&[0, 1], &[0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 2]]),
+                            make(Opcode::Call, &[&[1]]),
+                            make(Opcode::ReturnValue, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::Closure, &[&[0, 3], &[0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::Call, &[&[0]]),
                     make(Opcode::Pop, &[]),
                 ],
             },

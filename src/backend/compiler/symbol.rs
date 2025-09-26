@@ -7,7 +7,9 @@ pub enum SymbolScope {
     Local,
     Builtin,
     Free,
+    Function,
 }
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Symbol {
@@ -59,6 +61,12 @@ impl SymbolTable {
 
         self.store.insert(name.to_string(), symbol.clone());
         self.amount_definitions += 1;
+        symbol
+    }
+
+    pub fn define_function_name(&mut self, name: &str) -> Symbol {
+        let symbol = Symbol { name: name.to_string(), scope: SymbolScope::Function, index: 0 };
+        self.store.insert(name.to_string(), symbol.clone());
         symbol
     }
 
@@ -598,6 +606,35 @@ mod tests {
                 Err(_) => {}
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_define_and_resolve_function_name() -> Result<(), CompilationError> {
+        let global = SymbolTable::new();
+        global.borrow_mut().define_function_name("a");
+
+        let expected = Symbol { name: "a".to_string(), scope: SymbolScope::Function, index: 0};
+
+        let result = global.borrow_mut().resolve(&expected.name)?; 
+
+        assert_eq!(expected, result, "expected {} to resolve to {:?} got {:?}", expected.name, expected, result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_shadowing_function_name() -> Result<(), CompilationError> {
+        let global = SymbolTable::new();
+        global.borrow_mut().define_function_name("a");
+        global.borrow_mut().define("a");
+
+        let expected = Symbol { name: "a".to_string(), scope: SymbolScope::Global, index: 0};
+
+        let result = global.borrow_mut().resolve(&expected.name)?; 
+
+        assert_eq!(expected, result, "expected {} to resolve to {:?} got {:?}", expected.name, expected, result);
 
         Ok(())
     }

@@ -235,6 +235,7 @@ impl VM {
             const GET_BUILTIN: u8 = Opcode::GetBuiltin as u8;
             const CLOSURE: u8 = Opcode::Closure as u8;
             const GET_FREE: u8 = Opcode::GetFree as u8;
+            const CURRENT_CLOSURE: u8 = Opcode::CurrentClosure as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -566,6 +567,10 @@ impl VM {
                     };
 
                     self.push(object)?;
+                }
+                CURRENT_CLOSURE => {
+                    let current_closure = self.current_frame().closure.clone();
+                    self.push(Object::Closure(current_closure))?;
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
@@ -1502,6 +1507,54 @@ mod tests {
                         let closure = newClosure(9, 90);
                         closure();",
                 expected: Object::Integer(99),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+
+    #[test]
+    fn test_recursive_closures() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let countDown = fn(x) {
+                            if (x == 0) {
+                                return 0;
+                            } else {
+                                countDown(x - 1);
+                            }
+                        };
+                        countDown(1);",
+                expected: Object::Integer(0),
+            },
+            VMTestCase {
+                input: "let countDown = fn(x) {
+                        if (x == 0) {
+                            return 0;
+                        } else {
+                            countDown(x - 1);
+                            }
+                        };
+                        let wrapper = fn() {
+                            countDown(1);
+                        };
+                        wrapper();",
+                expected: Object::Integer(0),
+            },
+            VMTestCase {
+                input: "let wrapper = fn() {
+                            let countDown = fn(x) {
+                                if (x == 0) {
+                                    return 0;
+                                } else {
+                                countDown(x - 1);
+                                }
+                            };
+                            countDown(1);
+                        };
+                        wrapper();",
+                expected: Object::Integer(0),
             },
         ];
 

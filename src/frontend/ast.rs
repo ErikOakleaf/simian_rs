@@ -203,6 +203,7 @@ pub struct FunctionLiteralExpression {
     pub token: Token,
     pub parameters: Vec<IdentifierExpression>,
     pub body: BlockStatement,
+    pub name: Option<String>,
 }
 
 impl fmt::Display for FunctionLiteralExpression {
@@ -216,6 +217,10 @@ impl fmt::Display for FunctionLiteralExpression {
             params.join(", "),
             self.body
         )?;
+
+        if let Some(ref name) = self.name{
+            write!(f, " {}", name)?;
+        }
 
         Ok(())
     }

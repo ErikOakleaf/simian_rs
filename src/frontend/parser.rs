@@ -92,12 +92,18 @@ impl<'a> Parser<'a> {
         self.expect_peek(TokenType::Assign)?;
         self.next_token();
 
+        let mut value = self.parse_expression(Precedence::Lowest)?;
+
+        if let Expression::Function(ref mut function_literal_expression) = value {
+            function_literal_expression.name = Some(identifier_token.literal.clone());
+        }
+
         let statement = LetStatement {
             token: statement_token,
             name: IdentifierExpression {
                 token: identifier_token,
             },
-            value: Box::new(self.parse_expression(Precedence::Lowest)?),
+            value: Box::new(value),
         };
 
         if self.peek_token.token_type == TokenType::Semicolon {
@@ -337,6 +343,7 @@ impl<'a> Parser<'a> {
             token: expression_token,
             parameters: parameters,
             body: body,
+            name: None,
         };
 
         Ok(Expression::Function(function_literal_expression))
@@ -1361,6 +1368,35 @@ mod tests {
             }
             _ => panic!("Expression is not string expression"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_funciton_literal_with_name() -> Result<(), ParseError> {
+        let input = "let myFunction = fn() { };";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(program.statements.len(), 1);
+
+        let statement = &program.statements[0];
+
+        match statement {
+            Statement::Let(let_statement) => match let_statement.value.as_ref() {
+                Expression::Function(function_literal_expression) => {
+                    assert_eq!(
+                        "myFunction",
+                        function_literal_expression.name.as_ref().unwrap(),
+                        "function literal name wrong expected {} got {}",
+                        "myFunction",
+                        function_literal_expression.name.as_ref().unwrap()
+                    );
+                }
+                _ => panic!("Expression is not function expression"),
+            },
+            other => panic!("statement {} is not let statement", other),
+        }
+
         Ok(())
     }
 }
