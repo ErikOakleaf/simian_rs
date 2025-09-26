@@ -1,7 +1,18 @@
 [package]
-name = "rust-monkey-interpreter"
+name = "simian_rs"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 once_cell = "1.21.3"
+
+[dev-dependencies]
+criterion = "0.7.0"
+
+[lib]
+name = "simian_rs"
+path = "src/lib.rs"
+
+[[bench]]
+name = "fib"
+harness = false
