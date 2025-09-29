@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use simian_rs::backend::compiler::Compiler;
 use simian_rs::frontend::{Lexer, Parser};
-use simian_rs::runtime::{Object, evaluator::eval_program, object::Enviroment, vm::VM};
+use simian_rs::runtime::{Object, object::Enviroment, vm::VM};
 
 fn configure_criterion() -> Criterion {
     Criterion::default().sample_size(10)
@@ -24,23 +24,6 @@ let fibonacci = fn(x) {
 };
 fibonacci(35);
 "#;
-
-pub fn run_evaluator(c: &mut Criterion) {
-    c.bench_function("eval", |b| {
-        b.iter(|| {
-            let mut lexer = Lexer::new(PROGRAM);
-            let mut parser = Parser::new(&mut lexer);
-            let program = parser.parse_program().unwrap();
-
-            let env = Rc::new(RefCell::new(Enviroment::new()));
-            let result = eval_program(&program, &env).unwrap();
-            assert_eq!(
-                result,
-                Object::Integer(9227465),
-            );
-        })
-    });
-}
 
 pub fn run_vm(c: &mut Criterion) {
     c.bench_function("vm", |b| {
@@ -66,6 +49,6 @@ pub fn run_vm(c: &mut Criterion) {
 criterion_group! {
     name = fib_benches;
     config = configure_criterion();
-    targets = run_evaluator, run_vm
+    targets = run_vm
 }
 criterion_main!(fib_benches);

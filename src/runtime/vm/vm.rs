@@ -93,7 +93,7 @@ impl VM {
         let main_function = Rc::new(CompiledFunction::new(bytecode.instructions, 0, 0));
         let main_closure = Closure::new(main_function, Box::new([]));
 
-        frames[0] = Some(Frame::new(main_closure, 0));
+        frames[0] = Some(Frame::new(Rc::new(main_closure), 0));
         let frames_index = 1;
         VM {
             constants: constants,
@@ -186,7 +186,7 @@ impl VM {
 
         self.sp = start;
 
-        let closure = Closure::new(function.clone(), free.into_boxed_slice());
+        let closure = Rc::new(Closure::new(function.clone(), free.into_boxed_slice()));
         self.push(Object::Closure(closure))?;
 
         Ok(())
@@ -247,7 +247,7 @@ impl VM {
                             self.push(Object::Integer(*l + *r))?;
                         }
                         (Object::String(l), Object::String(r)) => {
-                            self.push(Object::String(format!("{}{}", l, r).to_string()))?;
+                            self.push(Object::String(Rc::new(format!("{}{}", l, r).to_string())))?;
                         }
                         _ => {
                             return Err(RuntimeError::TypeMismatch {
@@ -426,7 +426,7 @@ impl VM {
                     while i < hash_length {
                         let key = match unsafe { self.stack[i].assume_init_read() } {
                             Object::Integer(value) => HashKey::Integer(value),
-                            Object::String(value) => HashKey::String(value),
+                            Object::String(value) => HashKey::String(value.to_string()),
                             other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
                         let value = unsafe { self.stack[i + 1].assume_init_read() };
@@ -437,7 +437,7 @@ impl VM {
                     }
 
                     self.sp -= hash_length;
-                    self.push(Object::Hash(hash))?;
+                    self.push(Object::Hash(Rc::new(hash)))?;
                 }
                 INDEX => {
                     let index_object = self.pop();
@@ -463,7 +463,7 @@ impl VM {
                         Object::Hash(hash) => {
                             let key = match index_object {
                                 Object::Integer(value) => HashKey::Integer(value),
-                                Object::String(value) => HashKey::String(value),
+                                Object::String(value) => HashKey::String(value.to_string()),
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
                                         indexable: indexable_object,
@@ -590,7 +590,7 @@ impl VM {
 
     fn call_closure(
         &mut self,
-        closure: Closure,
+        closure: Rc<Closure>,
         amount_arguments: usize,
     ) -> Result<(), RuntimeError> {
         if amount_arguments != closure.function.amount_parameters {
@@ -988,15 +988,15 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "\"monkey\"",
-                expected: Object::String("monkey".to_string()),
+                expected: Object::String(Rc::new("monkey".to_string())),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\"",
-                expected: Object::String("monkey".to_string()),
+                expected: Object::String(Rc::new("monkey".to_string())),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\" + \"banana\"",
-                expected: Object::String("monkeybanana".to_string()),
+                expected: Object::String(Rc::new("monkeybanana".to_string())),
             },
         ];
 
@@ -1036,21 +1036,21 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "{}",
-                expected: Object::Hash(HashMap::<HashKey, Object>::new()),
+                expected: Object::Hash(Rc::new(HashMap::<HashKey, Object>::new())),
             },
             VMTestCase {
                 input: "{1: 2, 2: 3}",
-                expected: Object::Hash(HashMap::from([
+                expected: Object::Hash(Rc::new(HashMap::from([
                     (HashKey::Integer(1), Object::Integer(2)),
                     (HashKey::Integer(2), Object::Integer(3)),
-                ])),
+                ]))),
             },
             VMTestCase {
                 input: "{1 + 1: 2 * 2, 3 + 3: 4 * 4}",
-                expected: Object::Hash(HashMap::from([
+                expected: Object::Hash(Rc::new(HashMap::from([
                     (HashKey::Integer(2), Object::Integer(4)),
                     (HashKey::Integer(6), Object::Integer(16)),
-                ])),
+                ]))),
             },
         ];
 

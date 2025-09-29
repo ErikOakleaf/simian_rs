@@ -3,13 +3,13 @@ use std::rc::Rc;
 use crate::runtime::object::Closure;
 
 pub struct Frame {
-    pub closure: Closure,
+    pub closure: Rc<Closure>,
     pub ip: usize,
     pub base_pointer: usize,
 }
 
 impl Frame {
-    pub fn new(closure: Closure, base_pointer: usize) -> Self {
+    pub fn new(closure: Rc<Closure>, base_pointer: usize) -> Self {
         Frame {
             closure: closure,
             ip: 0,

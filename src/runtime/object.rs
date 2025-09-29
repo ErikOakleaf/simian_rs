@@ -5,7 +5,6 @@ use std::{fmt, rc::Rc};
 use crate::runtime::vm::vm::RuntimeError;
 use crate::{
     frontend::{BlockStatement, IdentifierExpression},
-    runtime::evaluator::{EvaluationError, EvaluationResult},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,37 +34,15 @@ impl fmt::Display for HashKey {
 pub enum Object {
     Integer(i64),
     Boolean(bool),
-    Function(Function),
+    Function(Rc<Function>),
     Builtin(&'static BuiltinFunction),
     CompiledFunction(Rc<CompiledFunction>),
-    String(String),
+    String(Rc<String>),
     Array(Vec<Object>),
-    Hash(HashMap<HashKey, Object>),
-    Closure(Closure),
+    Hash(Rc<HashMap<HashKey, Object>>),
+    Closure(Rc<Closure>),
     Null,
     Void,
-}
-
-impl Object {
-    pub fn into_value(self) -> EvaluationResult {
-        EvaluationResult::Value(self)
-    }
-
-    pub fn into_return(self) -> EvaluationResult {
-        EvaluationResult::Return(self)
-    }
-
-    pub fn into_hash_key(&self) -> Result<HashKey, EvaluationError> {
-        match self {
-            Object::Integer(value) => Ok(HashKey::Integer(value.clone())),
-            Object::Boolean(value) => Ok(HashKey::Boolean(value.clone())),
-            Object::String(value) => Ok(HashKey::String(value.clone())),
-            other => Err(EvaluationError::Other(format!(
-                "Object type cannot be a hash key: {}",
-                other
-            ))),
-        }
-    }
 }
 
 impl fmt::Display for Object {
