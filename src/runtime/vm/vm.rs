@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use std::rc::Rc;
 
 use crate::backend::code::Opcode;
-use crate::backend::compiler::{Bytecode, Compiler};
+use crate::backend::compiler::{Bytecode};
 use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{BuiltinFunction, Closure, CompiledFunction, HashKey, Object};
 use crate::runtime::vm::frame::Frame;
@@ -52,12 +52,6 @@ impl GlobalEnviroment {
 
     pub fn bind(&mut self, index: usize, object: Object) {
         self.store[index] = Some(object);
-    }
-
-    pub fn lookup(&self, index: usize) -> Result<&Object, RuntimeError> {
-        self.store[index]
-            .as_ref()
-            .ok_or(RuntimeError::UnboundIdentifier(index))
     }
 
     pub fn get(&self, index: usize) -> Result<Object, RuntimeError> {
@@ -426,6 +420,7 @@ impl VM {
                     while i < hash_length {
                         let key = match unsafe { self.stack[i].assume_init_read() } {
                             Object::Integer(value) => HashKey::Integer(value),
+                            Object::Boolean(value) => HashKey::Boolean(value),
                             Object::String(value) => HashKey::String(value.to_string()),
                             other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
@@ -690,6 +685,7 @@ impl VM {
 #[cfg(test)]
 mod tests {
 
+    use crate::backend::compiler::Compiler;
     use std::collections::HashMap;
 
     use super::*;

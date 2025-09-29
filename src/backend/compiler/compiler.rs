@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::backend::{OPERAND_WIDTHS, Opcode, Symbol, SymbolScope, SymbolTable, make};
@@ -8,11 +7,10 @@ use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{CompiledFunction, Object};
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CompilationError {
-    UnknownOpcode(u8),
     UnknownOperator(String),
     UnknownSymbol(String),
-    Other(String),
 }
 
 #[derive(Clone, Copy)]
@@ -296,7 +294,6 @@ impl Compiler {
                 self.compile_expression(index_expression.index.as_ref())?;
                 self.emit(Opcode::Index, &[]);
             }
-            _ => {}
         };
 
         Ok(())
@@ -469,6 +466,7 @@ pub struct Bytecode {
 
 // Helpers
 
+#[allow(dead_code)]
 fn format_instructions(instructions: &[u8]) -> String {
     let mut result = String::new();
 

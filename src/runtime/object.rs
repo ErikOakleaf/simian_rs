@@ -1,11 +1,7 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::{fmt, rc::Rc};
 
 use crate::runtime::vm::vm::RuntimeError;
-use crate::{
-    frontend::{BlockStatement, IdentifierExpression},
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HashKey {
@@ -34,7 +30,6 @@ impl fmt::Display for HashKey {
 pub enum Object {
     Integer(i64),
     Boolean(bool),
-    Function(Rc<Function>),
     Builtin(&'static BuiltinFunction),
     CompiledFunction(Rc<CompiledFunction>),
     String(Rc<String>),
@@ -52,9 +47,6 @@ impl fmt::Display for Object {
                 write!(f, "{}", value)
             }
             Object::Boolean(value) => {
-                write!(f, "{}", value)
-            }
-            Object::Function(value) => {
                 write!(f, "{}", value)
             }
             Object::CompiledFunction(value) => {
@@ -86,65 +78,6 @@ impl fmt::Display for Object {
                 write!(f, "")
             }
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Enviroment {
-    store: HashMap<String, Object>,
-    outer: Option<Rc<RefCell<Enviroment>>>,
-}
-
-impl Enviroment {
-    pub fn new() -> Self {
-        Enviroment {
-            store: HashMap::<String, Object>::new(),
-            outer: None,
-        }
-    }
-
-    pub fn new_enclosed_enviroment(outer: Rc<RefCell<Enviroment>>) -> Self {
-        Enviroment {
-            store: HashMap::<String, Object>::new(),
-            outer: Some(outer),
-        }
-    }
-
-    pub fn get(&self, name: &str) -> Option<Object> {
-        if let Some(object) = self.store.get(name) {
-            return Some(object.clone());
-        }
-
-        if let Some(outer) = &self.outer {
-            return outer.borrow().get(name);
-        }
-
-        None
-    }
-
-    pub fn set(&mut self, name: &str, object: Object) {
-        self.store.insert(name.to_string(), object);
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Function {
-    pub parameters: Vec<IdentifierExpression>,
-    pub body: BlockStatement,
-    pub enviroment: Rc<RefCell<Enviroment>>,
-}
-
-impl PartialEq for Function {
-    fn eq(&self, other: &Self) -> bool {
-        self.parameters == other.parameters && self.body == other.body
-    }
-}
-
-impl fmt::Display for Function {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
-
-        write!(f, "fn({}) {{\n{}\n}}", params.join(", "), self.body)
     }
 }
 

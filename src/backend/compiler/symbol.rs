@@ -551,12 +551,6 @@ mod tests {
 
     #[test]
     fn test_resolve_unresolvable_free() -> Result<(), CompilationError> {
-        struct Test {
-            table: Rc<RefCell<SymbolTable>>,
-            expected_symbols: Vec<Symbol>,
-            expected_free_symbols: Vec<Symbol>,
-        }
-
         let global = SymbolTable::new();
         global.borrow_mut().define("a");
 

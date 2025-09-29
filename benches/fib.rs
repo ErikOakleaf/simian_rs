@@ -1,10 +1,10 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use simian_rs::backend::compiler::Compiler;
-use simian_rs::frontend::{Lexer, Parser};
-use simian_rs::runtime::{Object, object::Enviroment, vm::VM};
+use simian_rs::frontend::Lexer;
+use simian_rs::frontend::parser::Parser;
+
+use simian_rs::runtime::{Object, vm::VM};
 
 fn configure_criterion() -> Criterion {
     Criterion::default().sample_size(10)
@@ -38,10 +38,7 @@ pub fn run_vm(c: &mut Criterion) {
             let mut vm = VM::new(compiler.bytecode());
             vm.run().unwrap();
             let result = vm.last_popped_stack_element().clone();
-            assert_eq!(
-                result,
-                Object::Integer(9227465),
-            );
+            assert_eq!(result, Object::Integer(9227465),);
         })
     });
 }

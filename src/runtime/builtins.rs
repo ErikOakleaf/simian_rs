@@ -27,22 +27,6 @@ pub static BUILTINS: &[BuiltinFunction] = &[
     },
 ];
 
-pub fn get_builtin_by_name(name: &str) -> &'static BuiltinFunction {
-    match name {
-        "len" => &BUILTINS[0],
-        "puts" => &BUILTINS[1],
-        "first" => &BUILTINS[2],
-        "last" => &BUILTINS[3],
-        "rest" => &BUILTINS[4],
-        "push" => &BUILTINS[5],
-        other => unreachable!("builtin {} does not exist", other),
-    }
-}
-
-pub fn is_builtin(name: &str) -> bool {
-    matches!(name, "len" | "first" | "last" | "rest" | "push" | "puts")
-}
-
 fn len_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     check_args_length(args.len(), 1)?;
 

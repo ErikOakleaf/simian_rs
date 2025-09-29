@@ -2,4 +2,4 @@ pub mod code;
 pub mod compiler;
 
 pub use code::*;
-pub use compiler::{Compiler, CompilationError, Bytecode, SymbolTable, Symbol, SymbolScope};
+pub use compiler::{CompilationError, SymbolTable, Symbol, SymbolScope};
