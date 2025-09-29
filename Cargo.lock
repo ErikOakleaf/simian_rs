@@ -401,7 +401,6 @@ name = "simian_rs"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "once_cell",
 ]
 
 [[package]]

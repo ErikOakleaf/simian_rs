@@ -458,6 +458,7 @@ impl VM {
                         Object::Hash(hash) => {
                             let key = match index_object {
                                 Object::Integer(value) => HashKey::Integer(value),
+                                Object::Boolean(value) => HashKey::Boolean(value),
                                 Object::String(value) => HashKey::String(value.to_string()),
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
