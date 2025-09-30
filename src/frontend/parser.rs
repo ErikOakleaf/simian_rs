@@ -135,20 +135,15 @@ impl<'a> Parser<'a> {
 
         let statement;
         if self.peek_token.token_type == TokenType::Assign {
-            match *expression {
-                Expression::Identifier(_) | Expression::Index(_) => {
-                    self.next_token();
-                    self.next_token();
+            self.next_token();
+            self.next_token();
 
-                    let value = Box::new(self.parse_expression(Precedence::Lowest)?);
-                    let assign_statement = AssignStatement {
-                        target: expression,
-                        value: value,
-                    };
-                    statement = Statement::Assign(assign_statement);
-                }
-                _ => return Err(ParseError::UnexpectedToken(self.current_token.clone())),
-            }
+            let value = Box::new(self.parse_expression(Precedence::Lowest)?);
+            let assign_statement = AssignStatement {
+                target: expression,
+                value: value,
+            };
+            statement = Statement::Assign(assign_statement);
         } else {
             let expression_statement = ExpressionStatement {
                 token: self.current_token.clone(),

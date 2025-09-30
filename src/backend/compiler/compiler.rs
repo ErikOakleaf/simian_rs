@@ -11,6 +11,7 @@ use crate::runtime::object::{CompiledFunction, Object};
 pub enum CompilationError {
     UnknownOperator(String),
     UnknownSymbol(String),
+    Unassignable(Expression),
 }
 
 #[derive(Clone, Copy)]
@@ -119,7 +120,35 @@ impl Compiler {
                 self.compile_expression(return_statement.return_value.as_ref())?;
                 self.emit(Opcode::ReturnValue, &[]);
             }
-            Statement::Assign(assign_statement) => {}
+            Statement::Assign(assign_statement) => match assign_statement.target.as_ref() {
+                Expression::Identifier(identifier_expression) => {
+                    self.compile_expression(assign_statement.value.as_ref())?;
+
+                    let symbol = self
+                        .symbol_table
+                        .borrow_mut()
+                        .resolve(&identifier_expression.token.literal)?;
+
+                    if symbol.scope == SymbolScope::Global {
+                        let index = symbol.index.to_be_bytes();
+                        self.emit(Opcode::AssignGlobal, &[&index]);
+                    } else {
+                        let index = symbol.index as u8;
+                        self.emit(Opcode::AssignLocal, &[&[index]]);
+                    }
+                }
+                Expression::Index(index_expression) => {
+                    self.compile_expression(index_expression.left.as_ref())?;
+                    self.compile_expression(index_expression.index.as_ref())?;
+                    self.compile_expression(assign_statement.value.as_ref())?;
+                    self.emit(Opcode::AssignIndexable, &[]);
+                }
+                _ => {
+                    return Err(CompilationError::Unassignable(
+                        *assign_statement.target.clone(),
+                    ));
+                }
+            },
         };
         Ok(())
     }
@@ -1713,27 +1742,79 @@ mod tests {
             },
             CompilerTestCase {
                 input: "fn() { let a = 2; a = 1 };",
-                expected_constants: vec![Object::Integer(2), Object::Integer(1)],
+                expected_constants: vec![
+                    Object::Integer(2),
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
+                            make(Opcode::AssignLocal, &[&[0]]),
+                            make(Opcode::Return, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        0,
+                    ))),
+                ],
                 expected_instructions: vec![
-                    make(Opcode::LoadConstant, &[&[0, 0]]),
-                    make(Opcode::SetLocal, &[&[0, 0]]),
-                    make(Opcode::LoadConstant, &[&[0, 1]]),
-                    make(Opcode::AssignLocal, &[&[0, 0]]),
-                    make(Opcode::Return, &[]),
+                    make(Opcode::Closure, &[&[0, 2], &[0]]),
+                    make(Opcode::Pop, &[]),
                 ],
             },
             CompilerTestCase {
                 input: "let a = [1, 2]; a[0] = 3;",
-                expected_constants: vec![Object::Integer(1), Object::Integer(2), Object::Integer(0), Object::Integer(3)],
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(0),
+                    Object::Integer(3),
+                ],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
-                    make(Opcode::Array, &[&[0, 3]]),
+                    make(Opcode::Array, &[&[0, 2]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 2]]),
                     make(Opcode::LoadConstant, &[&[0, 3]]),
                     make(Opcode::AssignIndexable, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() {let a = [1, 2]; a[0] = 3;}",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(0),
+                    Object::Integer(3),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 0]]),
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
+                            make(Opcode::Array, &[&[0, 2]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::GetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 2]]),
+                            make(Opcode::LoadConstant, &[&[0, 3]]),
+                            make(Opcode::AssignIndexable, &[]),
+                            make(Opcode::Return, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::Closure, &[&[0, 4], &[0]]),
+                    make(Opcode::Pop, &[]),
                 ],
             },
         ];
