@@ -119,7 +119,9 @@ impl Compiler {
                 self.compile_expression(return_statement.return_value.as_ref())?;
                 self.emit(Opcode::ReturnValue, &[]);
             }
-            Statement::Assign(assign_statement) => {}
+            Statement::Assign(assign_statement) => {
+
+            }
         };
         Ok(())
     }

@@ -103,13 +103,13 @@ impl fmt::Display for ExpressionStatement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssignStatement {
-    pub name: IdentifierExpression,
+    pub target: Box<Expression>,
     pub value: Box<Expression>,
 }
 
 impl fmt::Display for AssignStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} = {}", self.name, self.value)
+        write!(f, "{} = {}", self.target, self.value)
     }
 }
 
