@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
@@ -241,7 +242,7 @@ impl VM {
                             self.push(Object::Integer(*l + *r))?;
                         }
                         (Object::String(l), Object::String(r)) => {
-                            self.push(Object::String(Rc::new(format!("{}{}", l, r).to_string())))?;
+                            self.push(Object::String(Rc::new(RefCell::new(format!("{}{}", l.borrow(), r.borrow()).to_string()))))?;
                         }
                         _ => {
                             return Err(RuntimeError::TypeMismatch {
@@ -399,7 +400,7 @@ impl VM {
 
                     self.sp = start;
 
-                    self.push(Object::Array(array))?;
+                    self.push(Object::Array(Rc::new(RefCell::new(array))))?;
                 }
                 HASH => {
                     let hash_length = u16::from_be_bytes(
@@ -421,7 +422,7 @@ impl VM {
                         let key = match unsafe { self.stack[i].assume_init_read() } {
                             Object::Integer(value) => HashKey::Integer(value),
                             Object::Boolean(value) => HashKey::Boolean(value),
-                            Object::String(value) => HashKey::String(value.to_string()),
+                            Object::String(value) => HashKey::String(value.borrow().to_string()),
                             other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
                         let value = unsafe { self.stack[i + 1].assume_init_read() };
@@ -432,7 +433,7 @@ impl VM {
                     }
 
                     self.sp -= hash_length;
-                    self.push(Object::Hash(Rc::new(hash)))?;
+                    self.push(Object::Hash(Rc::new(RefCell::new(hash))))?;
                 }
                 INDEX => {
                     let index_object = self.pop();
@@ -450,7 +451,7 @@ impl VM {
                                 }
                             };
 
-                            match array.get(index as usize) {
+                            match array.borrow().get(index as usize) {
                                 Some(obj) => self.push(obj.clone())?,
                                 None => self.push(Object::Null)?,
                             }
@@ -459,7 +460,7 @@ impl VM {
                             let key = match index_object {
                                 Object::Integer(value) => HashKey::Integer(value),
                                 Object::Boolean(value) => HashKey::Boolean(value),
-                                Object::String(value) => HashKey::String(value.to_string()),
+                                Object::String(value) => HashKey::String(value.borrow().to_string()),
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
                                         indexable: indexable_object,
@@ -468,7 +469,7 @@ impl VM {
                                 }
                             };
 
-                            if let Some(value) = hash.get(&key) {
+                            if let Some(value) = hash.borrow().get(&key) {
                                 self.push(value.clone())?;
                             } else {
                                 self.push(Object::Null)?;
@@ -985,15 +986,15 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "\"monkey\"",
-                expected: Object::String(Rc::new("monkey".to_string())),
+                expected: Object::String(Rc::new(RefCell::new("monkey".to_string()))),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\"",
-                expected: Object::String(Rc::new("monkey".to_string())),
+                expected: Object::String(Rc::new(RefCell::new("monkey".to_string()))),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\" + \"banana\"",
-                expected: Object::String(Rc::new("monkeybanana".to_string())),
+                expected: Object::String(Rc::new(RefCell::new("monkeybanana".to_string()))),
             },
         ];
 
@@ -1005,23 +1006,23 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "[]",
-                expected: Object::Array(vec![]),
+                expected: Object::Array(Rc::new(RefCell::new(vec![]))),
             },
             VMTestCase {
                 input: "[1, 2, 3]",
-                expected: Object::Array(vec![
+                expected: Object::Array(Rc::new(RefCell::new(vec![
                     Object::Integer(1),
                     Object::Integer(2),
                     Object::Integer(3),
-                ]),
+                ]))),
             },
             VMTestCase {
                 input: "[1 + 2, 3 * 4, 5 + 6]",
-                expected: Object::Array(vec![
+                expected: Object::Array(Rc::new(RefCell::new(vec![
                     Object::Integer(3),
                     Object::Integer(12),
                     Object::Integer(11),
-                ]),
+                ]))),
             },
         ];
 
@@ -1033,21 +1034,21 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "{}",
-                expected: Object::Hash(Rc::new(HashMap::<HashKey, Object>::new())),
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::<HashKey, Object>::new()))),
             },
             VMTestCase {
                 input: "{1: 2, 2: 3}",
-                expected: Object::Hash(Rc::new(HashMap::from([
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([
                     (HashKey::Integer(1), Object::Integer(2)),
                     (HashKey::Integer(2), Object::Integer(3)),
-                ]))),
+                ])))),
             },
             VMTestCase {
                 input: "{1 + 1: 2 * 2, 3 + 3: 4 * 4}",
-                expected: Object::Hash(Rc::new(HashMap::from([
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([
                     (HashKey::Integer(2), Object::Integer(4)),
                     (HashKey::Integer(6), Object::Integer(16)),
-                ]))),
+                ])))),
             },
         ];
 
@@ -1366,7 +1367,7 @@ mod tests {
             },
             VMTestCase {
                 input: "rest([1, 2, 3])",
-                expected: Object::Array(vec![Object::Integer(2), Object::Integer(3)]),
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(2), Object::Integer(3)]))),
             },
             VMTestCase {
                 input: "rest([])",
@@ -1374,7 +1375,7 @@ mod tests {
             },
             VMTestCase {
                 input: "push([], 1)",
-                expected: Object::Array(vec![Object::Integer(1)]),
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
             },
         ];
 

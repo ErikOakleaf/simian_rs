@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::{fmt, rc::Rc};
 
@@ -32,9 +33,9 @@ pub enum Object {
     Boolean(bool),
     Builtin(&'static BuiltinFunction),
     CompiledFunction(Rc<CompiledFunction>),
-    String(Rc<String>),
-    Array(Vec<Object>),
-    Hash(Rc<HashMap<HashKey, Object>>),
+    String(Rc<RefCell<String>>),
+    Array(Rc<RefCell<Vec<Object>>>),
+    Hash(Rc<RefCell<HashMap<HashKey, Object>>>),
     Closure(Rc<Closure>),
     Null,
     Void,
@@ -53,19 +54,19 @@ impl fmt::Display for Object {
                 write!(f, "CompiledFunction{:?}", value.instructions)
             }
             Object::String(value) => {
-                write!(f, "{}", value)
+                write!(f, "{}", value.borrow())
             }
             Object::Builtin(value) => {
                 write!(f, "{}", value)
             }
             Object::Array(value) => {
-                let elements: Vec<String> = value.iter().map(|el| el.to_string()).collect();
+                let elements: Vec<String> = value.borrow().iter().map(|el| el.to_string()).collect();
 
                 write!(f, "[{}]", elements.join(", "))
             }
             Object::Hash(value) => {
                 let pairs: Vec<String> =
-                    value.iter().map(|(k, v)| format!("{}: {}", k, v)).collect();
+                    value.borrow().iter().map(|(k, v)| format!("{}: {}", k, v)).collect();
                 write!(f, "{{{}}}", pairs.join(", "))
             }
             Object::Closure(value) => {

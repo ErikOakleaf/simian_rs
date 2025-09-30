@@ -147,7 +147,7 @@ impl Compiler {
                 self.load_symbol(symbol);
             }
             Expression::String(string_token) => {
-                let string_object = Object::String(Rc::new(string_token.literal.clone()));
+                let string_object = Object::String(Rc::new(RefCell::new(string_token.literal.clone())));
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
             }
@@ -824,7 +824,7 @@ mod tests {
         let tests = vec![
             CompilerTestCase {
                 input: "\"monkey\"",
-                expected_constants: vec![Object::String(Rc::new("monkey".to_string()))],
+                expected_constants: vec![Object::String(Rc::new(RefCell::new("monkey".to_string())))],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::Pop, &[]),
@@ -833,8 +833,8 @@ mod tests {
             CompilerTestCase {
                 input: "\"mon\" + \"key\"",
                 expected_constants: vec![
-                    Object::String(Rc::new("mon".to_string())),
-                    Object::String(Rc::new("key".to_string())),
+                    Object::String(Rc::new(RefCell::new("mon".to_string()))),
+                    Object::String(Rc::new(RefCell::new("key".to_string()))),
                 ],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[&[0, 0]]),
