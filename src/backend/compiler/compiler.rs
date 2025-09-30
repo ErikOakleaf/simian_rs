@@ -1817,6 +1817,57 @@ mod tests {
                     make(Opcode::Pop, &[]),
                 ],
             },
+            CompilerTestCase {
+                input: "let a = 1; let b = 2; a = 3; b = 4;",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                    Object::Integer(4),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::SetGlobal, &[&[0, 1]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::AssignGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::AssignGlobal, &[&[0, 1]]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let a = 1; fn() { let b = 2; a = 3; b = 4; }",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                    Object::Integer(4),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        vec![
+                            make(Opcode::LoadConstant, &[&[0, 1]]),
+                            make(Opcode::SetLocal, &[&[0]]),
+                            make(Opcode::LoadConstant, &[&[0, 2]]),
+                            make(Opcode::AssignGlobal, &[&[0, 0]]),
+                            make(Opcode::LoadConstant, &[&[0, 3]]),
+                            make(Opcode::AssignLocal, &[&[0]]),
+                            make(Opcode::Return, &[]),
+                        ]
+                        .into_iter()
+                        .flat_map(|b| b.into_vec())
+                        .collect::<Vec<u8>>()
+                        .into_boxed_slice(),
+                        1,
+                        0,
+                    ))),
+                ],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::Closure, &[&[0, 4], &[0]]),
+                    make(Opcode::Pop, &[]),
+                ],
+            },
         ];
 
         run_compiler_tests(tests);
