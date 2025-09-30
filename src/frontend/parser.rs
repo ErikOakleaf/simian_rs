@@ -1,13 +1,13 @@
-use crate::{
-    frontend::ast::{
-        ArrayLiteralExpression, BlockStatement, BooleanLiteralExpression, CallExpression,
-        Expression, ExpressionStatement, FunctionLiteralExpression, HashLiteralExpression,
-        IdentifierExpression, IfExpression, IndexExpression, InfixExpression,
-        IntegerLiteralExpression, LetStatement, PrefixExpression, Program, ReturnStatement,
-        Statement,
+use crate::frontend::{
+    ast::{
+        ArrayLiteralExpression, AssignStatement, BlockStatement, BooleanLiteralExpression,
+        CallExpression, Expression, ExpressionStatement, FunctionLiteralExpression,
+        HashLiteralExpression, IdentifierExpression, IfExpression, IndexExpression,
+        InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program,
+        ReturnStatement, Statement,
     },
-    frontend::lexer::Lexer,
-    frontend::token::{Token, TokenType},
+    lexer::Lexer,
+    token::{Token, TokenType},
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -77,10 +77,19 @@ impl<'a> Parser<'a> {
     // Parse statements
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
-        match self.current_token.token_type {
+        let current_token_type = &self.current_token.token_type;
+        match current_token_type {
             TokenType::Let => self.parse_let_statement(),
             TokenType::Return => self.parse_return_statement(),
-            _ => self.parse_expression_statement(),
+            _ => {
+                if *current_token_type == TokenType::Ident
+                    && self.peek_token.token_type == TokenType::Assign
+                {
+                    self.parse_assign_statement()
+                } else {
+                    self.parse_expression_statement()
+                }
+            }
         }
     }
 
@@ -127,6 +136,27 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Statement::Return(statement))
+    }
+
+    fn parse_assign_statement(&mut self) -> Result<Statement, ParseError> {
+        let name = IdentifierExpression {
+            token: self.current_token.clone(),
+        };
+
+        self.expect_peek(TokenType::Assign)?;
+        self.next_token();
+
+        let value = Box::new(self.parse_expression(Precedence::Lowest)?);
+
+        if self.peek_token.token_type == TokenType::Semicolon {
+            self.next_token();
+        }
+
+        let assign_statement = AssignStatement {
+            name: name,
+            value: value,
+        };
+        Ok(Statement::Assign(assign_statement))
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement, ParseError> {
@@ -1397,6 +1427,45 @@ mod tests {
             other => panic!("statement {} is not let statement", other),
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_assign_statement() -> Result<(), ParseError> {
+        let input = "a = 5";
+
+        let program = parse_input(input)?;
+
+        let statement = &program.statements[0];
+        match statement {
+            Statement::Assign(assign_statement) => {
+                let expected_name = IdentifierExpression {
+                    token: Token {
+                        token_type: TokenType::Ident,
+                        literal: "a".to_string(),
+                    },
+                };
+                let expected_value =
+                    Box::new(Expression::IntegerLiteral(IntegerLiteralExpression {
+                        token: Token {
+                            token_type: TokenType::Int,
+                            literal: "5".to_string(),
+                        },
+                        value: 5,
+                    }));
+                assert_eq!(
+                    expected_name, assign_statement.name,
+                    "expected name {} got {}",
+                    expected_name, assign_statement.name
+                );
+                assert_eq!(
+                    expected_value, assign_statement.value,
+                    "expected value {} got {}",
+                    expected_value, assign_statement.value
+                );
+            }
+            _ => panic!("Statement is not assign statement"),
+        }
         Ok(())
     }
 }

@@ -15,7 +15,7 @@ macro_rules! impl_display_for_enum {
         };
 }
 
-impl_display_for_enum!(Statement, Let, Return, Expression);
+impl_display_for_enum!(Statement, Let, Return, Expression, Assign);
 impl_display_for_enum!(
     Expression,
     Identifier,
@@ -39,6 +39,7 @@ pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+    Assign(AssignStatement),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +98,18 @@ pub struct ExpressionStatement {
 impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.expression)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssignStatement {
+    pub name: IdentifierExpression,
+    pub value: Box<Expression>,
+}
+
+impl fmt::Display for AssignStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} = {}", self.name, self.value)
     }
 }
 
@@ -218,7 +231,7 @@ impl fmt::Display for FunctionLiteralExpression {
             self.body
         )?;
 
-        if let Some(ref name) = self.name{
+        if let Some(ref name) = self.name {
             write!(f, " {}", name)?;
         }
 

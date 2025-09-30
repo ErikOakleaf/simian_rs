@@ -91,7 +91,9 @@ fn rest_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
             return Ok(Object::Array(Rc::new(RefCell::new(vec![]))));
         }
 
-        Ok(Object::Array(Rc::new(RefCell::new(arr.borrow()[1..arr.borrow().len()].to_vec()))))
+        Ok(Object::Array(Rc::new(RefCell::new(
+            arr.borrow()[1..arr.borrow().len()].to_vec(),
+        ))))
     } else {
         Err(RuntimeError::Other(format!(
             "argument to rest not supported, got {}",
@@ -103,8 +105,7 @@ fn rest_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
 fn push_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     check_args_length(args.len(), 2)?;
 
-    
-if let Object::Array(arr_rc) = &args[0] {
+    if let Object::Array(arr_rc) = &args[0] {
         let arr_borrow = arr_rc.borrow();
 
         let mut new_vec = arr_borrow.clone();
