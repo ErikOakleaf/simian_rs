@@ -119,9 +119,7 @@ impl Compiler {
                 self.compile_expression(return_statement.return_value.as_ref())?;
                 self.emit(Opcode::ReturnValue, &[]);
             }
-            Statement::Assign(assign_statement) => {
-
-            }
+            Statement::Assign(assign_statement) => {}
         };
         Ok(())
     }
@@ -150,7 +148,8 @@ impl Compiler {
                 self.load_symbol(symbol);
             }
             Expression::String(string_token) => {
-                let string_object = Object::String(Rc::new(RefCell::new(string_token.literal.clone())));
+                let string_object =
+                    Object::String(Rc::new(RefCell::new(string_token.literal.clone())));
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
             }
@@ -827,7 +826,9 @@ mod tests {
         let tests = vec![
             CompilerTestCase {
                 input: "\"monkey\"",
-                expected_constants: vec![Object::String(Rc::new(RefCell::new("monkey".to_string())))],
+                expected_constants: vec![Object::String(Rc::new(RefCell::new(
+                    "monkey".to_string(),
+                )))],
                 expected_instructions: vec![
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::Pop, &[]),
@@ -1690,6 +1691,49 @@ mod tests {
                     make(Opcode::GetGlobal, &[&[0, 0]]),
                     make(Opcode::Call, &[&[0]]),
                     make(Opcode::Pop, &[]),
+                ],
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_assignment() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "let a = 2; a = 1;",
+                expected_constants: vec![Object::Integer(2), Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::AssignGlobal, &[&[0, 0]]),
+                ],
+            },
+            CompilerTestCase {
+                input: "fn() { let a = 2; a = 1 };",
+                expected_constants: vec![Object::Integer(2), Object::Integer(1)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::SetLocal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::AssignLocal, &[&[0, 0]]),
+                    make(Opcode::Return, &[]),
+                ],
+            },
+            CompilerTestCase {
+                input: "let a = [1, 2]; a[0] = 3;",
+                expected_constants: vec![Object::Integer(1), Object::Integer(2), Object::Integer(0), Object::Integer(3)],
+                expected_instructions: vec![
+                    make(Opcode::LoadConstant, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 1]]),
+                    make(Opcode::Array, &[&[0, 3]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
+                    make(Opcode::GetGlobal, &[&[0, 0]]),
+                    make(Opcode::LoadConstant, &[&[0, 2]]),
+                    make(Opcode::LoadConstant, &[&[0, 3]]),
+                    make(Opcode::AssignIndexable, &[]),
                 ],
             },
         ];

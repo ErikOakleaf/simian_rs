@@ -1458,4 +1458,56 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn test_parsing_assign_statement_indexable() -> Result<(), ParseError> {
+        let input = "a[0] = 5";
+
+        let program = parse_input(input)?;
+
+        let statement = &program.statements[0];
+        match statement {
+            Statement::Assign(assign_statement) => {
+                let expected_target = Box::new(Expression::Index(IndexExpression {
+                    token: Token {
+                        token_type: TokenType::LBracket,
+                        literal: "[".to_string(),
+                    },
+                    left: Box::new(Expression::Identifier(IdentifierExpression {
+                        token: Token {
+                            token_type: TokenType::Ident,
+                            literal: "a".to_string(),
+                        },
+                    })),
+                    index: Box::new(Expression::IntegerLiteral(IntegerLiteralExpression {
+                        token: Token {
+                            token_type: TokenType::Int,
+                            literal: "0".to_string(),
+                        },
+                        value: 0,
+                    })),
+                }));
+                let expected_value =
+                    Box::new(Expression::IntegerLiteral(IntegerLiteralExpression {
+                        token: Token {
+                            token_type: TokenType::Int,
+                            literal: "5".to_string(),
+                        },
+                        value: 5,
+                    }));
+                assert_eq!(
+                    expected_target, assign_statement.target,
+                    "expected name:\n{}\ngot:\n{}",
+                    expected_target, assign_statement.target
+                );
+                assert_eq!(
+                    expected_value, assign_statement.value,
+                    "expected value:\n{}\ngot:\n{}",
+                    expected_value, assign_statement.value
+                );
+            }
+            _ => panic!("Statement is not assign statement"),
+        }
+        Ok(())
+    }
 }
