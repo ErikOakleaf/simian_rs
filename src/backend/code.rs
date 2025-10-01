@@ -261,7 +261,7 @@ const fn build_operand_widths() -> [OperandInfo; 31] {
 
 pub static OPERAND_WIDTHS: [OperandInfo; 31] = build_operand_widths();
 
-pub fn make(opcode: Opcode, operands: &[&[u8]]) -> Box<[u8]> {
+pub fn make(buffer: &mut Vec<u8>, opcode: Opcode, operands: &[&[u8]]) {
     let expected_amount_operands = OPERAND_WIDTHS[opcode as usize].amount;
 
     debug_assert_eq!(
@@ -272,6 +272,8 @@ pub fn make(opcode: Opcode, operands: &[&[u8]]) -> Box<[u8]> {
         expected_amount_operands,
         operands.len()
     );
+
+    buffer.push(opcode as u8);
 
     for (i, operand) in operands.iter().enumerate() {
         let operand_width = OPERAND_WIDTHS[opcode as usize].widths[i];
@@ -285,22 +287,9 @@ pub fn make(opcode: Opcode, operands: &[&[u8]]) -> Box<[u8]> {
             operand_width,
             operand.len(),
         );
+
+        buffer.extend_from_slice(operand);
     }
-
-    let operands_length: usize = operands.iter().map(|op| op.len()).sum();
-    let mut instruction = allocate_array(operands_length + 1);
-    let instruction_slice = instruction.as_mut();
-
-    instruction_slice[0] = opcode as u8;
-
-    let mut flattened = Vec::with_capacity(operands_length);
-    for operand in operands {
-        flattened.extend_from_slice(operand);
-    }
-
-    instruction_slice[1..].copy_from_slice(&flattened);
-
-    instruction
 }
 
 // Helpers
@@ -328,7 +317,7 @@ mod tests {
 
     struct MakeTestCase<'a> {
         opcode: Opcode,
-        operand: &'a[&'a [u8]],
+        operand: &'a [&'a [u8]],
         expected: &'a [u8],
     }
 
@@ -353,7 +342,8 @@ mod tests {
         ];
 
         for test in tests {
-            let instruction = make(test.opcode, test.operand);
+            let mut instruction = Vec::<u8>::new();
+            make(&mut instruction, test.opcode, test.operand);
 
             let instruction_length = instruction.len();
             let expected_length = test.expected.len();
@@ -363,11 +353,11 @@ mod tests {
                 expected_length, instruction_length
             );
             assert_eq!(
-                instruction.as_ref(),
                 test.expected,
+                &instruction,
                 "expected instruction {:?} got {:?}",
                 test.expected,
-                instruction
+                &instruction
             );
         }
     }
