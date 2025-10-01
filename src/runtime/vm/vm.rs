@@ -223,6 +223,9 @@ impl VM {
             const CLOSURE: u8 = Opcode::Closure as u8;
             const GET_FREE: u8 = Opcode::GetFree as u8;
             const CURRENT_CLOSURE: u8 = Opcode::CurrentClosure as u8;
+            const ASSIGN_GLOBAL: u8 = Opcode::AssignGlobal as u8;
+            const ASSIGN_LOCAL: u8 = Opcode::AssignLocal as u8;
+            const ASSIGN_INDEXABLE: u8 = Opcode::AssignIndexable as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -565,6 +568,17 @@ impl VM {
                 CURRENT_CLOSURE => {
                     let current_closure = self.current_frame().closure.clone();
                     self.push(Object::Closure(current_closure))?;
+                }
+                ASSIGN_GLOBAL => {
+                    let global_index = u16::from_be_bytes(
+                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    current_frame.ip += 2;
+
+                    let value = self.pop_with_last()?;
+                    self.globals.bind(global_index, value);
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
