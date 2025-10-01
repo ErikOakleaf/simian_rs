@@ -223,8 +223,6 @@ impl VM {
             const CLOSURE: u8 = Opcode::Closure as u8;
             const GET_FREE: u8 = Opcode::GetFree as u8;
             const CURRENT_CLOSURE: u8 = Opcode::CurrentClosure as u8;
-            const ASSIGN_GLOBAL: u8 = Opcode::AssignGlobal as u8;
-            const ASSIGN_LOCAL: u8 = Opcode::AssignLocal as u8;
             const ASSIGN_INDEXABLE: u8 = Opcode::AssignIndexable as u8;
 
             match opcode {
@@ -516,9 +514,8 @@ impl VM {
                         base_pointer = current_frame.base_pointer;
                     }
 
-                    let value =
-                        unsafe { self.stack[base_pointer + local_index].assume_init_read() };
-                    self.push(value)?;
+                    let value = unsafe { &*self.stack[base_pointer + local_index].as_ptr() };
+                    self.push(value.clone())?;
                 }
                 SET_LOCAL => {
                     let local_index;
@@ -569,16 +566,43 @@ impl VM {
                     let current_closure = self.current_frame().closure.clone();
                     self.push(Object::Closure(current_closure))?;
                 }
-                ASSIGN_GLOBAL => {
-                    let global_index = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                ASSIGN_INDEXABLE => {
+                    let value = self.pop();
+                    let index_object = self.pop();
+                    let container = self.pop_with_last()?;
 
-                    let value = self.pop_with_last()?;
-                    self.globals.bind(global_index, value);
+                    match &container {
+                        Object::Array(arr) => {
+                            let index = match index_object {
+                                Object::Integer(value) => value,
+                                other => {
+                                    return Err(RuntimeError::InvalidIndexType {
+                                        indexable: container.clone(),
+                                        index: other,
+                                    });
+                                }
+                            };
+                            arr.borrow_mut()[index as usize] = value;
+                        }
+                        Object::Hash(hash) => {
+                            let key = match index_object {
+                                Object::Integer(value) => HashKey::Integer(value),
+                                Object::Boolean(value) => HashKey::Boolean(value),
+                                Object::String(value) => {
+                                    HashKey::String(value.borrow().to_string())
+                                }
+                                other => {
+                                    return Err(RuntimeError::InvalidIndexType {
+                                        indexable: container.clone(),
+                                        index: other,
+                                    });
+                                }
+                            };
+
+                            hash.borrow_mut().insert(key, value);
+                        }
+                        other => return Err(RuntimeError::NotIndexable(other.clone())),
+                    }
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
@@ -590,15 +614,16 @@ impl VM {
     // Helpers
 
     fn execute_call(&mut self, amount_arguments: usize) -> Result<(), RuntimeError> {
-        let calee = unsafe { self.stack[self.sp - 1 - amount_arguments].assume_init_read() };
+        let callee_slot = &self.stack[self.sp - 1 - amount_arguments];
+        let callee = unsafe { &*callee_slot.as_ptr() };
 
-        match calee {
-            Object::Closure(closure) => self.call_closure(closure, amount_arguments),
+        match callee {
+            Object::Closure(closure) => self.call_closure(closure.clone(), amount_arguments),
             Object::Builtin(builtin_function) => {
                 self.call_builtin(builtin_function, amount_arguments)
             }
             other => {
-                return Err(RuntimeError::CallNonFunction(other));
+                return Err(RuntimeError::CallNonFunction(other.clone()));
             }
         }
     }
@@ -1603,6 +1628,18 @@ mod tests {
                 expected: Object::Integer(2),
             },
             VMTestCase {
+                input: "let a = 1; a = a + 2; a = a + 3; a",
+                expected: Object::Integer(6),
+            },
+            VMTestCase {
+                input: "let a = \"hello\"; a = a + \" world\"; a",
+                expected: Object::String(Rc::new(RefCell::new("hello world".to_string()))),
+            },
+            VMTestCase {
+                input: "let c = fn() {let a = 2; let b = 2; a = 1; b = 1; a + b}; c()",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
                 input: "let a = [2, 1]; a[0] = 1; a[0]",
                 expected: Object::Integer(1),
             },
@@ -1611,19 +1648,11 @@ mod tests {
                 expected: Object::Integer(1),
             },
             VMTestCase {
-                input: "let c = fn() {let a = 2; let b = 2; a = 1; b = 1; a + b}; c()",
-                expected: Object::Integer(1),
-            },
-            VMTestCase {
                 input: "let c = fn() { let h = {true: 10}; h[true] = 99; h[true] }; c()",
                 expected: Object::Integer(99),
             },
             VMTestCase {
                 input: "let a = 10; let f = fn() { let b = 20; a = 5; b = 1; a + b }; f()",
-                expected: Object::Integer(6),
-            },
-            VMTestCase {
-                input: "let a = 1; a = a + 2; a = a + 3; a",
                 expected: Object::Integer(6),
             },
         ];

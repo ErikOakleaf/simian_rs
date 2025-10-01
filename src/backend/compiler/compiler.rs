@@ -131,10 +131,10 @@ impl Compiler {
 
                     if symbol.scope == SymbolScope::Global {
                         let index = symbol.index.to_be_bytes();
-                        self.emit(Opcode::AssignGlobal, &[&index]);
+                        self.emit(Opcode::SetGlobal, &[&index]);
                     } else {
                         let index = symbol.index as u8;
-                        self.emit(Opcode::AssignLocal, &[&[index]]);
+                        self.emit(Opcode::SetLocal, &[&[index]]);
                     }
                 }
                 Expression::Index(index_expression) => {
@@ -1737,7 +1737,7 @@ mod tests {
                     make(Opcode::LoadConstant, &[&[0, 0]]),
                     make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 1]]),
-                    make(Opcode::AssignGlobal, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
                 ],
             },
             CompilerTestCase {
@@ -1750,7 +1750,7 @@ mod tests {
                             make(Opcode::LoadConstant, &[&[0, 0]]),
                             make(Opcode::SetLocal, &[&[0]]),
                             make(Opcode::LoadConstant, &[&[0, 1]]),
-                            make(Opcode::AssignLocal, &[&[0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
                             make(Opcode::Return, &[]),
                         ]
                         .into_iter()
@@ -1831,9 +1831,9 @@ mod tests {
                     make(Opcode::LoadConstant, &[&[0, 1]]),
                     make(Opcode::SetGlobal, &[&[0, 1]]),
                     make(Opcode::LoadConstant, &[&[0, 2]]),
-                    make(Opcode::AssignGlobal, &[&[0, 0]]),
+                    make(Opcode::SetGlobal, &[&[0, 0]]),
                     make(Opcode::LoadConstant, &[&[0, 3]]),
-                    make(Opcode::AssignGlobal, &[&[0, 1]]),
+                    make(Opcode::SetGlobal, &[&[0, 1]]),
                 ],
             },
             CompilerTestCase {
@@ -1848,9 +1848,9 @@ mod tests {
                             make(Opcode::LoadConstant, &[&[0, 1]]),
                             make(Opcode::SetLocal, &[&[0]]),
                             make(Opcode::LoadConstant, &[&[0, 2]]),
-                            make(Opcode::AssignGlobal, &[&[0, 0]]),
+                            make(Opcode::SetGlobal, &[&[0, 0]]),
                             make(Opcode::LoadConstant, &[&[0, 3]]),
-                            make(Opcode::AssignLocal, &[&[0]]),
+                            make(Opcode::SetLocal, &[&[0]]),
                             make(Opcode::Return, &[]),
                         ]
                         .into_iter()
