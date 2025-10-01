@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 use std::rc::Rc;
 
 use crate::backend::code::Opcode;
-use crate::backend::compiler::{Bytecode};
+use crate::backend::compiler::Bytecode;
 use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{BuiltinFunction, Closure, CompiledFunction, HashKey, Object};
 use crate::runtime::vm::frame::Frame;
@@ -242,7 +242,9 @@ impl VM {
                             self.push(Object::Integer(*l + *r))?;
                         }
                         (Object::String(l), Object::String(r)) => {
-                            self.push(Object::String(Rc::new(RefCell::new(format!("{}{}", l.borrow(), r.borrow()).to_string()))))?;
+                            self.push(Object::String(Rc::new(RefCell::new(
+                                format!("{}{}", l.borrow(), r.borrow()).to_string(),
+                            ))))?;
                         }
                         _ => {
                             return Err(RuntimeError::TypeMismatch {
@@ -460,7 +462,9 @@ impl VM {
                             let key = match index_object {
                                 Object::Integer(value) => HashKey::Integer(value),
                                 Object::Boolean(value) => HashKey::Boolean(value),
-                                Object::String(value) => HashKey::String(value.borrow().to_string()),
+                                Object::String(value) => {
+                                    HashKey::String(value.borrow().to_string())
+                                }
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
                                         indexable: indexable_object,
@@ -1367,7 +1371,10 @@ mod tests {
             },
             VMTestCase {
                 input: "rest([1, 2, 3])",
-                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(2), Object::Integer(3)]))),
+                expected: Object::Array(Rc::new(RefCell::new(vec![
+                    Object::Integer(2),
+                    Object::Integer(3),
+                ]))),
             },
             VMTestCase {
                 input: "rest([])",
@@ -1566,6 +1573,46 @@ mod tests {
                         fibonacci(15);",
             expected: Object::Integer(610),
         }];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_assignment() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let a = 2; a = 1; a",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let a = 2; let b = 2; a = 1; b = 1; a + b",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
+                input: "let a = [2, 1]; a[0] = 1; a[0]",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let a = { false: 2 }; a[false] = 1; a[false]",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let c = fn() {let a = 2; let b = 2; a = 1; b = 1; a + b}; c()",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let c = fn() { let h = {true: 10}; h[true] = 99; h[true] }; c()",
+                expected: Object::Integer(99),
+            },
+            VMTestCase {
+                input: "let a = 10; let f = fn() { let b = 20; a = 5; b = 1; a + b }; f()",
+                expected: Object::Integer(6),
+            },
+            VMTestCase {
+                input: "let a = 1; a = a + 2; a = a + 3; a",
+                expected: Object::Integer(6),
+            },
+        ];
 
         run_vm_tests(&tests)
     }
