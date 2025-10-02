@@ -1867,8 +1867,7 @@ mod tests {
                     (Opcode::Add, &[]),
                     (Opcode::LoadConstant, &[&vec![0x00, 0x02]]),
                     (Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
-                ],
-                ),
+                ]),
                 expected: "0000 Add\n0001 LoadConstant 2\n0004 LoadConstant 65535\n",
             },
             FormattingTestCase {
@@ -1877,8 +1876,7 @@ mod tests {
                     (Opcode::GetLocal, &[&vec![0x01]]),
                     (Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
                     (Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
-                ],
-                ),
+                ]),
                 expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n",
             },
             FormattingTestCase {
@@ -1888,8 +1886,7 @@ mod tests {
                     (Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
                     (Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
                     (Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF]]),
-                ],
-                ),
+                ]),
                 expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255\n",
             },
         ];
