@@ -10,7 +10,6 @@ pub enum SymbolScope {
     Function,
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Symbol {
     pub name: String,
@@ -21,7 +20,7 @@ pub struct Symbol {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SymbolTable {
     pub outer: Option<Rc<RefCell<SymbolTable>>>,
-    store: HashMap<String, Symbol>,
+    pub store: HashMap<String, Symbol>,
     pub amount_definitions: usize,
 
     pub free_symbols: Vec<Symbol>,
@@ -65,7 +64,11 @@ impl SymbolTable {
     }
 
     pub fn define_function_name(&mut self, name: &str) -> Symbol {
-        let symbol = Symbol { name: name.to_string(), scope: SymbolScope::Function, index: 0 };
+        let symbol = Symbol {
+            name: name.to_string(),
+            scope: SymbolScope::Function,
+            index: 0,
+        };
         self.store.insert(name.to_string(), symbol.clone());
         symbol
     }
@@ -609,11 +612,19 @@ mod tests {
         let global = SymbolTable::new();
         global.borrow_mut().define_function_name("a");
 
-        let expected = Symbol { name: "a".to_string(), scope: SymbolScope::Function, index: 0};
+        let expected = Symbol {
+            name: "a".to_string(),
+            scope: SymbolScope::Function,
+            index: 0,
+        };
 
-        let result = global.borrow_mut().resolve(&expected.name)?; 
+        let result = global.borrow_mut().resolve(&expected.name)?;
 
-        assert_eq!(expected, result, "expected {} to resolve to {:?} got {:?}", expected.name, expected, result);
+        assert_eq!(
+            expected, result,
+            "expected {} to resolve to {:?} got {:?}",
+            expected.name, expected, result
+        );
 
         Ok(())
     }
@@ -624,11 +635,19 @@ mod tests {
         global.borrow_mut().define_function_name("a");
         global.borrow_mut().define("a");
 
-        let expected = Symbol { name: "a".to_string(), scope: SymbolScope::Global, index: 0};
+        let expected = Symbol {
+            name: "a".to_string(),
+            scope: SymbolScope::Global,
+            index: 0,
+        };
 
-        let result = global.borrow_mut().resolve(&expected.name)?; 
+        let result = global.borrow_mut().resolve(&expected.name)?;
 
-        assert_eq!(expected, result, "expected {} to resolve to {:?} got {:?}", expected.name, expected, result);
+        assert_eq!(
+            expected, result,
+            "expected {} to resolve to {:?} got {:?}",
+            expected.name, expected, result
+        );
 
         Ok(())
     }

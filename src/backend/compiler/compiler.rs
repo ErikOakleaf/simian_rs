@@ -12,6 +12,7 @@ pub enum CompilationError {
     UnknownOperator(String),
     UnknownSymbol(String),
     Unassignable(Expression),
+    DefiningAlreadyExistingSymobl(String),
 }
 
 #[derive(Clone, Copy)]
@@ -101,6 +102,16 @@ impl Compiler {
                 self.emit(Opcode::Pop, &[]);
             }
             Statement::Let(let_statement) => {
+                let name = &let_statement.name.token.literal;
+
+                if let Some(existing) = self.symbol_table.borrow().store.get(name) {
+                    if existing.scope != SymbolScope::Function {
+                        return Err(CompilationError::DefiningAlreadyExistingSymobl(
+                            name.to_string(),
+                        ));
+                    }
+                }
+
                 let symbol = self
                     .symbol_table
                     .borrow_mut()
@@ -1787,6 +1798,35 @@ mod tests {
                     (Opcode::LoadConstant, &[&[0, 0]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::Closure, &[&[0, 4], &[0]]),
+                    (Opcode::Pop, &[]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "let a = 1; let b = fn() { let a = 1; a }; a + b()",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 1]]),
+                            (Opcode::SetLocal, &[&[0]]),
+                            (Opcode::GetLocal, &[&[0]]),
+                            (Opcode::ReturnValue, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        1,
+                        0,
+                    ))),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::LoadConstant, &[&[0, 0]]),
+                    (Opcode::SetGlobal, &[&[0, 0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::SetGlobal, &[&[0, 1]]),
+                    (Opcode::GetGlobal, &[&[0, 0]]),
+                    (Opcode::GetGlobal, &[&[0, 1]]),
+                    (Opcode::Call, &[&[0]]),
+                    (Opcode::Add, &[]),
                     (Opcode::Pop, &[]),
                 ]),
             },
