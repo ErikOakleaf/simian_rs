@@ -25,6 +25,7 @@ pub enum TokenType {
     If,
     Else,
     Return,
+    While,
 
     // Operators
     Assign,
@@ -62,6 +63,7 @@ impl Token {
             "if" => TokenType::If,
             "else" => TokenType::Else,
             "return" => TokenType::Return,
+            "while" => TokenType::While,
             _ => TokenType::Ident,
         }
     }

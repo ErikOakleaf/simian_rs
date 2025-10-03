@@ -4,7 +4,7 @@ use crate::frontend::{
         CallExpression, Expression, ExpressionStatement, FunctionLiteralExpression,
         HashLiteralExpression, IdentifierExpression, IfExpression, IndexExpression,
         InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statement,
+        ReturnStatement, Statement, WhileStatement,
     },
     lexer::Lexer,
     token::{Token, TokenType},
@@ -81,6 +81,7 @@ impl<'a> Parser<'a> {
         match current_token_type {
             TokenType::Let => self.parse_let_statement(),
             TokenType::Return => self.parse_return_statement(),
+            TokenType::While => self.parse_while_statement(),
             _ => self.parse_expression_assign_statement(),
         }
     }
@@ -157,6 +158,21 @@ impl<'a> Parser<'a> {
         }
 
         Ok(statement)
+    }
+
+    fn parse_while_statement(&mut self) -> Result<Statement, ParseError> {
+        self.expect_peek(TokenType::LParen)?;
+        self.next_token();
+
+        let condition = Box::new(self.parse_expression(Precedence::Lowest)?);
+
+        self.expect_peek(TokenType::RParen)?;
+        self.expect_peek(TokenType::LBrace)?;
+
+        let body = self.parse_block_statement()?;
+
+        let while_statement = WhileStatement {condition: condition, body: body};
+        Ok(Statement::While(while_statement))
     }
 
     fn parse_block_statement(&mut self) -> Result<BlockStatement, ParseError> {
@@ -1502,6 +1518,33 @@ mod tests {
                 );
             }
             _ => panic!("Statement is not assign statement"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_while_statements() -> Result<(), ParseError> {
+        let input = "while (1 < 2) { 5 + 5 }";
+
+        let program = parse_input(input)?;
+
+        let statement = &program.statements[0];
+        match statement {
+            Statement::While(while_statement) => {
+                test_infix_expression(while_statement.condition.as_ref(), ExpectedLiteral::Int(1), "<", ExpectedLiteral::Int(2));
+                let body_statement = while_statement.body.statements[0].clone();
+                let body_expression = match body_statement {
+                    Statement::Expression(expression_statement) => expression_statement.expression,
+                    _ => panic!("Statement is not expression statement"),
+                };
+                test_infix_expression(
+                    &body_expression,
+                    ExpectedLiteral::Int(5),
+                    "+",
+                    ExpectedLiteral::Int(5),
+                );
+            }
+            _ => panic!("Statement is not while statement"),
         }
         Ok(())
     }

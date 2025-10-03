@@ -170,11 +170,10 @@ impl Compiler {
                 self.compile_block_statement(&while_statement.body)?;
                 self.emit(Opcode::Jump, &[&start_bytes]);
 
-
-                let current_position_bytes = ((self.current_intstructions().len()) as u16).to_be_bytes();
+                let current_position_bytes =
+                    ((self.current_intstructions().len()) as u16).to_be_bytes();
 
                 self.change_operands(jump_not_truthy_position, &[&current_position_bytes])?;
-
             }
         };
         Ok(())
@@ -1843,6 +1842,190 @@ mod tests {
                     (Opcode::GetGlobal, &[&[0, 1]]),
                     (Opcode::Call, &[&[0]]),
                     (Opcode::Add, &[]),
+                    (Opcode::Pop, &[]),
+                ]),
+            },
+        ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_while_statements() {
+        let tests = vec![
+            CompilerTestCase {
+                input: "while (1 < 2) { 5 + 5 }",
+                expected_constants: vec![
+                    Object::Integer(2),
+                    Object::Integer(1),
+                    Object::Integer(5),
+                    Object::Integer(5),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::LoadConstant, &[&[0, 0]]),
+                    (Opcode::LoadConstant, &[&[0, 1]]),
+                    (Opcode::GreaterThan, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 21]]),
+                    (Opcode::LoadConstant, &[&[0, 2]]),
+                    (Opcode::LoadConstant, &[&[0, 3]]),
+                    (Opcode::Add, &[]),
+                    (Opcode::Pop, &[]),
+                    (Opcode::Jump, &[&[0, 0]]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "while (true) { }",
+                expected_constants: vec![],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::True, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 7]]),
+                    (Opcode::Jump, &[&[0, 0]]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "while (1 < 2) { while (3 < 4) { 5 } }",
+                expected_constants: vec![
+                    Object::Integer(2),
+                    Object::Integer(1),
+                    Object::Integer(4),
+                    Object::Integer(3),
+                    Object::Integer(5),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::LoadConstant, &[&[0, 0]]),
+                    (Opcode::LoadConstant, &[&[0, 1]]),
+                    (Opcode::GreaterThan, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 30]]),
+                    (Opcode::LoadConstant, &[&[0, 2]]),
+                    (Opcode::LoadConstant, &[&[0, 3]]),
+                    (Opcode::GreaterThan, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 27]]),
+                    (Opcode::LoadConstant, &[&[0, 4]]),
+                    (Opcode::Pop, &[]),
+                    (Opcode::Jump, &[&[0, 10]]),
+                    (Opcode::Jump, &[&[0, 0]]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "fn() { while (1 < 2) { 3 } }",
+                expected_constants: vec![
+                    Object::Integer(2),
+                    Object::Integer(1),
+                    Object::Integer(3),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 0]]),
+                            (Opcode::LoadConstant, &[&[0, 1]]),
+                            (Opcode::GreaterThan, &[]),
+                            (Opcode::JumpNotTruthy, &[&[0, 17]]),
+                            (Opcode::LoadConstant, &[&[0, 2]]),
+                            (Opcode::Pop, &[]),
+                            (Opcode::Jump, &[&[0, 0]]),
+                            (Opcode::Return, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Pop, &[]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "
+                    let inner = fn() { 5 };
+                    let outer = fn() { while (1 < 2) { inner() } };
+                ",
+                expected_constants: vec![
+                    Object::Integer(5),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 0]]), // 5
+                            (Opcode::ReturnValue, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::Integer(2),
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 2]]),
+                            (Opcode::LoadConstant, &[&[0, 3]]),
+                            (Opcode::GreaterThan, &[]),
+                            (Opcode::JumpNotTruthy, &[&[0, 19]]),
+                            (Opcode::GetGlobal, &[&[0, 0]]),
+                            (Opcode::Call, &[&[0]]),
+                            (Opcode::Pop, &[]),
+                            (Opcode::Jump, &[&[0, 0]]),
+                            (Opcode::Return, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::Closure, &[&[0, 1], &[0]]), // inner fn
+                    (Opcode::SetGlobal, &[&[0, 0]]),     // let inner
+                    (Opcode::Closure, &[&[0, 4], &[0]]), // outer fn
+                    (Opcode::SetGlobal, &[&[0, 1]]),     // let outer
+                ]),
+            },
+            CompilerTestCase {
+                input: "
+                    let inner = fn() { while (3 < 4) { 5 } };
+                    let outer = fn() { while (1 < 2) { inner() } };
+                    outer();
+                ",
+                expected_constants: vec![
+                    Object::Integer(4), 
+                    Object::Integer(3),
+                    Object::Integer(5),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 0]]), 
+                            (Opcode::LoadConstant, &[&[0, 1]]), 
+                            (Opcode::GreaterThan, &[]),
+                            (Opcode::JumpNotTruthy, &[&[0, 17]]), 
+                            (Opcode::LoadConstant, &[&[0, 2]]),  
+                            (Opcode::Pop, &[]),
+                            (Opcode::Jump, &[&[0, 0]]), 
+                            (Opcode::Return, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::Integer(2), 
+                    Object::Integer(1),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 4]]), 
+                            (Opcode::LoadConstant, &[&[0, 5]]), 
+                            (Opcode::GreaterThan, &[]),
+                            (Opcode::JumpNotTruthy, &[&[0, 19]]),
+                            (Opcode::GetGlobal, &[&[0, 0]]),    
+                            (Opcode::Call, &[&[0]]),
+                            (Opcode::Pop, &[]),
+                            (Opcode::Jump, &[&[0, 0]]), 
+                            (Opcode::Return, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::SetGlobal, &[&[0, 0]]),
+                    (Opcode::Closure, &[&[0, 6], &[0]]),
+                    (Opcode::SetGlobal, &[&[0, 1]]),
+                    (Opcode::GetGlobal, &[&[0, 1]]),
+                    (Opcode::Call, &[&[0]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
