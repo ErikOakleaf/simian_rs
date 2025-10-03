@@ -12,7 +12,7 @@ pub enum CompilationError {
     UnknownOperator(String),
     UnknownSymbol(String),
     Unassignable(Expression),
-    DefiningAlreadyExistingSymobl(String),
+    DefiningAlreadyExistingSymbol(String),
 }
 
 #[derive(Clone, Copy)]
@@ -106,7 +106,7 @@ impl Compiler {
 
                 if let Some(existing) = self.symbol_table.borrow().store.get(name) {
                     if existing.scope != SymbolScope::Function {
-                        return Err(CompilationError::DefiningAlreadyExistingSymobl(
+                        return Err(CompilationError::DefiningAlreadyExistingSymbol(
                             name.to_string(),
                         ));
                     }
@@ -160,6 +160,22 @@ impl Compiler {
                     ));
                 }
             },
+            Statement::While(while_statement) => {
+                let start_bytes = ((self.current_intstructions().len()) as u16).to_be_bytes();
+
+                self.compile_expression(while_statement.condition.as_ref())?;
+
+                let jump_not_truthy_position = self.emit(Opcode::JumpNotTruthy, &[&[0, 0]]);
+
+                self.compile_block_statement(&while_statement.body)?;
+                self.emit(Opcode::Jump, &[&start_bytes]);
+
+
+                let current_position_bytes = ((self.current_intstructions().len()) as u16).to_be_bytes();
+
+                self.change_operands(jump_not_truthy_position, &[&current_position_bytes])?;
+
+            }
         };
         Ok(())
     }

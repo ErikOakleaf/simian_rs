@@ -15,7 +15,7 @@ macro_rules! impl_display_for_enum {
         };
 }
 
-impl_display_for_enum!(Statement, Let, Return, Expression, Assign);
+impl_display_for_enum!(Statement, Let, Return, Expression, Assign, While);
 impl_display_for_enum!(
     Expression,
     Identifier,
@@ -40,6 +40,7 @@ pub enum Statement {
     Return(ReturnStatement),
     Expression(ExpressionStatement),
     Assign(AssignStatement),
+    While(WhileStatement),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -110,6 +111,18 @@ pub struct AssignStatement {
 impl fmt::Display for AssignStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} = {}", self.target, self.value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhileStatement {
+    pub condition: Box<Expression>,
+    pub body: BlockStatement,
+}
+
+impl fmt::Display for WhileStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "while ({}) {{ {} }}", self.condition, self.body)
     }
 }
 
