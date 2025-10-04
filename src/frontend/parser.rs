@@ -172,6 +172,11 @@ impl<'a> Parser<'a> {
         let body = self.parse_block_statement()?;
 
         let while_statement = WhileStatement {condition: condition, body: body};
+
+        if self.peek_token.token_type == TokenType::Semicolon {
+            self.next_token();
+        }
+
         Ok(Statement::While(while_statement))
     }
 

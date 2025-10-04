@@ -1659,4 +1659,79 @@ mod tests {
 
         run_vm_tests(&tests)
     }
+
+    #[test]
+    fn test_while_statemnts() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "let a = 0; while (a < 10) { a = a + 1}; a",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let b = fn() {let a = 0; while (a < 10) { a = a + 1}; a}; b()",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let b = fn() { let a = 0; while (a < 3) { a = a + 2 }; a }; b()",
+                expected: Object::Integer(4),
+            },
+            VMTestCase {
+                input: "
+                    let sum = 0;
+                    let i = 0;
+                    while (i < 3) {
+                        let j = 0;
+                        while (j < 2) {
+                            sum = sum + 1;
+                            j = j + 1;
+                        }
+                        i = i + 1;
+                    }
+                    sum
+                ",
+                expected: Object::Integer(6),
+            },
+            VMTestCase {
+                input: "
+                    let nested = fn() {
+                        let count = 0;
+                        let outer = 0;
+                        while (outer < 2) {
+                            let inner = 0;
+                            while (inner < 3) {
+                                count = count + 1;
+                                inner = inner + 1;
+                            }
+                            outer = outer + 1;
+                        }
+                        count
+                    };
+                    nested()
+                ",
+                expected: Object::Integer(6),
+            },
+            VMTestCase {
+                input: "
+                    let a = 1;
+                    let f = fn() {
+                        let b = 2;
+                        let g = fn() {
+                            let c = 0;
+                            while (c < 3) {
+                                a = a + 1;
+                                b = b + 1;
+                                c = c + 1;
+                            }
+                        };
+                        g();
+                        a + b
+                    };
+                    f()
+                ",
+                expected: Object::Integer(9),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
 }
