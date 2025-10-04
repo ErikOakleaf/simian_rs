@@ -140,13 +140,21 @@ impl Compiler {
                         .borrow_mut()
                         .resolve(&identifier_expression.token.literal)?;
 
-                    if symbol.scope == SymbolScope::Global {
-                        let index = symbol.index.to_be_bytes();
-                        self.emit(Opcode::SetGlobal, &[&index]);
-                    } else {
-                        let index = symbol.index as u8;
-                        self.emit(Opcode::SetLocal, &[&[index]]);
-                    }
+                    match symbol.scope {
+                        SymbolScope::Global => {
+                            let index = symbol.index.to_be_bytes();
+                            self.emit(Opcode::SetGlobal, &[&index]);
+                        }
+                        SymbolScope::Local => {
+                            let index = symbol.index as u8;
+                            self.emit(Opcode::SetLocal, &[&[index]]);
+                        }
+                        SymbolScope::Free => {
+                            let index = symbol.index as u8;
+                            self.emit(Opcode::AssignFree, &[&[index]]);
+                        }
+                        _ => unreachable!("unasignable scope"),
+                    };
                 }
                 Expression::Index(index_expression) => {
                     self.compile_expression(index_expression.left.as_ref())?;
@@ -1845,45 +1853,45 @@ mod tests {
                     (Opcode::Pop, &[]),
                 ]),
             },
-            // CompilerTestCase {
-            //     input: "fn() { let a = 1; let f = fn() { a = 2; a }; f(); a }",
-            //     expected_constants: vec![
-            //         Object::Integer(1),
-            //         Object::Integer(2),
-            //         Object::CompiledFunction(Rc::new(CompiledFunction::new(
-            //             make_instructions(vec![
-            //                 (Opcode::LoadConstant, &[&[0, 1]]),
-            //                 (Opcode::AssignFree, &[&[0]]),
-            //                 (Opcode::GetFree, &[&[0]]),
-            //                 (Opcode::ReturnValue, &[]),
-            //             ])
-            //             .into_boxed_slice(),
-            //             0,
-            //             0,
-            //         ))),
-            //         Object::CompiledFunction(Rc::new(CompiledFunction::new(
-            //             make_instructions(vec![
-            //                 (Opcode::LoadConstant, &[&[0, 0]]),
-            //                 (Opcode::SetLocal, &[&[0]]),
-            //                 (Opcode::Closure, &[&[0, 2], &[1]]),
-            //                 (Opcode::SetLocal, &[&[1]]),
-            //                 (Opcode::GetLocal, &[&[1]]),
-            //                 (Opcode::Call, &[&[0]]),
-            //                 (Opcode::Pop, &[]),
-            //                 (Opcode::GetLocal, &[&[0]]),
-            //                 (Opcode::ReturnValue, &[]),
-            //             ])
-            //             .into_boxed_slice(),
-            //             2,
-            //             0,
-            //         ))),
-            //     ],
-            //     expected_instructions: make_instructions(vec![
-            //         (Opcode::Closure, &[&[0, 3], &[0]]),
-            //         (Opcode::Call, &[&[0]]),
-            //         (Opcode::ReturnValue, &[]),
-            //     ]),
-            // },
+            CompilerTestCase {
+                input: "fn() { let a = 1; let f = fn() { a = 2; a }; f(); a }",
+                expected_constants: vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 1]]),
+                            (Opcode::AssignFree, &[&[0]]),
+                            (Opcode::GetFree, &[&[0]]),
+                            (Opcode::ReturnValue, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        0,
+                        0,
+                    ))),
+                    Object::CompiledFunction(Rc::new(CompiledFunction::new(
+                        make_instructions(vec![
+                            (Opcode::LoadConstant, &[&[0, 0]]),
+                            (Opcode::SetLocal, &[&[0]]),
+                            (Opcode::GetLocal, &[&[0]]),
+                            (Opcode::Closure, &[&[0, 2], &[1]]),
+                            (Opcode::SetLocal, &[&[1]]),
+                            (Opcode::GetLocal, &[&[1]]),
+                            (Opcode::Call, &[&[0]]),
+                            (Opcode::Pop, &[]),
+                            (Opcode::GetLocal, &[&[0]]),
+                            (Opcode::ReturnValue, &[]),
+                        ])
+                        .into_boxed_slice(),
+                        2,
+                        0,
+                    ))),
+                ],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Pop, &[]),
+                ]),
+            },
         ];
 
         run_compiler_tests(tests);
