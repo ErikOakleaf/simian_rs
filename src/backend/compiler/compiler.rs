@@ -1845,6 +1845,45 @@ mod tests {
                     (Opcode::Pop, &[]),
                 ]),
             },
+            // CompilerTestCase {
+            //     input: "fn() { let a = 1; let f = fn() { a = 2; a }; f(); a }",
+            //     expected_constants: vec![
+            //         Object::Integer(1),
+            //         Object::Integer(2),
+            //         Object::CompiledFunction(Rc::new(CompiledFunction::new(
+            //             make_instructions(vec![
+            //                 (Opcode::LoadConstant, &[&[0, 1]]),
+            //                 (Opcode::AssignFree, &[&[0]]),
+            //                 (Opcode::GetFree, &[&[0]]),
+            //                 (Opcode::ReturnValue, &[]),
+            //             ])
+            //             .into_boxed_slice(),
+            //             0,
+            //             0,
+            //         ))),
+            //         Object::CompiledFunction(Rc::new(CompiledFunction::new(
+            //             make_instructions(vec![
+            //                 (Opcode::LoadConstant, &[&[0, 0]]),
+            //                 (Opcode::SetLocal, &[&[0]]),
+            //                 (Opcode::Closure, &[&[0, 2], &[1]]),
+            //                 (Opcode::SetLocal, &[&[1]]),
+            //                 (Opcode::GetLocal, &[&[1]]),
+            //                 (Opcode::Call, &[&[0]]),
+            //                 (Opcode::Pop, &[]),
+            //                 (Opcode::GetLocal, &[&[0]]),
+            //                 (Opcode::ReturnValue, &[]),
+            //             ])
+            //             .into_boxed_slice(),
+            //             2,
+            //             0,
+            //         ))),
+            //     ],
+            //     expected_instructions: make_instructions(vec![
+            //         (Opcode::Closure, &[&[0, 3], &[0]]),
+            //         (Opcode::Call, &[&[0]]),
+            //         (Opcode::ReturnValue, &[]),
+            //     ]),
+            // },
         ];
 
         run_compiler_tests(tests);
@@ -1982,36 +2021,36 @@ mod tests {
                     outer();
                 ",
                 expected_constants: vec![
-                    Object::Integer(4), 
+                    Object::Integer(4),
                     Object::Integer(3),
                     Object::Integer(5),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::LoadConstant, &[&[0, 0]]), 
-                            (Opcode::LoadConstant, &[&[0, 1]]), 
+                            (Opcode::LoadConstant, &[&[0, 0]]),
+                            (Opcode::LoadConstant, &[&[0, 1]]),
                             (Opcode::GreaterThan, &[]),
-                            (Opcode::JumpNotTruthy, &[&[0, 17]]), 
-                            (Opcode::LoadConstant, &[&[0, 2]]),  
+                            (Opcode::JumpNotTruthy, &[&[0, 17]]),
+                            (Opcode::LoadConstant, &[&[0, 2]]),
                             (Opcode::Pop, &[]),
-                            (Opcode::Jump, &[&[0, 0]]), 
+                            (Opcode::Jump, &[&[0, 0]]),
                             (Opcode::Return, &[]),
                         ])
                         .into_boxed_slice(),
                         0,
                         0,
                     ))),
-                    Object::Integer(2), 
+                    Object::Integer(2),
                     Object::Integer(1),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::LoadConstant, &[&[0, 4]]), 
-                            (Opcode::LoadConstant, &[&[0, 5]]), 
+                            (Opcode::LoadConstant, &[&[0, 4]]),
+                            (Opcode::LoadConstant, &[&[0, 5]]),
                             (Opcode::GreaterThan, &[]),
                             (Opcode::JumpNotTruthy, &[&[0, 19]]),
-                            (Opcode::GetGlobal, &[&[0, 0]]),    
+                            (Opcode::GetGlobal, &[&[0, 0]]),
                             (Opcode::Call, &[&[0]]),
                             (Opcode::Pop, &[]),
-                            (Opcode::Jump, &[&[0, 0]]), 
+                            (Opcode::Jump, &[&[0, 0]]),
                             (Opcode::Return, &[]),
                         ])
                         .into_boxed_slice(),

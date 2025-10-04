@@ -1,7 +1,4 @@
-use std::{
-    alloc::{Layout, alloc},
-    fmt,
-};
+use std::fmt;
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -37,6 +34,7 @@ pub enum Opcode {
     GetFree = 0x1C,
     CurrentClosure = 0x1D,
     AssignIndexable = 0x1E,
+    AssignFree = 0x1F,
 }
 
 impl Opcode {
@@ -73,6 +71,7 @@ impl Opcode {
             0x1C => Opcode::GetFree,
             0x1D => Opcode::CurrentClosure,
             0x1E => Opcode::AssignIndexable,
+            0x1F => Opcode::AssignFree,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -112,6 +111,7 @@ impl fmt::Display for Opcode {
             Opcode::GetFree => "GetFree",
             Opcode::CurrentClosure => "CurrentClosure",
             Opcode::AssignIndexable => "AssignIndexable",
+            Opcode::AssignFree => "AssignFree",
         };
         write!(f, "{}", name)
     }
@@ -123,14 +123,14 @@ pub struct OperandInfo {
     pub widths: &'static [usize],
 }
 
-const fn build_operand_widths() -> [OperandInfo; 31] {
+const fn build_operand_widths() -> [OperandInfo; 32] {
     let empty_width: &[usize] = &[];
     let default_operand = OperandInfo {
         amount: 0,
         widths: empty_width,
     };
 
-    let mut table: [OperandInfo; 31] = [default_operand; 31];
+    let mut table: [OperandInfo; 32] = [default_operand; 32];
 
     table[Opcode::LoadConstant as usize] = OperandInfo {
         amount: 1,
@@ -256,10 +256,14 @@ const fn build_operand_widths() -> [OperandInfo; 31] {
         amount: 0,
         widths: &[],
     };
+    table[Opcode::AssignFree as usize] = OperandInfo {
+        amount: 1,
+        widths: &[1],
+    };
     table
 }
 
-pub static OPERAND_WIDTHS: [OperandInfo; 31] = build_operand_widths();
+pub static OPERAND_WIDTHS: [OperandInfo; 32] = build_operand_widths();
 
 pub fn make(buffer: &mut Vec<u8>, opcode: Opcode, operands: &[&[u8]]) {
     let expected_amount_operands = OPERAND_WIDTHS[opcode as usize].amount;
@@ -289,25 +293,6 @@ pub fn make(buffer: &mut Vec<u8>, opcode: Opcode, operands: &[&[u8]]) {
         );
 
         buffer.extend_from_slice(operand);
-    }
-}
-
-// Helpers
-fn allocate_array(size: usize) -> Box<[u8]> {
-    if size == 0 {
-        return Box::new([]);
-    }
-
-    unsafe {
-        let layout = Layout::array::<u8>(size).unwrap();
-
-        let ptr = alloc(layout);
-
-        if ptr.is_null() {
-            std::alloc::handle_alloc_error(layout);
-        }
-
-        Box::from_raw(std::slice::from_raw_parts_mut(ptr, size))
     }
 }
 
@@ -353,11 +338,9 @@ mod tests {
                 expected_length, instruction_length
             );
             assert_eq!(
-                test.expected,
-                &instruction,
+                test.expected, &instruction,
                 "expected instruction {:?} got {:?}",
-                test.expected,
-                &instruction
+                test.expected, &instruction
             );
         }
     }

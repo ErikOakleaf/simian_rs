@@ -117,14 +117,16 @@ impl CompiledFunction {
     }
 }
 
+pub type ClosureCell = Rc<RefCell<Object>>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
     pub function: Rc<CompiledFunction>,
-    pub free: Box<[Object]>,
+    pub free: Box<[ClosureCell]>,
 }
 
 impl Closure {
-    pub fn new(function: Rc<CompiledFunction>, free: Box<[Object]>) -> Self {
+    pub fn new(function: Rc<CompiledFunction>, free: Box<[ClosureCell]>) -> Self {
         Closure {
             function: function,
             free: free,
