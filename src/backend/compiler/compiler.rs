@@ -264,10 +264,6 @@ impl Compiler {
                 let amount_locals = self.symbol_table.borrow().amount_definitions;
                 let instructions = self.leave_scope();
 
-                for symbol in free_symbols {
-                    self.load_symbol(symbol);
-                }
-
                 let compiled_function = Object::CompiledFunction(Rc::new(CompiledFunction::new(
                     instructions,
                     amount_locals,
@@ -276,9 +272,15 @@ impl Compiler {
 
                 let function_index = self.add_constant(compiled_function);
 
+                let local_indices: Vec<u8> = free_symbols.iter().map(|s| s.index as u8).collect();
+
                 self.emit(
                     Opcode::Closure,
-                    &[&function_index.to_be_bytes(), &[free_symbols_amount]],
+                    &[
+                        &function_index.to_be_bytes(),
+                        &[free_symbols_amount],
+                        &local_indices,
+                    ],
                 );
             }
             Expression::Call(call_expression) => {
@@ -382,6 +384,11 @@ impl Compiler {
         position
     }
 
+    fn emit_u8(&mut self, byte: u8) {
+        let current_instructions = self.current_intstructions();
+        current_instructions.push(byte);
+    }
+
     fn enter_scope(&mut self) {
         let scope = CompilationScope::new();
         self.scopes.push(scope);
@@ -457,6 +464,11 @@ impl Compiler {
 
         for (i, expected_width) in OPERAND_WIDTHS[opcode as usize].widths.iter().enumerate() {
             let width = new_operands[i].len();
+
+            if width == usize::MAX {
+                continue;
+            }
+
             debug_assert_eq!(
                 *expected_width, width,
                 "operand {} for opcode {} does not have the correct width expected {} got {}",
@@ -564,26 +576,35 @@ fn format_instructions(instructions: &[u8]) -> String {
 fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Box<[usize]>, usize) {
     let operands_amount = OPERAND_WIDTHS[opcode as usize].amount;
     let operand_widths = OPERAND_WIDTHS[opcode as usize].widths;
+    
     let mut operands = Vec::<usize>::new();
     let mut offset = 0;
-
+    
     for i in 0..operands_amount {
         let width = operand_widths[i];
-
+        
         if width == 0 {
             continue;
         }
 
+        if width == usize::MAX {
+            for &byte in &instructions[offset..] {
+                operands.push(byte as usize);
+            }
+            offset = instructions.len();
+            break;
+        }
+
         let value: usize = match width {
-            1 => instructions[0] as usize,
-            2 => u16::from_be_bytes([instructions[0], instructions[1]]) as usize,
-            _ => panic!("unsopperted opperand width"),
+            1 => instructions[offset] as usize,
+            2 => u16::from_be_bytes([instructions[offset], instructions[offset + 1]]) as usize,
+            _ => panic!("unsupported operand width"),
         };
 
         operands.push(value);
         offset += width;
     }
-
+    
     (operands.into_boxed_slice(), offset)
 }
 
@@ -1105,7 +1126,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1127,7 +1148,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1149,7 +1170,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1168,7 +1189,7 @@ mod tests {
                 0,
             )))],
             expected_instructions: make_instructions(vec![
-                (Opcode::Closure, &[&[0, 0], &[0]]),
+                (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                 (Opcode::Pop, &[]),
             ]),
         }];
@@ -1194,7 +1215,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::Call, &[&[0]]),
                     (Opcode::Pop, &[]),
                 ]),
@@ -1215,7 +1236,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::Call, &[&[0]]),
@@ -1234,7 +1255,7 @@ mod tests {
                     Object::Integer(24),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 0], &[0]]),
+                    (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::LoadConstant, &[&[0, 1]]),
@@ -1256,7 +1277,7 @@ mod tests {
                     Object::Integer(26),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 0], &[0]]),
+                    (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::LoadConstant, &[&[0, 1]]),
@@ -1282,7 +1303,7 @@ mod tests {
                     Object::Integer(24),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 0], &[0]]),
+                    (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::LoadConstant, &[&[0, 1]]),
@@ -1312,7 +1333,7 @@ mod tests {
                     Object::Integer(26),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 0], &[0]]),
+                    (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::LoadConstant, &[&[0, 1]]),
@@ -1348,7 +1369,7 @@ mod tests {
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1372,7 +1393,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1402,7 +1423,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1444,7 +1465,7 @@ mod tests {
                     0,
                 )))],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 0], &[0]]),
+                    (Opcode::Closure, &[&[0, 0], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1602,7 +1623,7 @@ mod tests {
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
-                    (Opcode::Closure, &[&[0, 6], &[0]]),
+                    (Opcode::Closure, &[&[0, 6], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1635,7 +1656,7 @@ mod tests {
                     Object::Integer(1),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::LoadConstant, &[&[0, 2]]),
@@ -1667,7 +1688,7 @@ mod tests {
                     Object::Integer(1),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::Closure, &[&[0, 1], &[0]]),
+                            (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                             (Opcode::SetLocal, &[&[0]]),
                             (Opcode::GetLocal, &[&[0]]),
                             (Opcode::LoadConstant, &[&[0, 2]]),
@@ -1680,7 +1701,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Closure, &[&[0, 3], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::Call, &[&[0]]),
@@ -1724,7 +1745,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1772,7 +1793,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 4], &[0]]),
+                    (Opcode::Closure, &[&[0, 4], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1820,7 +1841,7 @@ mod tests {
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
-                    (Opcode::Closure, &[&[0, 4], &[0]]),
+                    (Opcode::Closure, &[&[0, 4], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1844,7 +1865,7 @@ mod tests {
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 1]]),
                     (Opcode::GetGlobal, &[&[0, 0]]),
                     (Opcode::GetGlobal, &[&[0, 1]]),
@@ -1888,7 +1909,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Closure, &[&[0, 3], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1976,7 +1997,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Closure, &[&[0, 3], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -2016,10 +2037,10 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]), // inner fn
-                    (Opcode::SetGlobal, &[&[0, 0]]),     // let inner
-                    (Opcode::Closure, &[&[0, 4], &[0]]), // outer fn
-                    (Opcode::SetGlobal, &[&[0, 1]]),     // let outer
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]), // inner fn
+                    (Opcode::SetGlobal, &[&[0, 0]]),          // let inner
+                    (Opcode::Closure, &[&[0, 4], &[0], &[]]), // outer fn
+                    (Opcode::SetGlobal, &[&[0, 1]]),          // let outer
                 ]),
             },
             CompilerTestCase {
@@ -2067,9 +2088,9 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 3], &[0]]),
+                    (Opcode::Closure, &[&[0, 3], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 0]]),
-                    (Opcode::Closure, &[&[0, 6], &[0]]),
+                    (Opcode::Closure, &[&[0, 6], &[0], &[]]),
                     (Opcode::SetGlobal, &[&[0, 1]]),
                     (Opcode::GetGlobal, &[&[0, 1]]),
                     (Opcode::Call, &[&[0]]),
@@ -2105,9 +2126,9 @@ mod tests {
             },
             Test {
                 opcode: Opcode::Closure,
-                operands: &[&[0xFF, 0xFF], &[0xFF]],
-                expected_result: &[65535, 255],
-                expected_offset: 3,
+                operands: &[&[0xFF, 0xFF], &[0xFF], &[0xFF]],
+                expected_result: &[65535, 255, 255],
+                expected_offset: 4,
             },
         ];
 
@@ -2171,9 +2192,9 @@ mod tests {
                     (Opcode::GetLocal, &[&vec![0x01]]),
                     (Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
                     (Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
-                    (Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF]]),
+                    (Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF], &[0xFF, 0xFF, 0xFF]]),
                 ]),
-                expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255\n",
+                expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255 255 255 255\n",
             },
         ];
 

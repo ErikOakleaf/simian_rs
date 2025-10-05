@@ -37,6 +37,7 @@ pub enum Object {
     Array(Rc<RefCell<Vec<Object>>>),
     Hash(Rc<RefCell<HashMap<HashKey, Object>>>),
     Closure(Rc<Closure>),
+    Cell(ClosureCell),
     Null,
     Void,
 }
@@ -71,6 +72,9 @@ impl fmt::Display for Object {
             }
             Object::Closure(value) => {
                 write!(f, "{}", value)
+            }
+            Object::Cell(value) => {
+                write!(f, "")
             }
             Object::Null => {
                 write!(f, "null")

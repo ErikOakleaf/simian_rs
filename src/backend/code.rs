@@ -241,8 +241,8 @@ const fn build_operand_widths() -> [OperandInfo; 32] {
         widths: &[1],
     };
     table[Opcode::Closure as usize] = OperandInfo {
-        amount: 2,
-        widths: &[2, 1],
+        amount: 3,
+        widths: &[2, 1, usize::MAX],
     };
     table[Opcode::GetFree as usize] = OperandInfo {
         amount: 1,
@@ -281,6 +281,11 @@ pub fn make(buffer: &mut Vec<u8>, opcode: Opcode, operands: &[&[u8]]) {
 
     for (i, operand) in operands.iter().enumerate() {
         let operand_width = OPERAND_WIDTHS[opcode as usize].widths[i];
+
+        if operand_width == usize::MAX {
+            buffer.extend_from_slice(operand);
+            continue;
+        }
 
         debug_assert_eq!(
             operand_width,

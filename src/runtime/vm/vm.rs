@@ -6,7 +6,9 @@ use std::rc::Rc;
 use crate::backend::code::Opcode;
 use crate::backend::compiler::Bytecode;
 use crate::runtime::builtins::BUILTINS;
-use crate::runtime::object::{BuiltinFunction, Closure, ClosureCell, CompiledFunction, HashKey, Object};
+use crate::runtime::object::{
+    BuiltinFunction, Closure, ClosureCell, CompiledFunction, HashKey, Object,
+};
 use crate::runtime::vm::frame::Frame;
 
 const STACK_SIZE: usize = 2048;
@@ -226,6 +228,7 @@ impl VM {
             const GET_FREE: u8 = Opcode::GetFree as u8;
             const CURRENT_CLOSURE: u8 = Opcode::CurrentClosure as u8;
             const ASSIGN_INDEXABLE: u8 = Opcode::AssignIndexable as u8;
+            const ASSIGN_FREE: u8 = Opcode::AssignFree as u8;
 
             match opcode {
                 LOAD_CONSTANT => {
@@ -605,6 +608,18 @@ impl VM {
                         }
                         other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
+                }
+                ASSIGN_FREE => {
+                    let (free_index, value) = {
+                        let frame = self.current_frame_mut();
+                        let free_index = frame.instructions()[frame.ip];
+                        frame.ip += 1;
+                        let value = self.pop(); 
+                        (free_index, value)
+                    };
+
+                    let cell = self.current_frame().closure.free[free_index as usize].clone();
+                    *cell.borrow_mut() = value;
                 }
                 other => unreachable!("Unkown opcode {}", other),
             };
@@ -1656,6 +1671,10 @@ mod tests {
             VMTestCase {
                 input: "let a = 10; let f = fn() { let b = 20; a = 5; b = 1; a + b }; f()",
                 expected: Object::Integer(6),
+            },
+            VMTestCase {
+                input: "let b = fn() { let a = 1; let f = fn() { a = 2; a }; f(); a }; b()",
+                expected: Object::Integer(2),
             },
         ];
 
