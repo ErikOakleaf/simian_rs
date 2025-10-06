@@ -2,6 +2,47 @@ An interpreter for the monkey programming language as defined by https://monkeyl
 
 Compiles to bytecode and runs in a VM all made in rust !
 
+# Features
+simian_rs comes with some additional features compared to the original monkey definition.
+
+### Mutable variables
+
+Variables in simian_rs are mutable and can be reassigned after declaration:
+
+``` monkey
+let a = 0;
+a = 1;
+a
+```
+
+**Output:** 1
+
+Closures can also capture and mutate variables from their surrounding scope:
+
+``` monkey
+let a = 0;
+let f = fn() {
+    a = 1;
+}
+f()
+```
+
+**Output:** 1
+
+### While loops
+
+simian_rs supports while loops for repeated execution:
+
+``` monkey
+let a = 0;
+while (a < 10) {
+ a = a + 1
+}
+a
+```
+
+**Output:** 10
+
 # Benchmarks
 
 For comparison with Thorsten Ball’s excellent teaching implementation of a monkey VM (from *Writing a Compiler in Go*), when executing this monkey code on my hardware:
