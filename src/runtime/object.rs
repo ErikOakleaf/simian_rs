@@ -74,7 +74,7 @@ impl fmt::Display for Object {
                 write!(f, "{}", value)
             }
             Object::Cell(value) => {
-                write!(f, "")
+                write!(f, "{}", value.borrow())
             }
             Object::Null => {
                 write!(f, "null")

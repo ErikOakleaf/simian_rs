@@ -7,7 +7,7 @@ use crate::backend::code::Opcode;
 use crate::backend::compiler::Bytecode;
 use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{
-    BuiltinFunction, Closure, ClosureCell, CompiledFunction, HashKey, Object,
+    BuiltinFunction, Closure, CompiledFunction, HashKey, Object,
 };
 use crate::runtime::vm::frame::Frame;
 
@@ -109,6 +109,7 @@ impl VM {
         vm
     }
 
+    #[inline]
     fn push(&mut self, object: Object) -> Result<(), RuntimeError> {
         if self.sp == STACK_SIZE {
             return Err(RuntimeError::StackOverflow);
@@ -120,6 +121,7 @@ impl VM {
         Ok(())
     }
 
+    #[inline]
     fn pop(&mut self) -> Object {
         debug_assert!(self.sp > 0, "VM bug: attempted to pop from empty stack");
 
@@ -127,6 +129,7 @@ impl VM {
         unsafe { self.stack[self.sp].assume_init_read() }
     }
 
+    #[inline]
     fn pop_with_last(&mut self) -> Result<Object, RuntimeError> {
         debug_assert!(self.sp > 0, "VM bug: attempted to pop from empty stack");
 
@@ -137,27 +140,18 @@ impl VM {
         Ok(popped)
     }
 
+    #[inline(always)]
     pub fn last_popped_stack_element(&self) -> &Object {
         &self.last_popped
     }
 
-    fn current_frame(&self) -> &Frame {
-        self.frames[self.frames_index - 1]
-            .as_ref()
-            .expect("no current frame")
-    }
-
-    fn current_frame_mut(&mut self) -> &mut Frame {
-        self.frames[self.frames_index - 1]
-            .as_mut()
-            .expect("no current frame")
-    }
-
+    #[inline]
     fn push_frame(&mut self, frame: Frame) {
         self.frames[self.frames_index] = Some(frame);
         self.frames_index += 1;
     }
 
+    #[inline]
     fn pop_frame(&mut self) -> Frame {
         self.frames_index -= 1;
         let frame = self.frames[self.frames_index]
@@ -381,33 +375,18 @@ impl VM {
                     self.push(Object::Null)?;
                 }
                 GET_GLOBAL => {
-                    let global_index = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                    let global_index = self.read_2_bytes() as usize;
 
                     self.push(self.globals.get(global_index)?)?;
                 }
                 SET_GLOBAL => {
-                    let global_index = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                    let global_index = self.read_2_bytes() as usize;
 
                     let global = self.pop_with_last()?;
                     self.globals.bind(global_index, global);
                 }
                 ARRAY => {
-                    let array_length = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                    let array_length = self.read_2_bytes() as usize;
 
                     if self.sp < array_length {
                         return Err(RuntimeError::EmptyStack);
@@ -427,12 +406,7 @@ impl VM {
                     self.push(Object::Array(Rc::new(RefCell::new(array))))?;
                 }
                 HASH => {
-                    let hash_length = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                    let hash_length = self.read_2_bytes() as usize;
 
                     if self.sp < hash_length {
                         return Err(RuntimeError::EmptyStack);
@@ -505,9 +479,7 @@ impl VM {
                     }
                 }
                 CALL => {
-                    let current_frame = self.current_frame_mut();
-                    let amount_arguments = current_frame.instructions()[current_frame.ip] as usize;
-                    current_frame.ip += 1;
+                    let amount_arguments = self.read_byte() as usize;
 
                     self.execute_call(amount_arguments)?;
                 }
@@ -558,25 +530,17 @@ impl VM {
                     self.stack[base_pointer + local_index] = MaybeUninit::new(value);
                 }
                 GET_BUILTIN => {
-                    let builtin_index = current_frame.instructions()[current_frame.ip] as usize;
-                    current_frame.ip += 1;
+                    let builtin_index = self.read_byte() as usize;
 
                     let definiton = Object::Builtin(&BUILTINS[builtin_index]);
                     self.push(definiton)?;
                 }
                 CLOSURE => {
-                    let current_frame = self.current_frame_mut();
-                    let const_index = u16::from_be_bytes(
-                        current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
-                            .try_into()
-                            .unwrap(),
-                    ) as usize;
-                    current_frame.ip += 2;
+                    let const_index = self.read_2_bytes() as usize;
+                    let amount_free = self.read_byte() as usize;
 
-                    let amount_free = current_frame.instructions()[current_frame.ip];
-                    current_frame.ip += 1;
 
-                    self.push_closure(const_index, amount_free as usize)?;
+                    self.push_closure(const_index, amount_free)?;
                 }
                 GET_FREE => {
                     let object = {
@@ -776,11 +740,38 @@ impl VM {
         }
     }
 
+    #[inline(always)]
+    fn current_frame(&self) -> &Frame {
+        self.frames[self.frames_index - 1]
+            .as_ref()
+            .expect("no current frame")
+    }
+
+    #[inline(always)]
+    fn current_frame_mut(&mut self) -> &mut Frame {
+        self.frames[self.frames_index - 1]
+            .as_mut()
+            .expect("no current frame")
+    }
+
+    #[inline(always)]
     fn read_byte(&mut self) -> u8 {
         let current_frame = self.current_frame_mut();
         let byte = current_frame.instructions()[current_frame.ip];
         current_frame.ip += 1;
         byte
+    }
+
+    #[inline(always)]
+    fn read_2_bytes(&mut self) -> u16 {
+        let current_frame = self.current_frame_mut();
+        let bytes = u16::from_be_bytes(
+            current_frame.instructions()[current_frame.ip..current_frame.ip + 2]
+                .try_into()
+                .unwrap(),
+        );
+        current_frame.ip += 2;
+        bytes
     }
 }
 
