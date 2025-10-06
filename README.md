@@ -36,7 +36,7 @@ simian_rs supports while loops for repeated execution:
 ``` monkey
 let a = 0;
 while (a < 10) {
- a = a + 1
+    a = a + 1
 }
 a
 ```
