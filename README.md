@@ -3,7 +3,7 @@ An interpreter for the monkey programming language as defined by https://monkeyl
 Compiles to bytecode and runs in a VM all made in rust !
 
 # Features
-simian_rs comes with some additional features compared to the original monkey definition.
+simian_rs extends the original Monkey language with some useful additional features.
 
 ### Mutable variables
 
