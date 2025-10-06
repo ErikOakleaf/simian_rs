@@ -272,8 +272,20 @@ impl Compiler {
 
                 let function_index = self.add_constant(compiled_function);
 
-                let local_indices: Vec<u8> = free_symbols.iter().map(|s| s.index as u8).collect();
-
+                let mut local_indices = Vec::<u8>::new();
+                for symbol in free_symbols {
+                    match symbol.scope {
+                        SymbolScope::Local => {
+                            local_indices.push(0); // Local
+                            local_indices.push(symbol.index as u8);
+                        }
+                        SymbolScope::Free => {
+                            local_indices.push(1); // Free
+                            local_indices.push(symbol.index as u8);
+                        }
+                        _ => unreachable!("free symbol has unexpected scope: {:?}", symbol.scope),
+                    }
+                }
                 self.emit(
                     Opcode::Closure,
                     &[
@@ -576,13 +588,13 @@ fn format_instructions(instructions: &[u8]) -> String {
 fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Box<[usize]>, usize) {
     let operands_amount = OPERAND_WIDTHS[opcode as usize].amount;
     let operand_widths = OPERAND_WIDTHS[opcode as usize].widths;
-    
+
     let mut operands = Vec::<usize>::new();
     let mut offset = 0;
-    
+
     for i in 0..operands_amount {
         let width = operand_widths[i];
-        
+
         if width == 0 {
             continue;
         }
@@ -604,7 +616,7 @@ fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Box<[usize]>, usize) {
         operands.push(value);
         offset += width;
     }
-    
+
     (operands.into_boxed_slice(), offset)
 }
 
@@ -646,7 +658,8 @@ mod tests {
             assert_eq!(
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
-                "expected constants:\n{:?} got:\n{:?}",
+                "test failed for input: {}\nexpected constants:\n{:?} got:\n{:?}",
+                test.input,
                 &test.expected_constants,
                 bytecode.constants.as_ref(),
             );
@@ -654,7 +667,8 @@ mod tests {
             assert_eq!(
                 &test.expected_instructions,
                 bytecode.instructions.as_ref(),
-                "expected instructions:\n{}got:\n{}",
+                "test failed for input: {}\nexpected instructions:\n{}got:\n{}",
+                test.input,
                 format_instructions(&test.expected_instructions),
                 format_instructions(bytecode.instructions.as_ref()),
             );
@@ -1497,8 +1511,7 @@ mod tests {
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 0], &[1]]),
+                            (Opcode::Closure, &[&[0, 0], &[1], &[0, 0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -1507,7 +1520,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 1], &[0]]),
+                    (Opcode::Closure, &[&[0, 1], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1535,9 +1548,7 @@ mod tests {
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::GetFree, &[&[0]]),
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 0], &[2]]),
+                            (Opcode::Closure, &[&[0, 0], &[2], &[1, 0, 0, 0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -1546,8 +1557,7 @@ mod tests {
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 1], &[1]]),
+                            (Opcode::Closure, &[&[0, 1], &[1], &[0 ,0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -1556,7 +1566,7 @@ mod tests {
                     ))),
                 ],
                 expected_instructions: make_instructions(vec![
-                    (Opcode::Closure, &[&[0, 2], &[0]]),
+                    (Opcode::Closure, &[&[0, 2], &[0], &[]]),
                     (Opcode::Pop, &[]),
                 ]),
             },
@@ -1598,9 +1608,9 @@ mod tests {
                         make_instructions(vec![
                             (Opcode::LoadConstant, &[&[0, 2]]),
                             (Opcode::SetLocal, &[&[0]]),
-                            (Opcode::GetFree, &[&[0]]),
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 4], &[2]]),
+                            // (Opcode::GetFree, &[&[0]]),
+                            // (Opcode::GetLocal, &[&[0]]),
+                            (Opcode::Closure, &[&[0, 4], &[2], &[1, 0, 0, 0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -1611,8 +1621,8 @@ mod tests {
                         make_instructions(vec![
                             (Opcode::LoadConstant, &[&[0, 1]]),
                             (Opcode::SetLocal, &[&[0]]),
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 5], &[1]]),
+                            // (Opcode::GetLocal, &[&[0]]),
+                            (Opcode::Closure, &[&[0, 5], &[1], &[0, 0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -1894,8 +1904,7 @@ mod tests {
                         make_instructions(vec![
                             (Opcode::LoadConstant, &[&[0, 0]]),
                             (Opcode::SetLocal, &[&[0]]),
-                            (Opcode::GetLocal, &[&[0]]),
-                            (Opcode::Closure, &[&[0, 2], &[1]]),
+                            (Opcode::Closure, &[&[0, 2], &[1], &[0, 0]]),
                             (Opcode::SetLocal, &[&[1]]),
                             (Opcode::GetLocal, &[&[1]]),
                             (Opcode::Call, &[&[0]]),
@@ -2192,7 +2201,10 @@ mod tests {
                     (Opcode::GetLocal, &[&vec![0x01]]),
                     (Opcode::LoadConstant, &[&vec![0x0, 0x02]]),
                     (Opcode::LoadConstant, &[&vec![0xFF, 0xFF]]),
-                    (Opcode::Closure, &[&[0xFF, 0xFF], &[0xFF], &[0xFF, 0xFF, 0xFF]]),
+                    (
+                        Opcode::Closure,
+                        &[&[0xFF, 0xFF], &[0xFF], &[0xFF, 0xFF, 0xFF]],
+                    ),
                 ]),
                 expected: "0000 Add\n0001 GetLocal 1\n0003 LoadConstant 2\n0006 LoadConstant 65535\n0009 Closure 65535 255 255 255 255\n",
             },
