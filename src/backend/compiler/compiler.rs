@@ -373,6 +373,7 @@ impl Compiler {
                 self.compile_expression(index_expression.index.as_ref())?;
                 self.emit(Opcode::Index, &[]);
             }
+            Expression::FloatLiteral(float) => {}
         };
 
         Ok(())

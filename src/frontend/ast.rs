@@ -20,6 +20,7 @@ impl_display_for_enum!(
     Expression,
     Identifier,
     IntegerLiteral,
+    FloatLiteral,
     Prefix,
     Infix,
     Boolean,
@@ -47,6 +48,7 @@ pub enum Statement {
 pub enum Expression {
     Identifier(IdentifierExpression),
     IntegerLiteral(IntegerLiteralExpression),
+    FloatLiteral(f64),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(BooleanLiteralExpression),

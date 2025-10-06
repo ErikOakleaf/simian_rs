@@ -109,8 +109,12 @@ impl<'a> Lexer<'a> {
                     let token_type = Token::lookup_identifier(literal);
                     return Token::new(token_type, literal);
                 } else if Self::is_digit(self.char) {
-                    let literal = self.read_number();
-                    return Token::new(TokenType::Int, literal);
+                    let (literal, is_float) = self.read_number();
+                    if is_float {
+                        return Token::new(TokenType::Float, literal);
+                    } else {
+                        return Token::new(TokenType::Int, literal);
+                    }
                 } else {
                     Token::new(
                         TokenType::Illegal,
@@ -134,14 +138,25 @@ impl<'a> Lexer<'a> {
         &self.input[position..self.position]
     }
 
-    fn read_number(&mut self) -> &str {
+    fn read_number(&mut self) -> (&str, bool) {
         let position = self.position;
 
-        while Self::is_digit(self.char) {
+        let mut dot_seen = false;
+
+        while Self::is_digit(self.char) || (self.char == b'.') {
+            if self.char == b'.' {
+                if dot_seen {
+                    panic!(
+                        "multiple dots in number: {}.xx",
+                        &self.input[position..self.position],
+                    );
+                }
+                dot_seen = true;
+            }
             self.read_char();
         }
 
-        &self.input[position..self.position]
+        (&self.input[position..self.position], dot_seen)
     }
 
     fn read_char(&mut self) {
@@ -218,6 +233,7 @@ mod tests {
                     \"foo bar\"
                     [1, 2];
                     {\"foo\": \"bar\"}
+                    5.82283
                     ";
 
         let mut lexer = Lexer::new(input);
@@ -309,6 +325,7 @@ mod tests {
             (TokenType::Colon, ":"),
             (TokenType::String, "bar"),
             (TokenType::RBrace, "}"),
+            (TokenType::Float, "5.82283"),
             (TokenType::EOF, ""),
         ];
 

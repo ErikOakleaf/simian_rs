@@ -6,6 +6,7 @@ pub enum TokenType {
     EOF,
     Ident,
     Int,
+    Float,
     Comma,
     Semicolon,
     Colon,

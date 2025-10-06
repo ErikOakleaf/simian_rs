@@ -207,6 +207,7 @@ impl<'a> Parser<'a> {
         let mut left_expression = match self.current_token.token_type {
             TokenType::Ident => self.parse_identifier_expression()?,
             TokenType::Int => self.parse_integer_literal_expression()?,
+            TokenType::Float => self.parse_float_literal_expression()?,
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression()?,
             TokenType::True | TokenType::False => self.parse_boolean_expression()?,
             TokenType::LParen => self.parse_grouped_expression()?,
@@ -278,6 +279,15 @@ impl<'a> Parser<'a> {
         };
 
         Ok(Expression::IntegerLiteral(integer_literal_expression))
+    }
+
+    fn parse_float_literal_expression(&mut self) -> Result<Expression, ParseError> {
+        let value: f64 =
+            self.current_token
+                .literal
+                .parse::<f64>().unwrap();
+
+        Ok(Expression::FloatLiteral(value))
     }
 
     fn parse_prefix_expression(&mut self) -> Result<Expression, ParseError> {
@@ -788,6 +798,26 @@ mod tests {
 
         let expression = get_statement_expression(&program.statements[0]);
         test_integer_literal(expression, 5);
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_float_literal_expression() -> Result<(), ParseError> {
+        let input = "5.55555555;";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program contains {} statements not 1",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+        assert_eq!(expression, &Expression::FloatLiteral(5.55555555), "float exrpession does not contain the correct value");
 
         Ok(())
     }
