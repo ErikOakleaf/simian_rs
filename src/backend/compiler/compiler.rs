@@ -396,11 +396,6 @@ impl Compiler {
         position
     }
 
-    fn emit_u8(&mut self, byte: u8) {
-        let current_instructions = self.current_intstructions();
-        current_instructions.push(byte);
-    }
-
     fn enter_scope(&mut self) {
         let scope = CompilationScope::new();
         self.scopes.push(scope);

@@ -167,25 +167,41 @@ impl VM {
     }
 
     fn push_closure(&mut self, const_index: usize, amount_free: usize) -> Result<(), RuntimeError> {
-        let constant = &self.constants[const_index];
+        let constant = self.constants[const_index].clone();
         let function = match constant {
             Object::CompiledFunction(compiled_function) => compiled_function,
             _ => unreachable!("pushed non closure in push closure"),
         };
 
-        let mut free = Vec::<ClosureCell>::with_capacity(amount_free);
-        let start = self.sp - amount_free;
-        for i in 0..amount_free {
-            unsafe {
-                free.push(Rc::new(RefCell::new(
-                    self.stack[start + i].assume_init_read(),
-                )));
+        let base = self.current_frame().base_pointer;
+        let mut free_variables = Vec::<Object>::with_capacity(amount_free);
+        for _ in 0..amount_free {
+            let flag = self.read_byte();
+            let index = self.read_byte() as usize;
+
+            if flag == 0 {
+                let slot = base + index;
+
+                let existing = unsafe { self.stack[slot].assume_init_read() };
+
+                let cell = match existing {
+                    Object::Cell(cell) => cell,
+                    other => Rc::new(RefCell::new(other)),
+                };
+
+                self.stack[slot].write(Object::Cell(cell.clone()));
+
+                free_variables.push(Object::Cell(cell));
+            } else if flag == 1 {
+                let free = self.current_frame().closure.as_ref().free[index].clone();
+                free_variables.push(free);
             }
         }
 
-        self.sp = start;
-
-        let closure = Rc::new(Closure::new(function.clone(), free.into_boxed_slice()));
+        let closure = Rc::new(Closure::new(
+            function.clone(),
+            free_variables.into_boxed_slice(),
+        ));
         self.push(Object::Closure(closure))?;
 
         Ok(())
@@ -520,7 +536,13 @@ impl VM {
                     }
 
                     let value = unsafe { &*self.stack[base_pointer + local_index].as_ptr() };
-                    self.push(value.clone())?;
+
+                    let object = match value {
+                        Object::Cell(cell) => cell.borrow().clone(),
+                        other => other.clone(),
+                    };
+
+                    self.push(object)?;
                 }
                 SET_LOCAL => {
                     let local_index;
@@ -561,7 +583,12 @@ impl VM {
                         let frame = self.current_frame_mut();
                         let free_index = frame.instructions()[frame.ip];
                         frame.ip += 1;
-                        let cell = frame.closure.free[free_index as usize].clone();
+                        let cell_object = frame.closure.free[free_index as usize].clone();
+                        let cell = match cell_object {
+                            Object::Cell(cell) => cell,
+                            _ => unreachable!("non cell free variable"),
+                        };
+
                         cell.borrow().clone()
                     };
 
@@ -614,11 +641,17 @@ impl VM {
                         let frame = self.current_frame_mut();
                         let free_index = frame.instructions()[frame.ip];
                         frame.ip += 1;
-                        let value = self.pop(); 
+                        let value = self.pop();
                         (free_index, value)
                     };
 
-                    let cell = self.current_frame().closure.free[free_index as usize].clone();
+                    let cell_object =
+                        self.current_frame().closure.free[free_index as usize].clone();
+                    let cell = match cell_object {
+                        Object::Cell(cell) => cell,
+                        _ => unreachable!("non cell free variable"),
+                    };
+
                     *cell.borrow_mut() = value;
                 }
                 other => unreachable!("Unkown opcode {}", other),
@@ -741,6 +774,13 @@ impl VM {
             Object::Null => false,
             _ => true,
         }
+    }
+
+    fn read_byte(&mut self) -> u8 {
+        let current_frame = self.current_frame_mut();
+        let byte = current_frame.instructions()[current_frame.ip];
+        current_frame.ip += 1;
+        byte
     }
 }
 
@@ -1731,26 +1771,26 @@ mod tests {
                 ",
                 expected: Object::Integer(6),
             },
-            // VMTestCase {
-            //     input: "
-            //         let a = 1;
-            //         let f = fn() {
-            //             let b = 2;
-            //             let g = fn() {
-            //                 let c = 0;
-            //                 while (c < 3) {
-            //                     a = a + 1;
-            //                     b = b + 1;
-            //                     c = c + 1;
-            //                 }
-            //             };
-            //             g();
-            //             a + b
-            //         };
-            //         f()
-            //     ",
-            //     expected: Object::Integer(9),
-            // },
+            VMTestCase {
+                input: "
+                    let a = 1;
+                    let f = fn() {
+                        let b = 2;
+                        let g = fn() {
+                            let c = 0;
+                            while (c < 3) {
+                                a = a + 1;
+                                b = b + 1;
+                                c = c + 1;
+                            }
+                        };
+                        g();
+                        a + b
+                    };
+                    f()
+                ",
+                expected: Object::Integer(9),
+            },
         ];
 
         run_vm_tests(&tests)
