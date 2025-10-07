@@ -30,6 +30,7 @@ impl fmt::Display for HashKey {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
     Integer(i64),
+    Float(f64),
     Boolean(bool),
     Builtin(&'static BuiltinFunction),
     CompiledFunction(Rc<CompiledFunction>),
@@ -46,6 +47,9 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Object::Integer(value) => {
+                write!(f, "{}", value)
+            }
+            Object::Float(value) => {
                 write!(f, "{}", value)
             }
             Object::Boolean(value) => {

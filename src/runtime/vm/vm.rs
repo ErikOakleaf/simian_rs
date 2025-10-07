@@ -6,9 +6,7 @@ use std::rc::Rc;
 use crate::backend::code::Opcode;
 use crate::backend::compiler::Bytecode;
 use crate::runtime::builtins::BUILTINS;
-use crate::runtime::object::{
-    BuiltinFunction, Closure, CompiledFunction, HashKey, Object,
-};
+use crate::runtime::object::{BuiltinFunction, Closure, CompiledFunction, HashKey, Object};
 use crate::runtime::vm::frame::Frame;
 
 const STACK_SIZE: usize = 2048;
@@ -257,6 +255,15 @@ impl VM {
                         (Object::Integer(l), Object::Integer(r)) => {
                             self.push(Object::Integer(*l + *r))?;
                         }
+                        (Object::Float(l), Object::Float(r)) => {
+                            self.push(Object::Float(*l + *r))?;
+                        }
+                        (Object::Float(l), Object::Integer(r)) => {
+                            self.push(Object::Float(*l + *r as f64))?;
+                        }
+                        (Object::Integer(l), Object::Float(r)) => {
+                            self.push(Object::Float(*l as f64 + *r))?;
+                        }
                         (Object::String(l), Object::String(r)) => {
                             self.push(Object::String(Rc::new(RefCell::new(
                                 format!("{}{}", l.borrow(), r.borrow()).to_string(),
@@ -272,13 +279,13 @@ impl VM {
                     };
                 }
                 SUB => {
-                    self.execute_binary_operation(opcode, |x, y| x - y)?;
+                    self.execute_binary_operation(opcode, |x, y| x - y, |x, y| x - y)?;
                 }
                 MUL => {
-                    self.execute_binary_operation(opcode, |x, y| x * y)?;
+                    self.execute_binary_operation(opcode, |x, y| x * y, |x, y| x * y)?;
                 }
                 DIV => {
-                    self.execute_binary_operation(opcode, |x, y| x / y)?;
+                    self.execute_binary_operation(opcode, |x, y| x / y, |x, y| x / y)?;
                 }
                 POP => {
                     self.pop_with_last()?;
@@ -539,7 +546,6 @@ impl VM {
                     let const_index = self.read_2_bytes() as usize;
                     let amount_free = self.read_byte() as usize;
 
-
                     self.push_closure(const_index, amount_free)?;
                 }
                 GET_FREE => {
@@ -679,23 +685,33 @@ impl VM {
         Ok(())
     }
 
-    #[inline(always)]
-    fn execute_binary_operation<F>(&mut self, opcode: u8, op: F) -> Result<(), RuntimeError>
+    #[inline]
+    fn execute_binary_operation<FI, FF>(
+        &mut self,
+        opcode: u8,
+        op_int: FI,
+        op_float: FF,
+    ) -> Result<(), RuntimeError>
     where
-        F: Fn(i64, i64) -> i64,
+        FI: Fn(i64, i64) -> i64 + Copy,
+        FF: Fn(f64, f64) -> f64 + Copy,
     {
         let right = self.pop();
         let left = self.pop();
 
-        match (&left, &right) {
-            (Object::Integer(l), Object::Integer(r)) => {
-                self.push(Object::Integer(op(*l, *r)))?;
-                Ok(())
+        match (left, right) {
+            (Object::Integer(l), Object::Integer(r)) => self.push(Object::Integer(op_int(l, r))),
+            (Object::Float(l), Object::Float(r)) => self.push(Object::Float(op_float(l, r))),
+            (Object::Integer(l), Object::Float(r)) => {
+                self.push(Object::Float(op_float(l as f64, r)))
             }
-            _ => Err(RuntimeError::TypeMismatch {
-                left,
+            (Object::Float(l), Object::Integer(r)) => {
+                self.push(Object::Float(op_float(l, r as f64)))
+            }
+            (l, r) => Err(RuntimeError::TypeMismatch {
+                left: l,
                 opcode: Opcode::from_byte(opcode),
-                right,
+                right: r,
             }),
         }
     }
@@ -706,6 +722,9 @@ impl VM {
         match operand {
             Object::Integer(value) => {
                 self.push(Object::Integer(-value))?;
+            }
+            Object::Float(value) => {
+                self.push(Object::Float(-value))?;
             }
             _ => {
                 return Err(RuntimeError::UnknownOperator {
@@ -886,6 +905,74 @@ mod tests {
             VMTestCase {
                 input: "(5 + 10 * 2 + 15 / 3) * 2 + -10",
                 expected: Object::Integer(50),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
+
+    #[test]
+    fn test_float_arithmetic() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "1.11",
+                expected: Object::Float(1.11),
+            },
+            VMTestCase {
+                input: "2.22",
+                expected: Object::Float(2.22),
+            },
+            VMTestCase {
+                input: "1.11 + 2.22",
+                expected: Object::Float(3.33),
+            },
+            VMTestCase {
+                input: "1.1 - 2.2",
+                expected: Object::Float(-1.1),
+            },
+            VMTestCase {
+                input: "5.0 / 2",
+                expected: Object::Float(2.5),
+            },
+            VMTestCase {
+                input: "51 / 2.0 * 2 + 10 - 5.5",
+                expected: Object::Float(55.5),
+            },
+            VMTestCase {
+                input: "5.5 + 5.2 + 5.2 + 5 - 10.1238",
+                expected: Object::Float(10.7762),
+            },
+            VMTestCase {
+                input: "2.5 * 2 * 2 * 2 * 2",
+                expected: Object::Float(40 as f64),
+            },
+            VMTestCase {
+                input: "5.3 * 2 + 10",
+                expected: Object::Float(20.6),
+            },
+            VMTestCase {
+                input: "5 + 2.7 * 10",
+                expected: Object::Float(32 as f64),
+            },
+            VMTestCase {
+                input: "5 * (2 + 10.1)",
+                expected: Object::Float(60.5),
+            },
+            VMTestCase {
+                input: "-5.8",
+                expected: Object::Float(-5.8),
+            },
+            VMTestCase {
+                input: "-10.283",
+                expected: Object::Float(-10.283),
+            },
+            VMTestCase {
+                input: "-50.8 + 100.8+ -50",
+                expected: Object::Float(0 as f64),
+            },
+            VMTestCase {
+                input: "(5 + 10 * 2 + 15 / 3) * 2.8 + -10",
+                expected: Object::Float(74 as f64),
             },
         ];
 

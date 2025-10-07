@@ -194,6 +194,11 @@ impl Compiler {
                 let position = self.add_constant(integer);
                 self.emit(Opcode::LoadConstant, &[&position.to_be_bytes()]);
             }
+            Expression::FloatLiteral(float_value) => {
+                let float = Object::Float(*float_value);
+                let position = self.add_constant(float);
+                self.emit(Opcode::LoadConstant, &[&position.to_be_bytes()]);
+            }
             Expression::Boolean(boolean_literal_expression) => {
                 let bool_value = boolean_literal_expression.value;
                 let bool_opcode = match bool_value {
@@ -373,7 +378,6 @@ impl Compiler {
                 self.compile_expression(index_expression.index.as_ref())?;
                 self.emit(Opcode::Index, &[]);
             }
-            Expression::FloatLiteral(float) => {}
         };
 
         Ok(())
