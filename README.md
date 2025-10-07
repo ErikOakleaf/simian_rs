@@ -3,13 +3,14 @@ An interpreter for the monkey programming language as defined by https://monkeyl
 Compiles to bytecode and runs in a VM all made in rust !
 
 # Features
+
 simian_rs extends the original Monkey language with some useful additional features.
 
 ## Mutable variables
 
 Variables in simian_rs are mutable and can be reassigned after declaration:
 
-``` monkey
+```monkey
 let a = 0;
 a = 1;
 a
@@ -19,12 +20,18 @@ a
 
 Closures can also capture and mutate variables from their surrounding scope:
 
-``` monkey
-let a = 0;
+```monkey
 let f = fn() {
-    a = 1;
+    let a = 0;
+
+    let b = fn() {
+        a = 1;
+    };
+
+    b();
+    a
 }
-f()
+f();
 ```
 
 **Output:** 1
@@ -33,7 +40,7 @@ f()
 
 simian_rs supports while loops for repeated execution:
 
-``` monkey
+```monkey
 let a = 0;
 while (a < 10) {
     a = a + 1
@@ -43,7 +50,7 @@ a
 
 **Output:** 10
 
-```monkey 
+```monkey
 continues and breaks can also be used in while loops
 
 let count = 0;
@@ -51,17 +58,17 @@ let sum = 0;
 
 while (count < 20) {
     count = count + 1;
-    
+
     // Skip odd numbers using continue (check if divisible by 2)
     if (count / 2 * 2 != count) {
         continue;
     }
-    
+
     // Stop at 15 using break
     if (count > 15) {
         break;
     }
-    
+
     // Only even numbers from 2 to 14 reach here
     sum = sum + count;
 }
@@ -76,54 +83,58 @@ sum
 In addition to the built-in functions provided by the Monkey programming language, simian_rs includes additional built-ins for further functionality.
 
 ### append(array, value)
+
 append is the counter part to push, where push will create a copy of the array with the new value added append will modify the array that is given to it
 
 ```monkey
 let a = [1];
 append(a, 2);
 a;
-``` 
+```
 
 **Output:** [1, 2]
 
 ### remove(array, index)
-removes the value at a given index in an array
 
+removes the value at a given index in an array
 
 ```monkey
 let a = [1, 2, 3];
 remove(a, 2);
 a;
-``` 
+```
 
 **Output:** [1, 2]
 
 ### pop(array)
+
 pop's the last value of the array
 
 ```monkey
 let a = [1, 2, 3];
 pop(a);
-``` 
+```
 
 **Output:** 3
 
 ### clone(array)
+
 gives a clone of an array
+
 ```monkey
 let a = [1, 2, 3];
 let b = clone(a);
 remove(a, 2);
 b;
-``` 
+```
 
 **Output:** [1, 2, 3]
 
 # Benchmarks
 
-For comparison with Thorsten Ball’s excellent teaching implementation of a monkey VM (from *Writing a Compiler in Go*), when executing this monkey code on my hardware:
+For comparison with Thorsten Ball’s excellent teaching implementation of a monkey VM (from _Writing a Compiler in Go_), when executing this monkey code on my hardware:
 
-``` monkey
+```monkey
 let fibonacci = fn(x) {
     if (x == 0) {
         0

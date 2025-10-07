@@ -1829,6 +1829,22 @@ mod tests {
                 input: "let b = fn() { let a = 1; let f = fn() { a = 2; a }; f(); a }; b()",
                 expected: Object::Integer(2),
             },
+            VMTestCase {
+                input: "
+                        let f = fn() {
+                            let a = 0;
+
+                            let b = fn() {
+                                a = 1;
+                            };
+
+                            b();
+                            a
+                        }
+                        f();
+                        ",
+                expected: Object::Integer(1),
+            },
         ];
 
         run_vm_tests(&tests)
