@@ -50,8 +50,9 @@ a
 
 **Output:** 10
 
-```monkey
 continues and breaks can also be used in while loops
+
+```monkey
 
 let count = 0;
 let sum = 0;
