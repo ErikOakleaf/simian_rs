@@ -1558,6 +1558,38 @@ mod tests {
                 input: "push([], 1)",
                 expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
             },
+            VMTestCase {
+                input: "let a = []; push(a, 1); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![]))),
+            },
+            VMTestCase {
+                input: "let a = []; append(a, 1); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; remove(a, 1); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; remove(a, 0); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(2)]))),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; pop(a); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; pop(a);",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; pop(a); pop(a);",
+                expected: Object::Integer(1),
+            },
+            VMTestCase {
+                input: "let a = [1 ,2]; let b = clone(a); pop(a); b",
+                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1), Object::Integer(2)]))),
+            },
         ];
 
         run_vm_tests(&tests)
