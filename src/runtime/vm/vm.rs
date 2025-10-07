@@ -1924,6 +1924,27 @@ mod tests {
                 input: "let f = fn(amount) { let a = 0; while (true) { a = a + 1; if (a == amount) {break;}; }; a }; f(14)",
                 expected: Object::Integer(14),
             },
+            VMTestCase {
+                input: "let count = 0;
+                        let sum = 0;
+
+                        while (true) {
+                            count = count + 1;
+                            
+                            if (count / 2 * 2 != count) {
+                                continue;
+                            }
+                            
+                            if (count > 15) {
+                                break;
+                            }
+                            
+                            sum = sum + count;
+                        }
+
+                        sum",
+                expected: Object::Integer(56),
+            },
         ];
 
         run_vm_tests(&tests)

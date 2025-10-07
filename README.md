@@ -5,7 +5,7 @@ Compiles to bytecode and runs in a VM all made in rust !
 # Features
 simian_rs extends the original Monkey language with some useful additional features.
 
-### Mutable variables
+## Mutable variables
 
 Variables in simian_rs are mutable and can be reassigned after declaration:
 
@@ -29,7 +29,7 @@ f()
 
 **Output:** 1
 
-### While loops
+## While loops
 
 simian_rs supports while loops for repeated execution:
 
@@ -42,6 +42,82 @@ a
 ```
 
 **Output:** 10
+
+```monkey 
+continues and breaks can also be used in while loops
+
+let count = 0;
+let sum = 0;
+
+while (count < 20) {
+    count = count + 1;
+    
+    // Skip odd numbers using continue (check if divisible by 2)
+    if (count / 2 * 2 != count) {
+        continue;
+    }
+    
+    // Stop at 15 using break
+    if (count > 15) {
+        break;
+    }
+    
+    // Only even numbers from 2 to 14 reach here
+    sum = sum + count;
+}
+
+sum
+```
+
+**Output:** 56
+
+## Extended builtins
+
+In addition to the built-in functions provided by the Monkey programming language, simian_rs includes additional built-ins for further functionality.
+
+### append(array, value)
+append is the counter part to push, where push will create a copy of the array with the new value added append will modify the array that is given to it
+
+```monkey
+let a = [1];
+append(a, 2);
+a;
+``` 
+
+**Output:** [1, 2]
+
+### remove(array, index)
+removes the value at a given index in an array
+
+
+```monkey
+let a = [1, 2, 3];
+remove(a, 2);
+a;
+``` 
+
+**Output:** [1, 2]
+
+### pop(array)
+pop's the last value of the array
+
+```monkey
+let a = [1, 2, 3];
+pop(a);
+``` 
+
+**Output:** 3
+
+### clone(array)
+gives a clone of an array
+```monkey
+let a = [1, 2, 3];
+let b = clone(a);
+remove(a, 2);
+b;
+``` 
+
+**Output:** [1, 2, 3]
 
 # Benchmarks
 
