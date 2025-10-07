@@ -15,7 +15,6 @@ macro_rules! impl_display_for_enum {
         };
 }
 
-impl_display_for_enum!(Statement, Let, Return, Expression, Assign, While);
 impl_display_for_enum!(
     Expression,
     Identifier,
@@ -42,6 +41,22 @@ pub enum Statement {
     Expression(ExpressionStatement),
     Assign(AssignStatement),
     While(WhileStatement),
+    Continue,
+    Break,
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Statement::Let(inner) => write!(f, "{}", inner),
+            Statement::Return(inner) => write!(f, "return {}", inner),
+            Statement::Expression(inner) => write!(f, "{}", inner),
+            Statement::Assign(inner) => write!(f, "{}", inner),
+            Statement::While(inner) => write!(f, "while {}", inner),
+            Statement::Break => write!(f, "break"),
+            Statement::Continue => write!(f, "continue"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -82,6 +82,18 @@ impl<'a> Parser<'a> {
             TokenType::Let => self.parse_let_statement(),
             TokenType::Return => self.parse_return_statement(),
             TokenType::While => self.parse_while_statement(),
+            TokenType::Continue => {
+                if self.peek_token.token_type == TokenType::Semicolon {
+                    self.next_token();
+                }
+                Ok(Statement::Continue)
+            }
+            TokenType::Break => {
+                if self.peek_token.token_type == TokenType::Semicolon {
+                    self.next_token();
+                }
+                Ok(Statement::Break)
+            }
             _ => self.parse_expression_assign_statement(),
         }
     }
@@ -171,7 +183,10 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block_statement()?;
 
-        let while_statement = WhileStatement {condition: condition, body: body};
+        let while_statement = WhileStatement {
+            condition: condition,
+            body: body,
+        };
 
         if self.peek_token.token_type == TokenType::Semicolon {
             self.next_token();
@@ -282,10 +297,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_float_literal_expression(&mut self) -> Result<Expression, ParseError> {
-        let value: f64 =
-            self.current_token
-                .literal
-                .parse::<f64>().unwrap();
+        let value: f64 = self.current_token.literal.parse::<f64>().unwrap();
 
         Ok(Expression::FloatLiteral(value))
     }
@@ -802,7 +814,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_float_literal_expression() -> Result<(), ParseError> {
         let input = "5.55555555;";
@@ -817,7 +828,11 @@ mod tests {
         );
 
         let expression = get_statement_expression(&program.statements[0]);
-        assert_eq!(expression, &Expression::FloatLiteral(5.55555555), "float exrpession does not contain the correct value");
+        assert_eq!(
+            expression,
+            &Expression::FloatLiteral(5.55555555),
+            "float exrpession does not contain the correct value"
+        );
 
         Ok(())
     }
@@ -1566,7 +1581,12 @@ mod tests {
         let statement = &program.statements[0];
         match statement {
             Statement::While(while_statement) => {
-                test_infix_expression(while_statement.condition.as_ref(), ExpectedLiteral::Int(1), "<", ExpectedLiteral::Int(2));
+                test_infix_expression(
+                    while_statement.condition.as_ref(),
+                    ExpectedLiteral::Int(1),
+                    "<",
+                    ExpectedLiteral::Int(2),
+                );
                 let body_statement = while_statement.body.statements[0].clone();
                 let body_expression = match body_statement {
                     Statement::Expression(expression_statement) => expression_statement.expression,

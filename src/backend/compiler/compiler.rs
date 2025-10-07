@@ -13,6 +13,7 @@ pub enum CompilationError {
     UnknownSymbol(String),
     Unassignable(Expression),
     DefiningAlreadyExistingSymbol(String),
+    Other(String),
 }
 
 #[derive(Clone, Copy)]
@@ -43,12 +44,28 @@ impl CompilationScope {
     }
 }
 
+pub struct LoopContext {
+    pub start_bytes: [u8; 2],
+    pub break_positions: Vec<usize>,
+}
+
+impl LoopContext {
+    fn new(start_pos: [u8; 2]) -> Self {
+        LoopContext {
+            start_bytes: start_pos,
+            break_positions: Vec::<usize>::new(),
+        }
+    }
+}
+
 pub struct Compiler {
     pub constants: Vec<Object>,
     pub symbol_table: Rc<RefCell<SymbolTable>>,
 
     scopes: Vec<CompilationScope>,
     scope_index: usize,
+
+    loop_stack: Vec<LoopContext>,
 }
 
 impl Compiler {
@@ -65,6 +82,7 @@ impl Compiler {
             symbol_table: symbol_table,
             scopes: vec![CompilationScope::new()],
             scope_index: 0,
+            loop_stack: Vec::<LoopContext>::new(),
         }
     }
 
@@ -170,6 +188,7 @@ impl Compiler {
             },
             Statement::While(while_statement) => {
                 let start_bytes = ((self.current_intstructions().len()) as u16).to_be_bytes();
+                self.push_loop_context(start_bytes);
 
                 self.compile_expression(while_statement.condition.as_ref())?;
 
@@ -178,10 +197,38 @@ impl Compiler {
                 self.compile_block_statement(&while_statement.body)?;
                 self.emit(Opcode::Jump, &[&start_bytes]);
 
-                let current_position_bytes =
-                    ((self.current_intstructions().len()) as u16).to_be_bytes();
+                let current_position_bytes = self.get_current_position();
 
+                // change the loop condition to jump past the loop
                 self.change_operands(jump_not_truthy_position, &[&current_position_bytes])?;
+
+                // make breaks jump past the loop
+                for position in self.current_loop_context().break_positions.clone() {
+                    self.change_operands(position, &[&current_position_bytes])?;
+                }
+
+                self.pop_loop_context();
+            }
+            Statement::Continue => {
+                let start_bytes = {
+                    let loop_context = self.loop_stack.last().ok_or(CompilationError::Other(
+                        "continue used outside of loop".to_string(),
+                    ))?;
+                    loop_context.start_bytes
+                };
+
+                self.emit(Opcode::Jump, &[&start_bytes]);
+            }
+            Statement::Break => {
+                if self.loop_stack.is_empty() {
+                    return Err(CompilationError::Other(
+                        "break used outside of loop".to_string(),
+                    ));
+                }
+                let current_pos = self.current_intstructions().len();
+                let idx = self.loop_stack.len() - 1;
+                self.loop_stack[idx].break_positions.push(current_pos);
+                self.emit(Opcode::Jump, &[&[0, 0]]);
             }
         };
         Ok(())
@@ -544,6 +591,25 @@ impl Compiler {
     #[inline(always)]
     fn last_instruction_is(&self, opcode: Opcode) -> bool {
         self.scopes[self.scope_index].last_instruction.opcode == opcode
+    }
+
+    #[inline(always)]
+    fn push_loop_context(&mut self, start_position: [u8; 2]) {
+        self.loop_stack.push(LoopContext::new(start_position));
+    }
+
+    #[inline(always)]
+    fn pop_loop_context(&mut self) {
+        self.loop_stack.pop();
+    }
+
+    #[inline(always)]
+    fn current_loop_context(&mut self) -> &LoopContext {
+        let loop_context = self.loop_stack.last();
+        match loop_context {
+            Some(value) => value,
+            _ => unreachable!("no loop context on the loop stack"),
+        }
     }
 }
 
@@ -1557,7 +1623,7 @@ mod tests {
                     ))),
                     Object::CompiledFunction(Rc::new(CompiledFunction::new(
                         make_instructions(vec![
-                            (Opcode::Closure, &[&[0, 1], &[1], &[0 ,0]]),
+                            (Opcode::Closure, &[&[0, 1], &[1], &[0, 0]]),
                             (Opcode::ReturnValue, &[]),
                         ])
                         .into_boxed_slice(),
@@ -2104,6 +2170,26 @@ mod tests {
                     (Opcode::GetGlobal, &[&[0, 1]]),
                     (Opcode::Call, &[&[0]]),
                     (Opcode::Pop, &[]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "while (true) { break; }",
+                expected_constants: vec![],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::True, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 10]]),
+                    (Opcode::Jump, &[&[0, 10]]),
+                    (Opcode::Jump, &[&[0, 0]]),
+                ]),
+            },
+            CompilerTestCase {
+                input: "while (true) { continue; }",
+                expected_constants: vec![],
+                expected_instructions: make_instructions(vec![
+                    (Opcode::True, &[]),
+                    (Opcode::JumpNotTruthy, &[&[0, 10]]),
+                    (Opcode::Jump, &[&[0, 0]]),
+                    (Opcode::Jump, &[&[0, 0]]),
                 ]),
             },
         ];

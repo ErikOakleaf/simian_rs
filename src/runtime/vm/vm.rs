@@ -1588,7 +1588,10 @@ mod tests {
             },
             VMTestCase {
                 input: "let a = [1 ,2]; let b = clone(a); pop(a); b",
-                expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1), Object::Integer(2)]))),
+                expected: Object::Array(Rc::new(RefCell::new(vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                ]))),
             },
         ];
 
@@ -1900,6 +1903,26 @@ mod tests {
                     f()
                 ",
                 expected: Object::Integer(9),
+            },
+            VMTestCase {
+                input: "let a = 0; while (true) { a = a + 1; if (a == 5) {break}}",
+                expected: Object::Integer(5),
+            },
+            VMTestCase {
+                input: "let a = 0; let b = 0; while (b < 10) {b = b + 1; if (a == 2) {a = a + 10; continue;}; a = a + 1; }",
+                expected: Object::Integer(19),
+            },
+            VMTestCase {
+                input: "let a = 0; let b = 0; while (a < 10) { b = 0; while (b < 9999) { b = b + 1; if (b == 10) {break;} }; a = a + 1 } b",
+                expected: Object::Integer(10),
+            },
+            VMTestCase {
+                input: "let a = 0; let b = 0; while (a < 5) { while (b < 9999) { b = b + 1; }; if (a == 2) {break}; a = a + 1; } a",
+                expected: Object::Integer(2),
+            },
+            VMTestCase {
+                input: "let f = fn(amount) { let a = 0; while (true) { a = a + 1; if (a == amount) {break;}; }; a }; f(14)",
+                expected: Object::Integer(14),
             },
         ];
 
