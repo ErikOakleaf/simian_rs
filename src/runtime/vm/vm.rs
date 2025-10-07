@@ -1575,6 +1575,13 @@ mod tests {
                 expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(2)]))),
             },
             VMTestCase {
+                input: "let a = { \"hello\": \"world\", \"one\": \"two\"}; remove(a, \"one\"); a;",
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([(
+                    HashKey::String("hello".to_string()),
+                    Object::String(Rc::new(RefCell::new("world".to_string()))),
+                )])))),
+            },
+            VMTestCase {
                 input: "let a = [1 ,2]; pop(a); a",
                 expected: Object::Array(Rc::new(RefCell::new(vec![Object::Integer(1)]))),
             },

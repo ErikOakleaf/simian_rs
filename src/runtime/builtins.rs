@@ -165,24 +165,45 @@ fn append_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
 fn remove_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     check_args_length(args.len(), 2)?;
 
-    if let Object::Array(arr_rc) = &args[0] {
-        let mut arr_borrow = arr_rc.borrow_mut();
+    match &args[0] {
+        Object::Array(array) => {
+            let index = match args[1] {
+                Object::Integer(integer) => integer as usize,
+                _ => {
+                    return Err(RuntimeError::Other(format!(
+                        "array_remove was not supplied with a integer as the index that is the second argument got {}",
+                        args[1]
+                    )));
+                }
+            };
 
-        if let Object::Integer(integer) = args[1] {
-            arr_borrow.remove(integer as usize);
-            Ok(Object::Void)
-        } else {
-            Err(RuntimeError::Other(format!(
-                "argument to remove not supported, got {}",
-                args[1]
-            )))
+            array_remove_builtin(array, index);
         }
-    } else {
-        Err(RuntimeError::Other(format!(
-            "argument to remove not supported, got {}",
-            args[0]
-        )))
+        Object::Hash(hash) => {
+            let key = match &args[1] {
+                Object::Integer(integer) => HashKey::Integer(*integer),
+                Object::Boolean(boolean) => HashKey::Boolean(*boolean),
+                Object::String(string_rc) => HashKey::String(string_rc.borrow().clone()),
+
+                _ => {
+                    return Err(RuntimeError::Other(format!(
+                        "hash_remove was not supplied with a valid key, that is the second argument got {}",
+                        args[1]
+                    )));
+                }
+            };
+
+            hash_remove_builtin(hash, &key);
+        }
+        _ => {
+            return Err(RuntimeError::Other(format!(
+                "insert got neither an array or a hash, got {}",
+                args[0]
+            )));
+        }
     }
+
+    Ok(Object::Void)
 }
 
 fn pop_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
@@ -254,7 +275,7 @@ fn insert_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
 
                 _ => {
                     return Err(RuntimeError::Other(format!(
-                        "array_insert was not supplied with a integer as the index that is the second argument got {}",
+                        "array_insert was not supplied with a valid key, that is the second argument got {}",
                         args[1]
                     )));
                 }
@@ -300,4 +321,12 @@ fn array_insert_builtin(array: &Rc<RefCell<Vec<Object>>>, index: usize, value: O
 
 fn hash_insert_builtin(hash: &Rc<RefCell<HashMap<HashKey, Object>>>, key: HashKey, value: Object) {
     hash.borrow_mut().insert(key, value);
+}
+
+fn array_remove_builtin(array: &Rc<RefCell<Vec<Object>>>, index: usize) {
+    array.borrow_mut().remove(index);
+}
+
+fn hash_remove_builtin(hash: &Rc<RefCell<HashMap<HashKey, Object>>>, key: &HashKey) {
+    hash.borrow_mut().remove(key);
 }

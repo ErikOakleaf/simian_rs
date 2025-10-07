@@ -109,16 +109,16 @@ a;
 
 
 ```monkey
-let a = { "hello": "world"}; 
+let a = { "hello" : "world"}; 
 insert(a, "one", "two"); 
 a;
 ```
 
-**Output:** { "hello": "world", "one", "two" }
+**Output:** { "hello" : "world", "one" : "two" }
 
 ### remove(array, index)
 
-removes the value at a given index in an array
+removes the value at a given index or key in an array or hash
 
 ```monkey
 let a = [1, 2, 3];
@@ -126,7 +126,13 @@ remove(a, 2);
 a;
 ```
 
-**Output:** [1, 2]
+```monkey
+let a = { "hello" : "world", "one" : "two"};
+remove(a, "one");
+a;
+```
+
+**Output:** { "hello" : "world" }
 
 ### pop(array)
 
