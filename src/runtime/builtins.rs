@@ -1,6 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::runtime::{Object, object::BuiltinFunction, vm::vm::RuntimeError};
+use crate::runtime::{
+    Object,
+    object::{BuiltinFunction, HashKey},
+    vm::vm::RuntimeError,
+};
 
 pub static BUILTINS: &[BuiltinFunction] = &[
     BuiltinFunction {
@@ -42,6 +46,10 @@ pub static BUILTINS: &[BuiltinFunction] = &[
     BuiltinFunction {
         name: "clone",
         func: clone_builtin,
+    },
+    BuiltinFunction {
+        name: "insert",
+        func: insert_builtin,
     },
 ];
 
@@ -219,6 +227,52 @@ fn clone_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     }
 }
 
+fn insert_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
+    check_args_length(args.len(), 3)?;
+
+    let object = args[2].clone();
+
+    match &args[0] {
+        Object::Array(array) => {
+            let index = match args[1] {
+                Object::Integer(integer) => integer as usize,
+                _ => {
+                    return Err(RuntimeError::Other(format!(
+                        "array_insert was not supplied with a integer as the index that is the second argument got {}",
+                        args[1]
+                    )));
+                }
+            };
+
+            array_insert_builtin(array, index, object);
+        }
+        Object::Hash(hash) => {
+            let key = match &args[1] {
+                Object::Integer(integer) => HashKey::Integer(*integer),
+                Object::Boolean(boolean) => HashKey::Boolean(*boolean),
+                Object::String(string_rc) => HashKey::String(string_rc.borrow().clone()),
+
+                _ => {
+                    return Err(RuntimeError::Other(format!(
+                        "array_insert was not supplied with a integer as the index that is the second argument got {}",
+                        args[1]
+                    )));
+                }
+            };
+
+            hash_insert_builtin(hash, key, object);
+        }
+        _ => {
+            return Err(RuntimeError::Other(format!(
+                "insert got neither an array or a hash, got {}",
+                args[0]
+            )));
+        }
+    };
+
+    Ok(Object::Void)
+}
+
 fn puts_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
     for object in args {
         println!("{}", object);
@@ -238,4 +292,12 @@ fn check_args_length(args_length: usize, expected: usize) -> Result<(), RuntimeE
     }
 
     Ok(())
+}
+
+fn array_insert_builtin(array: &Rc<RefCell<Vec<Object>>>, index: usize, value: Object) {
+    array.borrow_mut().insert(index, value);
+}
+
+fn hash_insert_builtin(hash: &Rc<RefCell<HashMap<HashKey, Object>>>, key: HashKey, value: Object) {
+    hash.borrow_mut().insert(key, value);
 }

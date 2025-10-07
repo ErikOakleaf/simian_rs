@@ -85,7 +85,7 @@ In addition to the built-in functions provided by the Monkey programming languag
 
 ### append(array, value)
 
-append is the counter part to push, where push will create a copy of the array with the new value added append will modify the array that is given to it
+append is the counterpart to push, where push will create a copy of the array with the new value added append will modify the array that is given to it
 
 ```monkey
 let a = [1];
@@ -94,6 +94,27 @@ a;
 ```
 
 **Output:** [1, 2]
+
+### insert(array/hash, integer/key, value)
+
+inserts into an array or a hash at a specific index or key
+
+```monkey
+let a = [1 ,3]; 
+insert(a, 1, 2); 
+a;
+```
+
+**Output:** [1, 2, 3]
+
+
+```monkey
+let a = { "hello": "world"}; 
+insert(a, "one", "two"); 
+a;
+```
+
+**Output:** { "hello": "world", "one", "two" }
 
 ### remove(array, index)
 

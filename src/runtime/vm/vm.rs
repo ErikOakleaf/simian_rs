@@ -1593,6 +1593,34 @@ mod tests {
                     Object::Integer(2),
                 ]))),
             },
+            VMTestCase {
+                input: "let a = [1 ,3]; insert(a, 1, 2); a",
+                expected: Object::Array(Rc::new(RefCell::new(vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                ]))),
+            },
+            VMTestCase {
+                input: "let a = { true: 1}; insert(a, false, 2); a",
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([
+                    (HashKey::Boolean(true), Object::Integer(1)),
+                    (HashKey::Boolean(false), Object::Integer(2)),
+                ])))),
+            },
+            VMTestCase {
+                input: "let a = { \"hello\": \"world\"}; insert(a, \"one\", \"two\"); a;",
+                expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([
+                    (
+                        HashKey::String("hello".to_string()),
+                        Object::String(Rc::new(RefCell::new("world".to_string()))),
+                    ),
+                    (
+                        HashKey::String("one".to_string()),
+                        Object::String(Rc::new(RefCell::new("two".to_string()))),
+                    ),
+                ])))),
+            },
         ];
 
         run_vm_tests(&tests)
