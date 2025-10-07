@@ -116,7 +116,7 @@ a;
 
 **Output:** { "hello" : "world", "one" : "two" }
 
-### remove(array, index)
+### remove(array/hash, index/key)
 
 removes the value at a given index or key in an array or hash
 
