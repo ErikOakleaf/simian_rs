@@ -122,9 +122,11 @@ removes the value at a given index or key in an array or hash
 
 ```monkey
 let a = [1, 2, 3];
-remove(a, 2);
+remove(a, 1);
 a;
 ```
+
+**Output:** [1, 3]
 
 ```monkey
 let a = { "hello" : "world", "one" : "two"};
