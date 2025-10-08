@@ -482,6 +482,23 @@ impl VM {
                                 self.push(Object::Null)?;
                             }
                         }
+                        Object::String(string) => {
+                            let index = match index_object {
+                                Object::Integer(value) => value as usize,
+                                other => {
+                                    return Err(RuntimeError::InvalidIndexType {
+                                        indexable: indexable_object,
+                                        index: other,
+                                    });
+                                }
+                            };
+
+                            let string_char = string.borrow().chars().nth(index);
+                            match string_char {
+                                Some(value) => self.push(Object::Char(value))?,
+                                None => self.push(Object::Null)?,
+                            };
+                        }
                         other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
                 }
@@ -1271,6 +1288,18 @@ mod tests {
             },
             VMTestCase {
                 input: "{}[0]",
+                expected: Object::Null,
+            },
+            VMTestCase {
+                input: "\"hello\"[1]",
+                expected: Object::Char('e'),
+            },
+            VMTestCase {
+                input: "\"world\"[3]",
+                expected: Object::Char('l'),
+            },
+            VMTestCase {
+                input: "\"something\"[999]",
                 expected: Object::Null,
             },
         ];
