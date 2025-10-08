@@ -27,6 +27,7 @@ impl_display_for_enum!(
     Function,
     Call,
     String,
+    Char,
     Array,
     Hash,
     Index
@@ -71,6 +72,7 @@ pub enum Expression {
     Function(FunctionLiteralExpression),
     Call(CallExpression),
     String(Token),
+    Char(char),
     Array(ArrayLiteralExpression),
     Hash(HashLiteralExpression),
     Index(IndexExpression),

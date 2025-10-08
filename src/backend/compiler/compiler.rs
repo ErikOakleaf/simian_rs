@@ -268,6 +268,11 @@ impl Compiler {
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
             }
+            Expression::Char(char_value) => {
+                let char_object = Object::Char(*char_value);
+                let index = self.add_constant(char_object).to_be_bytes();
+                self.emit(Opcode::LoadConstant, &[&index]);
+            }
             Expression::Array(array_literal_expression) => {
                 for element in array_literal_expression.elements.iter() {
                     self.compile_expression(element)?;

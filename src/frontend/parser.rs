@@ -229,6 +229,7 @@ impl<'a> Parser<'a> {
             TokenType::If => self.parse_if_expression()?,
             TokenType::Function => self.parse_function_literal_expression()?,
             TokenType::String => Expression::String(self.current_token.clone()),
+            TokenType::Char => Expression::Char(self.current_token.literal.chars().next().unwrap()),
             TokenType::LBracket => self.parse_array_literal_expression()?,
             TokenType::LBrace => self.parse_hash_literal_expression()?,
             _ => {
@@ -860,6 +861,26 @@ mod tests {
             let expression = get_statement_expression(&program.statements[0]);
             test_prefix_expression(expression, operator, literal);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_char_literal_expression() -> Result<(), ParseError> {
+        let input = "'y';";
+
+        let program = parse_input(input)?;
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program contains {} statements not 1",
+            program.statements.len()
+        );
+
+        let expression = get_statement_expression(&program.statements[0]);
+
+        assert_eq!(expression, &Expression::Char('y'));
 
         Ok(())
     }

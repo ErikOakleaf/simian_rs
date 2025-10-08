@@ -119,7 +119,6 @@ impl<'a> Lexer<'a> {
                     );
                 }
 
-
                 token
             }
             '\0' => Token::new(TokenType::EOF, &[]),

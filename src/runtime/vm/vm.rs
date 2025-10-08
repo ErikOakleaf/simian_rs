@@ -2001,4 +2001,28 @@ mod tests {
 
         run_vm_tests(&tests)
     }
+
+    #[test]
+    fn test_char_literals() -> Result<(), RuntimeError> {
+        let tests = vec![
+            VMTestCase {
+                input: "'5'",
+                expected: Object::Char('5'),
+            },
+            VMTestCase {
+                input: "'a'",
+                expected: Object::Char('a'),
+            },
+            VMTestCase {
+                input: "'B'",
+                expected: Object::Char('B'),
+            },
+            VMTestCase {
+                input: "'W'",
+                expected: Object::Char('W'),
+            },
+        ];
+
+        run_vm_tests(&tests)
+    }
 }
