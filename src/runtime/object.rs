@@ -35,6 +35,7 @@ pub enum Object {
     Builtin(&'static BuiltinFunction),
     CompiledFunction(Rc<CompiledFunction>),
     String(Rc<RefCell<String>>),
+    Char(char),
     Array(Rc<RefCell<Vec<Object>>>),
     Hash(Rc<RefCell<HashMap<HashKey, Object>>>),
     Closure(Rc<Closure>),
@@ -60,6 +61,9 @@ impl fmt::Display for Object {
             }
             Object::String(value) => {
                 write!(f, "{}", value.borrow())
+            }
+            Object::Char(value) => {
+                write!(f, "{}", value)
             }
             Object::Builtin(value) => {
                 write!(f, "{}", value)

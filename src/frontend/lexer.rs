@@ -102,6 +102,26 @@ impl<'a> Lexer<'a> {
                 &self.input[self.position..self.position + 1],
             ),
             '"' => Token::new(TokenType::String, self.read_string()),
+            '\'' => {
+                self.read_char();
+
+                let token = Token::new(
+                    TokenType::Char,
+                    &self.input[self.position..self.position + 1],
+                );
+
+                self.read_char();
+
+                if self.current_char != '\'' {
+                    return Token::new(
+                        TokenType::Illegal,
+                        &self.input[self.position..self.position + 1],
+                    );
+                }
+
+
+                token
+            }
             '\0' => Token::new(TokenType::EOF, &[]),
             _ => {
                 if Self::is_letter(self.current_char) {
@@ -239,6 +259,7 @@ mod tests {
                     {\"foo\": \"bar\"}
                     5.82283
                     \"🐒🐵\"
+                    '🐒'
                     ";
 
         let chars: Vec<char> = input.chars().collect();
@@ -332,7 +353,8 @@ mod tests {
             (TokenType::String, "bar"),
             (TokenType::RBrace, "}"),
             (TokenType::Float, "5.82283"),
-            (TokenType:: String, "🐒🐵"),
+            (TokenType::String, "🐒🐵"),
+            (TokenType::Char, "🐒"),
             (TokenType::EOF, ""),
         ];
 

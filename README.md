@@ -165,11 +165,11 @@ b;
 simian_rs is unicode compatible
 
 ```monkey
-let a = "🐵";
+let a = "🐒";
 a;
 ```
 
-**Output:** 🐵
+**Output:** 🐒
 
 # Benchmarks
 

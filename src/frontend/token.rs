@@ -17,6 +17,7 @@ pub enum TokenType {
     LBracket,
     RBracket,
     String,
+    Char,
 
     //Keywords
     Let,
