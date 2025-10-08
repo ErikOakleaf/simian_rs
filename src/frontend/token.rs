@@ -45,17 +45,16 @@ pub enum TokenType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Token {
+pub struct Token<'a> {
     pub token_type: TokenType,
-    pub literal: String,
+    pub literal: &'a[char],
 }
 
-impl Token {
-    pub fn new(token_type: TokenType, literal: &[char]) -> Self {
-        let literal_string: String = literal.iter().collect();
+impl<'a> Token<'a> {
+    pub fn new(token_type: TokenType, literal: &'a[char]) -> Self {
         Token {
             token_type: token_type,
-            literal: literal_string,
+            literal: literal,
         }
     }
 
@@ -94,8 +93,9 @@ impl Token {
     }
 }
 
-impl fmt::Display for Token {
+impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.literal)
+        let literal_string: String = self.literal.iter().collect();
+        write!(f, "{}", literal_string)
     }
 }

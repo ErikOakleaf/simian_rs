@@ -1,121 +1,133 @@
 use crate::frontend::token::{Token, TokenType};
 
-pub struct Lexer<'a> {
-    input: &'a [char],
+struct LexerState {
     position: usize,
     read_position: usize,
     current_char: char,
+}
+
+impl LexerState {
+    fn new() -> Self {
+        LexerState {
+            position: 0,
+            read_position: 0,
+            current_char: '0',
+        }
+    }
+}
+
+pub struct Lexer<'a> {
+    input: &'a [char],
+    state: LexerState,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a [char]) -> Self {
         let mut lexer = Lexer {
             input: input,
-            position: 0,
-            read_position: 0,
-            current_char: '0',
+            state: LexerState::new(),
         };
-        lexer.read_char();
+        Lexer::read_char(lexer.input, &mut lexer.state);
         lexer
     }
 
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
-        let token = match self.current_char {
+        let token = match self.state.current_char {
             '=' => {
                 if self.peek_char() == '=' {
-                    let literal = &self.input[self.position..self.position + 2];
-                    self.read_char();
+                    let literal = &self.input[self.state.position..self.state.position + 2];
+                    Self::read_char(self.input, &mut self.state);
                     Token::new(TokenType::EQ, literal)
                 } else {
                     Token::new(
                         TokenType::Assign,
-                        &self.input[self.position..self.position + 1],
+                        &self.input[self.state.position..self.state.position + 1],
                     )
                 }
             }
             '!' => {
                 if self.peek_char() == '=' {
-                    let literal = &self.input[self.position..self.position + 2];
-                    self.read_char();
+                    let literal = &self.input[self.state.position..self.state.position + 2];
+                    Self::read_char(self.input, &mut self.state);
                     Token::new(TokenType::NotEQ, literal)
                 } else {
                     Token::new(
                         TokenType::Bang,
-                        &self.input[self.position..self.position + 1],
+                        &self.input[self.state.position..self.state.position + 1],
                     )
                 }
             }
             '+' => Token::new(
                 TokenType::Plus,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '-' => Token::new(
                 TokenType::Minus,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '/' => Token::new(
                 TokenType::Slash,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '*' => Token::new(
                 TokenType::Asterisk,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
-            '<' => Token::new(TokenType::LT, &self.input[self.position..self.position + 1]),
-            '>' => Token::new(TokenType::GT, &self.input[self.position..self.position + 1]),
+            '<' => Token::new(TokenType::LT, &self.input[self.state.position..self.state.position + 1]),
+            '>' => Token::new(TokenType::GT, &self.input[self.state.position..self.state.position + 1]),
             ';' => Token::new(
                 TokenType::Semicolon,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             ':' => Token::new(
                 TokenType::Colon,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             ',' => Token::new(
                 TokenType::Comma,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '(' => Token::new(
                 TokenType::LParen,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             ')' => Token::new(
                 TokenType::RParen,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '{' => Token::new(
                 TokenType::LBrace,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '}' => Token::new(
                 TokenType::RBrace,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '[' => Token::new(
                 TokenType::LBracket,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             ']' => Token::new(
                 TokenType::RBracket,
-                &self.input[self.position..self.position + 1],
+                &self.input[self.state.position..self.state.position + 1],
             ),
             '"' => Token::new(TokenType::String, self.read_string()),
             '\'' => {
-                self.read_char();
+                Self::read_char(self.input, &mut self.state);
 
                 let token = Token::new(
                     TokenType::Char,
-                    &self.input[self.position..self.position + 1],
+                    &self.input[self.state.position..self.state.position + 1],
                 );
 
-                self.read_char();
+                Self::read_char(self.input, &mut self.state);
 
-                if self.current_char != '\'' {
+                if self.state.current_char != '\'' {
                     return Token::new(
                         TokenType::Illegal,
-                        &self.input[self.position..self.position + 1],
+                        &self.input[self.state.position..self.state.position + 1],
                     );
                 }
 
@@ -123,11 +135,11 @@ impl<'a> Lexer<'a> {
             }
             '\0' => Token::new(TokenType::EOF, &[]),
             _ => {
-                if Self::is_letter(self.current_char) {
+                if Self::is_letter(self.state.current_char) {
                     let literal = self.read_identifier();
                     let token_type = Token::lookup_identifier(literal);
                     return Token::new(token_type, literal);
-                } else if Self::is_digit(self.current_char) {
+                } else if Self::is_digit(self.state.current_char) {
                     let (literal, is_float) = self.read_number();
                     if is_float {
                         return Token::new(TokenType::Float, literal);
@@ -137,62 +149,62 @@ impl<'a> Lexer<'a> {
                 } else {
                     Token::new(
                         TokenType::Illegal,
-                        &self.input[self.position..self.position + 1],
+                        &self.input[self.state.position..self.state.position + 1],
                     )
                 }
             }
         };
 
-        self.read_char();
+        Self::read_char(self.input, &mut self.state);
         token
     }
 
     fn read_identifier(&mut self) -> &[char] {
-        let position = self.position;
+        let position = self.state.position;
 
-        while Self::is_letter(self.current_char) {
-            self.read_char();
+        while Self::is_letter(self.state.current_char) {
+            Self::read_char(self.input, &mut self.state);
         }
 
-        &self.input[position..self.position]
+        &self.input[position..self.state.position]
     }
 
     fn read_number(&mut self) -> (&[char], bool) {
-        let position = self.position;
+        let position = self.state.position;
 
         let mut dot_seen = false;
 
-        while Self::is_digit(self.current_char) || (self.current_char == '.') {
-            if self.current_char == '.' {
+        while Self::is_digit(self.state.current_char) || (self.state.current_char == '.') {
+            if self.state.current_char == '.' {
                 if dot_seen {
                     panic!(
                         "multiple dots in number: {:?}.xx",
-                        &self.input[position..self.position],
+                        &self.input[position..self.state.position],
                     );
                 }
                 dot_seen = true;
             }
-            self.read_char();
+            Self::read_char(self.input, &mut self.state);
         }
 
-        (&self.input[position..self.position], dot_seen)
+        (&self.input[position..self.state.position], dot_seen)
     }
 
-    fn read_char(&mut self) {
-        if self.read_position >= self.input.len() {
-            self.current_char = '\0';
+    fn read_char(input: &[char], state: &mut LexerState ) {
+        if state.read_position >= input.len() {
+            state.current_char = '\0';
         } else {
-            self.current_char = self.input[self.read_position];
+            state.current_char = input[state.read_position];
         }
-        self.position = self.read_position;
-        self.read_position += 1;
+        state.position = state.read_position;
+        state.read_position += 1;
     }
 
     fn peek_char(&self) -> char {
-        if self.read_position >= self.input.len() {
+        if self.state.read_position >= self.input.len() {
             '\0'
         } else {
-            self.input[self.read_position]
+            self.input[self.state.read_position]
         }
     }
 
@@ -205,25 +217,25 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while self.current_char == ' '
-            || self.current_char == '\t'
-            || self.current_char == '\n'
-            || self.current_char == '\r'
+        while self.state.current_char == ' '
+            || self.state.current_char == '\t'
+            || self.state.current_char == '\n'
+            || self.state.current_char == '\r'
         {
-            self.read_char();
+            Self::read_char(self.input, &mut self.state);
         }
     }
 
-    fn read_string(&mut self) -> &[char] {
-        let position = self.position + 1;
+    fn read_string(&mut self) -> &'a [char] {
+        let position = self.state.position + 1;
         loop {
-            self.read_char();
-            if self.current_char == '"' || self.current_char == '0' {
+            Self::read_char(self.input, &mut self.state);
+            if self.state.current_char == '"' || self.state.current_char == '0' {
                 break;
             }
         }
 
-        &self.input[position..self.position]
+        &self.input[position..self.state.position]
     }
 }
 
@@ -364,7 +376,9 @@ mod tests {
                 "tests[{}] token type wrong",
                 i
             );
-            assert_eq!(tok.literal, *expected_literal, "tests[{}] literal wrong", i);
+            let expected_chars: Vec<char> = expected_literal.chars().collect();
+
+            assert_eq!(tok.literal, &expected_chars, "tests[{}] literal wrong", i);
         }
     }
 }
