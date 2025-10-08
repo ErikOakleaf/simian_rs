@@ -24,23 +24,23 @@ pub enum Precedence {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub enum ParseError {
-    UnexpectedToken(Token),
+pub enum ParseError<'a> {
+    UnexpectedToken(Token<'a>),
     ExpectedToken {
         expected: TokenType,
-        got: Token,
+        got: Token<'a>,
     },
     InvalidInteger {
-        token: Token,
+        token: Token<'a>,
         source: std::num::ParseIntError,
     },
-    NoPrefixParseFunction(Token),
+    NoPrefixParseFunction(Token<'a>),
 }
 
 pub struct Parser<'a> {
     lexer: &'a mut Lexer<'a>,
-    current_token: Token,
-    peek_token: Token,
+    current_token: Token<'a>,
+    peek_token: Token<'a>,
 }
 
 impl<'a> Parser<'a> {

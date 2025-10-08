@@ -31,7 +31,7 @@ impl<'a> Lexer<'a> {
         lexer
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
 
         let token = match self.state.current_char {
@@ -75,8 +75,14 @@ impl<'a> Lexer<'a> {
                 TokenType::Asterisk,
                 &self.input[self.state.position..self.state.position + 1],
             ),
-            '<' => Token::new(TokenType::LT, &self.input[self.state.position..self.state.position + 1]),
-            '>' => Token::new(TokenType::GT, &self.input[self.state.position..self.state.position + 1]),
+            '<' => Token::new(
+                TokenType::LT,
+                &self.input[self.state.position..self.state.position + 1],
+            ),
+            '>' => Token::new(
+                TokenType::GT,
+                &self.input[self.state.position..self.state.position + 1],
+            ),
             ';' => Token::new(
                 TokenType::Semicolon,
                 &self.input[self.state.position..self.state.position + 1],
@@ -159,7 +165,7 @@ impl<'a> Lexer<'a> {
         token
     }
 
-    fn read_identifier(&mut self) -> &[char] {
+    fn read_identifier(&mut self) -> &'a [char] {
         let position = self.state.position;
 
         while Self::is_letter(self.state.current_char) {
@@ -169,7 +175,7 @@ impl<'a> Lexer<'a> {
         &self.input[position..self.state.position]
     }
 
-    fn read_number(&mut self) -> (&[char], bool) {
+    fn read_number(&mut self) -> (&'a [char], bool) {
         let position = self.state.position;
 
         let mut dot_seen = false;
@@ -190,7 +196,7 @@ impl<'a> Lexer<'a> {
         (&self.input[position..self.state.position], dot_seen)
     }
 
-    fn read_char(input: &[char], state: &mut LexerState ) {
+    fn read_char(input: &[char], state: &mut LexerState) {
         if state.read_position >= input.len() {
             state.current_char = '\0';
         } else {
@@ -376,9 +382,11 @@ mod tests {
                 "tests[{}] token type wrong",
                 i
             );
-            let expected_chars: Vec<char> = expected_literal.chars().collect();
+            // let expected_chars: Vec<char> = expected_literal.chars().collect();
 
-            assert_eq!(tok.literal, &expected_chars, "tests[{}] literal wrong", i);
+            let actual_string: String = tok.literal.iter().collect();
+
+            assert_eq!(actual_string, *expected_literal, "tests[{}] literal wrong", i);
         }
     }
 }
