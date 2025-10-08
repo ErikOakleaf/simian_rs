@@ -1,19 +1,19 @@
 use crate::frontend::token::{Token, TokenType};
 
 pub struct Lexer<'a> {
-    input: &'a str,
+    input: &'a [char],
     position: usize,
     read_position: usize,
-    char: u8,
+    current_char: char,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub fn new(input: &'a [char]) -> Self {
         let mut lexer = Lexer {
             input: input,
             position: 0,
             read_position: 0,
-            char: 0,
+            current_char: '0',
         };
         lexer.read_char();
         lexer
@@ -22,9 +22,9 @@ impl<'a> Lexer<'a> {
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
-        let token = match self.char {
-            b'=' => {
-                if self.peek_char() == b'=' {
+        let token = match self.current_char {
+            '=' => {
+                if self.peek_char() == '=' {
                     let literal = &self.input[self.position..self.position + 2];
                     self.read_char();
                     Token::new(TokenType::EQ, literal)
@@ -35,8 +35,8 @@ impl<'a> Lexer<'a> {
                     )
                 }
             }
-            b'!' => {
-                if self.peek_char() == b'=' {
+            '!' => {
+                if self.peek_char() == '=' {
                     let literal = &self.input[self.position..self.position + 2];
                     self.read_char();
                     Token::new(TokenType::NotEQ, literal)
@@ -47,68 +47,68 @@ impl<'a> Lexer<'a> {
                     )
                 }
             }
-            b'+' => Token::new(
+            '+' => Token::new(
                 TokenType::Plus,
                 &self.input[self.position..self.position + 1],
             ),
-            b'-' => Token::new(
+            '-' => Token::new(
                 TokenType::Minus,
                 &self.input[self.position..self.position + 1],
             ),
-            b'/' => Token::new(
+            '/' => Token::new(
                 TokenType::Slash,
                 &self.input[self.position..self.position + 1],
             ),
-            b'*' => Token::new(
+            '*' => Token::new(
                 TokenType::Asterisk,
                 &self.input[self.position..self.position + 1],
             ),
-            b'<' => Token::new(TokenType::LT, &self.input[self.position..self.position + 1]),
-            b'>' => Token::new(TokenType::GT, &self.input[self.position..self.position + 1]),
-            b';' => Token::new(
+            '<' => Token::new(TokenType::LT, &self.input[self.position..self.position + 1]),
+            '>' => Token::new(TokenType::GT, &self.input[self.position..self.position + 1]),
+            ';' => Token::new(
                 TokenType::Semicolon,
                 &self.input[self.position..self.position + 1],
             ),
-            b':' => Token::new(
+            ':' => Token::new(
                 TokenType::Colon,
                 &self.input[self.position..self.position + 1],
             ),
-            b',' => Token::new(
+            ',' => Token::new(
                 TokenType::Comma,
                 &self.input[self.position..self.position + 1],
             ),
-            b'(' => Token::new(
+            '(' => Token::new(
                 TokenType::LParen,
                 &self.input[self.position..self.position + 1],
             ),
-            b')' => Token::new(
+            ')' => Token::new(
                 TokenType::RParen,
                 &self.input[self.position..self.position + 1],
             ),
-            b'{' => Token::new(
+            '{' => Token::new(
                 TokenType::LBrace,
                 &self.input[self.position..self.position + 1],
             ),
-            b'}' => Token::new(
+            '}' => Token::new(
                 TokenType::RBrace,
                 &self.input[self.position..self.position + 1],
             ),
-            b'[' => Token::new(
+            '[' => Token::new(
                 TokenType::LBracket,
                 &self.input[self.position..self.position + 1],
             ),
-            b']' => Token::new(
+            ']' => Token::new(
                 TokenType::RBracket,
                 &self.input[self.position..self.position + 1],
             ),
-            b'"' => Token::new(TokenType::String, self.read_string()),
-            0 => Token::new(TokenType::EOF, ""),
+            '"' => Token::new(TokenType::String, self.read_string()),
+            '\0' => Token::new(TokenType::EOF, &[]),
             _ => {
-                if Self::is_letter(self.char) {
+                if Self::is_letter(self.current_char) {
                     let literal = self.read_identifier();
                     let token_type = Token::lookup_identifier(literal);
                     return Token::new(token_type, literal);
-                } else if Self::is_digit(self.char) {
+                } else if Self::is_digit(self.current_char) {
                     let (literal, is_float) = self.read_number();
                     if is_float {
                         return Token::new(TokenType::Float, literal);
@@ -128,26 +128,26 @@ impl<'a> Lexer<'a> {
         token
     }
 
-    fn read_identifier(&mut self) -> &str {
+    fn read_identifier(&mut self) -> &[char] {
         let position = self.position;
 
-        while Self::is_letter(self.char) {
+        while Self::is_letter(self.current_char) {
             self.read_char();
         }
 
         &self.input[position..self.position]
     }
 
-    fn read_number(&mut self) -> (&str, bool) {
+    fn read_number(&mut self) -> (&[char], bool) {
         let position = self.position;
 
         let mut dot_seen = false;
 
-        while Self::is_digit(self.char) || (self.char == b'.') {
-            if self.char == b'.' {
+        while Self::is_digit(self.current_char) || (self.current_char == '.') {
+            if self.current_char == '.' {
                 if dot_seen {
                     panic!(
-                        "multiple dots in number: {}.xx",
+                        "multiple dots in number: {:?}.xx",
                         &self.input[position..self.position],
                     );
                 }
@@ -161,41 +161,45 @@ impl<'a> Lexer<'a> {
 
     fn read_char(&mut self) {
         if self.read_position >= self.input.len() {
-            self.char = 0;
+            self.current_char = '\0';
         } else {
-            self.char = self.input.as_bytes()[self.read_position]
+            self.current_char = self.input[self.read_position];
         }
         self.position = self.read_position;
         self.read_position += 1;
     }
 
-    fn peek_char(&self) -> u8 {
+    fn peek_char(&self) -> char {
         if self.read_position >= self.input.len() {
-            0
+            '\0'
         } else {
-            self.input.as_bytes()[self.read_position]
+            self.input[self.read_position]
         }
     }
 
-    fn is_letter(char: u8) -> bool {
-        (char >= b'a' && char <= b'z') || (char >= b'A' && char <= b'Z') || char == b'_'
+    fn is_letter(character: char) -> bool {
+        character.is_alphabetic() || character == '_'
     }
 
-    fn is_digit(char: u8) -> bool {
-        b'0' <= char && char <= b'9'
+    fn is_digit(character: char) -> bool {
+        '0' <= character && character <= '9'
     }
 
     fn skip_whitespace(&mut self) {
-        while self.char == b' ' || self.char == b'\t' || self.char == b'\n' || self.char == b'\r' {
+        while self.current_char == ' '
+            || self.current_char == '\t'
+            || self.current_char == '\n'
+            || self.current_char == '\r'
+        {
             self.read_char();
         }
     }
 
-    fn read_string(&mut self) -> &str {
+    fn read_string(&mut self) -> &[char] {
         let position = self.position + 1;
         loop {
             self.read_char();
-            if self.char == b'"' || self.char == b'0' {
+            if self.current_char == '"' || self.current_char == '0' {
                 break;
             }
         }
@@ -234,9 +238,11 @@ mod tests {
                     [1, 2];
                     {\"foo\": \"bar\"}
                     5.82283
+                    \"🐒🐵\"
                     ";
 
-        let mut lexer = Lexer::new(input);
+        let chars: Vec<char> = input.chars().collect();
+        let mut lexer = Lexer::new(&chars);
 
         let tests = vec![
             (TokenType::Let, "let"),
@@ -326,6 +332,7 @@ mod tests {
             (TokenType::String, "bar"),
             (TokenType::RBrace, "}"),
             (TokenType::Float, "5.82283"),
+            (TokenType:: String, "🐒🐵"),
             (TokenType::EOF, ""),
         ];
 

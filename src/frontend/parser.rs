@@ -599,7 +599,8 @@ mod tests {
     // Test helper functions
 
     fn parse_input(input: &str) -> Result<Program, ParseError> {
-        let mut lexer = Lexer::new(input);
+        let chars: Vec<char> = input.chars().collect();
+        let mut lexer = Lexer::new(&chars);
         let mut parser = Parser::new(&mut lexer);
         parser.parse_program()
     }

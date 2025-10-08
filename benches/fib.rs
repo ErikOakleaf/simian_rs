@@ -28,7 +28,8 @@ fibonacci(35);
 pub fn run_vm(c: &mut Criterion) {
     c.bench_function("vm", |b| {
         b.iter(|| {
-            let mut lexer = Lexer::new(PROGRAM);
+            let chars: Vec<char> = PROGRAM.chars().collect();
+            let mut lexer = Lexer::new(&chars);
             let mut parser = Parser::new(&mut lexer);
             let program = parser.parse_program().unwrap();
 

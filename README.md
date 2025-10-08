@@ -1,3 +1,4 @@
+
 An interpreter for the monkey programming language as defined by https://monkeylang.org/
 
 Compiles to bytecode and runs in a VM all made in rust !
@@ -147,9 +148,9 @@ pop(a);
 
 **Output:** 3
 
-### clone(array)
+### clone(array/hash/string)
 
-gives a clone of an array
+gives a clone of an array, hash or string
 
 ```monkey
 let a = [1, 2, 3];
@@ -159,6 +160,16 @@ b;
 ```
 
 **Output:** [1, 2, 3]
+
+## Unicode
+simian_rs is unicode compatible
+
+```monkey
+let a = "🐵";
+a;
+```
+
+**Output:** 🐵
 
 # Benchmarks
 

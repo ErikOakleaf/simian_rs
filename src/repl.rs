@@ -1,7 +1,7 @@
 use crate::backend::compiler::Compiler;
 use crate::frontend::Lexer;
 use crate::frontend::parser::Parser;
-use crate::runtime::object::{Object};
+use crate::runtime::object::Object;
 use crate::runtime::vm::VM;
 use std::io;
 use std::io::Write;
@@ -16,7 +16,9 @@ pub fn start() -> Result<(), String> {
         io::stdout().flush().unwrap();
         let mut buffer = String::new();
         stdin.read_line(&mut buffer).unwrap();
-        let mut lexer = Lexer::new(&buffer);
+
+        let chars: Vec<char> = buffer.chars().collect();
+        let mut lexer = Lexer::new(&chars);
         let mut parser = Parser::new(&mut lexer);
 
         let program = match parser.parse_program() {
