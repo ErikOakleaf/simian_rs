@@ -11,14 +11,15 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a [char]) -> Self {
-        let lexer = Lexer {
+        let mut lexer = Lexer {
             input: input,
             position: 0,
             read_position: 0,
             line: 1,
             column: 0,
-            current_char: '0',
+            current_char: '\0',
         };
+        lexer.read_char();
         lexer
     }
 
@@ -31,8 +32,8 @@ impl<'a> Lexer<'a> {
                     self.read_char();
                     Token::new(
                         TokenType::EQ,
-                        self.position,
-                        self.position + 2,
+                        self.position - 1,
+                        self.position + 1,
                         self.line,
                         self.column,
                     )
@@ -48,12 +49,11 @@ impl<'a> Lexer<'a> {
             }
             '!' => {
                 if self.peek_char() == '=' {
-                    let literal = &self.input[self.position..self.position + 2];
                     self.read_char();
                     Token::new(
                         TokenType::NotEQ,
-                        self.position,
-                        self.position + 2,
+                        self.position - 1,
+                        self.position + 1,
                         self.line,
                         self.column,
                     )
@@ -70,28 +70,28 @@ impl<'a> Lexer<'a> {
             '+' => Token::new(
                 TokenType::Plus,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '-' => Token::new(
                 TokenType::Minus,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '/' => Token::new(
                 TokenType::Slash,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '*' => Token::new(
                 TokenType::Asterisk,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
@@ -112,63 +112,63 @@ impl<'a> Lexer<'a> {
             ';' => Token::new(
                 TokenType::Semicolon,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             ':' => Token::new(
                 TokenType::Colon,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             ',' => Token::new(
                 TokenType::Comma,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '(' => Token::new(
                 TokenType::LParen,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             ')' => Token::new(
                 TokenType::RParen,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '{' => Token::new(
                 TokenType::LBrace,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '}' => Token::new(
                 TokenType::RBrace,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             '[' => Token::new(
                 TokenType::LBracket,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
             ']' => Token::new(
                 TokenType::RBracket,
                 self.position,
-                self.position,
+                self.position + 1,
                 self.line,
                 self.column,
             ),
@@ -183,7 +183,7 @@ impl<'a> Lexer<'a> {
                 let token = Token::new(
                     TokenType::Char,
                     self.position,
-                    self.position,
+                    self.position + 1,
                     self.line,
                     self.column,
                 );
