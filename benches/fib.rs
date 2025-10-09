@@ -29,11 +29,10 @@ pub fn run_vm(c: &mut Criterion) {
     c.bench_function("vm", |b| {
         b.iter(|| {
             let chars: Vec<char> = PROGRAM.chars().collect();
-            let mut lexer = Lexer::new(&chars);
-            let mut parser = Parser::new(&mut lexer);
+            let mut parser = Parser::new(&chars);
             let program = parser.parse_program().unwrap();
 
-            let mut compiler = Compiler::new();
+            let mut compiler = Compiler::new(&chars);
             compiler.compile_program(&program).unwrap();
 
             let mut vm = VM::new(compiler.bytecode());

@@ -833,15 +833,15 @@ mod tests {
 
     fn parse_input(input: &str) -> Program {
         let chars: Vec<char> = input.chars().collect();
-        let mut lexer = Lexer::new(&chars);
-        let mut parser = Parser::new(&mut lexer);
+        let mut parser = Parser::new(&chars);
         parser.parse_program().unwrap()
     }
 
     fn run_vm_tests(tests: &[VMTestCase]) -> Result<(), RuntimeError> {
         for test in tests {
             let program = parse_input(test.input);
-            let mut compiler = Compiler::new();
+            let chars : Vec<char> = test.input.chars().collect();
+            let mut compiler = Compiler::new(&chars);
             compiler
                 .compile_program(&program)
                 .expect("compilation error");
@@ -1461,7 +1461,8 @@ mod tests {
 
         for (input, expected) in tests {
             let program = parse_input(input);
-            let mut compiler = Compiler::new();
+            let chars:Vec<char> = input.chars().collect();
+            let mut compiler = Compiler::new(&chars);
             compiler
                 .compile_program(&program)
                 .expect("compilation error");
@@ -1697,7 +1698,8 @@ mod tests {
 
         for test in tests {
             let program = parse_input(test.input);
-            let mut compiler = Compiler::new();
+            let chars: Vec<char> = test.input.chars().collect();
+            let mut compiler = Compiler::new(&chars);
             compiler
                 .compile_program(&program)
                 .expect("compilation error");
