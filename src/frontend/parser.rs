@@ -801,11 +801,11 @@ mod tests {
             let let_statement = &program.statements[0];
 
             if let Statement::Let(let_statement) = let_statement {
-                let let_string = get_token_string(let_statement.token, input);
+                let name_string = get_token_string(let_statement.name, input);
                 assert_eq!(
-                    expected_name, let_string,
+                    expected_name, name_string,
                     "statement name is not {} got {}",
-                    expected_name, let_string,
+                    expected_name, name_string,
                 );
 
                 test_literal_expression(let_statement.value.as_ref(), input, expected_value);
@@ -1606,7 +1606,7 @@ mod tests {
                     start: 0,
                     end: 1,
                     line: 1,
-                    column: 0,
+                    column: 1,
                 }));
                 let expected_value =
                     Box::new(Expression::IntegerLiteral(IntegerLiteralExpression {
@@ -1615,7 +1615,7 @@ mod tests {
                             start: 4,
                             end: 5,
                             line: 1,
-                            column: 4,
+                            column: 5,
                         },
                         value: 5,
                     }));
@@ -1648,16 +1648,16 @@ mod tests {
                     token: Token {
                         token_type: TokenType::LBracket,
                         start: 1,
-                        end: 1,
+                        end: 2,
                         line: 1,
-                        column: 1,
+                        column: 2,
                     },
                     left: Box::new(Expression::Identifier(Token {
                         token_type: TokenType::Ident,
                         start: 0,
                         end: 1,
                         line: 1,
-                        column: 0,
+                        column: 1,
                     })),
                     index: Box::new(Expression::IntegerLiteral(IntegerLiteralExpression {
                         token: Token {
@@ -1665,7 +1665,7 @@ mod tests {
                             start: 2,
                             end: 3,
                             line: 1,
-                            column: 2,
+                            column: 3,
                         },
                         value: 0,
                     })),
@@ -1677,7 +1677,7 @@ mod tests {
                             start: 7,
                             end: 8,
                             line: 1,
-                            column: 7,
+                            column: 8,
                         },
                         value: 5,
                     }));
