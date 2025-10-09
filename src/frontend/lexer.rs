@@ -1,216 +1,301 @@
 use crate::frontend::token::{Token, TokenType};
 
-struct LexerState {
-    position: usize,
-    read_position: usize,
-    current_char: char,
-}
-
-impl LexerState {
-    fn new() -> Self {
-        LexerState {
-            position: 0,
-            read_position: 0,
-            current_char: '0',
-        }
-    }
-}
-
 pub struct Lexer<'a> {
     input: &'a [char],
-    state: LexerState,
+    position: usize,
+    read_position: usize,
+    line: usize,
+    column: usize,
+    current_char: char,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a [char]) -> Self {
-        let mut lexer = Lexer {
+        let lexer = Lexer {
             input: input,
-            state: LexerState::new(),
+            position: 0,
+            read_position: 0,
+            line: 1,
+            column: 0,
+            current_char: '0',
         };
-        Lexer::read_char(lexer.input, &mut lexer.state);
         lexer
     }
 
-    pub fn next_token(&mut self) -> Token<'a> {
+    pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
-        let token = match self.state.current_char {
+        let token = match self.current_char {
             '=' => {
                 if self.peek_char() == '=' {
-                    let literal = &self.input[self.state.position..self.state.position + 2];
-                    Self::read_char(self.input, &mut self.state);
-                    Token::new(TokenType::EQ, literal)
+                    self.read_char();
+                    Token::new(
+                        TokenType::EQ,
+                        self.position,
+                        self.position + 2,
+                        self.line,
+                        self.column,
+                    )
                 } else {
                     Token::new(
                         TokenType::Assign,
-                        &self.input[self.state.position..self.state.position + 1],
+                        self.position,
+                        self.position + 1,
+                        self.line,
+                        self.column,
                     )
                 }
             }
             '!' => {
                 if self.peek_char() == '=' {
-                    let literal = &self.input[self.state.position..self.state.position + 2];
-                    Self::read_char(self.input, &mut self.state);
-                    Token::new(TokenType::NotEQ, literal)
+                    let literal = &self.input[self.position..self.position + 2];
+                    self.read_char();
+                    Token::new(
+                        TokenType::NotEQ,
+                        self.position,
+                        self.position + 2,
+                        self.line,
+                        self.column,
+                    )
                 } else {
                     Token::new(
                         TokenType::Bang,
-                        &self.input[self.state.position..self.state.position + 1],
+                        self.position,
+                        self.position + 1,
+                        self.line,
+                        self.column,
                     )
                 }
             }
             '+' => Token::new(
                 TokenType::Plus,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '-' => Token::new(
                 TokenType::Minus,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '/' => Token::new(
                 TokenType::Slash,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '*' => Token::new(
                 TokenType::Asterisk,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '<' => Token::new(
                 TokenType::LT,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position + 1,
+                self.line,
+                self.column,
             ),
             '>' => Token::new(
                 TokenType::GT,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position + 1,
+                self.line,
+                self.column,
             ),
             ';' => Token::new(
                 TokenType::Semicolon,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             ':' => Token::new(
                 TokenType::Colon,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             ',' => Token::new(
                 TokenType::Comma,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '(' => Token::new(
                 TokenType::LParen,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             ')' => Token::new(
                 TokenType::RParen,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '{' => Token::new(
                 TokenType::LBrace,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '}' => Token::new(
                 TokenType::RBrace,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             '[' => Token::new(
                 TokenType::LBracket,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
             ']' => Token::new(
                 TokenType::RBracket,
-                &self.input[self.state.position..self.state.position + 1],
+                self.position,
+                self.position,
+                self.line,
+                self.column,
             ),
-            '"' => Token::new(TokenType::String, self.read_string()),
+            '"' => {
+                let column = self.column;
+                let (start, end) = self.read_string();
+                Token::new(TokenType::String, start, end, self.line, column)
+            }
             '\'' => {
-                Self::read_char(self.input, &mut self.state);
+                self.read_char();
 
                 let token = Token::new(
                     TokenType::Char,
-                    &self.input[self.state.position..self.state.position + 1],
+                    self.position,
+                    self.position,
+                    self.line,
+                    self.column,
                 );
 
-                Self::read_char(self.input, &mut self.state);
+                self.read_char();
 
-                if self.state.current_char != '\'' {
+                if self.current_char != '\'' {
                     return Token::new(
                         TokenType::Illegal,
-                        &self.input[self.state.position..self.state.position + 1],
+                        self.position,
+                        self.position,
+                        self.line,
+                        self.column,
                     );
                 }
 
                 token
             }
-            '\0' => Token::new(TokenType::EOF, &[]),
+            '\0' => Token::new(
+                TokenType::EOF,
+                self.position,
+                self.position,
+                self.line,
+                self.column,
+            ),
             _ => {
-                if Self::is_letter(self.state.current_char) {
-                    let literal = self.read_identifier();
-                    let token_type = Token::lookup_identifier(literal);
-                    return Token::new(token_type, literal);
-                } else if Self::is_digit(self.state.current_char) {
-                    let (literal, is_float) = self.read_number();
+                if Self::is_letter(self.current_char) {
+                    let column = self.column;
+                    let (start, end) = self.read_identifier();
+
+                    let token_type = Token::lookup_identifier(&self.input[start..end]);
+
+                    return Token::new(token_type, start, end, self.line, column);
+
+                } else if Self::is_digit(self.current_char) {
+                    let column = self.column;
+                    let ((start, end), is_float) = self.read_number();
                     if is_float {
-                        return Token::new(TokenType::Float, literal);
+                        return Token::new(TokenType::Float, start, end, self.line, column);
                     } else {
-                        return Token::new(TokenType::Int, literal);
+                        return Token::new(TokenType::Int, start, end, self.line, column);
                     }
                 } else {
                     Token::new(
                         TokenType::Illegal,
-                        &self.input[self.state.position..self.state.position + 1],
+                        self.position,
+                        self.position + 1,
+                        self.line,
+                        self.column,
                     )
                 }
             }
         };
 
-        Self::read_char(self.input, &mut self.state);
+        self.read_char();
         token
     }
 
-    fn read_identifier(&mut self) -> &'a [char] {
-        let position = self.state.position;
+    fn read_identifier(&mut self) -> (usize, usize) {
+        let start_position = self.position;
 
-        while Self::is_letter(self.state.current_char) {
-            Self::read_char(self.input, &mut self.state);
+        while Self::is_letter(self.current_char) {
+            self.read_char();
         }
 
-        &self.input[position..self.state.position]
+        (start_position, self.position)
     }
 
-    fn read_number(&mut self) -> (&'a [char], bool) {
-        let position = self.state.position;
+    fn read_number(&mut self) -> ((usize, usize), bool) {
+        let start_position = self.position;
 
         let mut dot_seen = false;
 
-        while Self::is_digit(self.state.current_char) || (self.state.current_char == '.') {
-            if self.state.current_char == '.' {
+        while Self::is_digit(self.current_char) || (self.current_char == '.') {
+            if self.current_char == '.' {
                 if dot_seen {
                     panic!(
                         "multiple dots in number: {:?}.xx",
-                        &self.input[position..self.state.position],
+                        &self.input[start_position..self.position],
                     );
                 }
                 dot_seen = true;
             }
-            Self::read_char(self.input, &mut self.state);
+            self.read_char();
         }
 
-        (&self.input[position..self.state.position], dot_seen)
+        ((start_position, self.position), dot_seen)
     }
 
-    fn read_char(input: &[char], state: &mut LexerState) {
-        if state.read_position >= input.len() {
-            state.current_char = '\0';
+    fn read_char(&mut self) {
+        if self.read_position >= self.input.len() {
+            self.current_char = '\0';
         } else {
-            state.current_char = input[state.read_position];
+            self.current_char = self.input[self.read_position];
         }
-        state.position = state.read_position;
-        state.read_position += 1;
+
+        if self.current_char == '\n' {
+            self.line += 1;
+            self.column = 0;
+        } else {
+            self.column += 1;
+        }
+
+        self.position = self.read_position;
+        self.read_position += 1;
     }
 
     fn peek_char(&self) -> char {
-        if self.state.read_position >= self.input.len() {
+        if self.read_position >= self.input.len() {
             '\0'
         } else {
-            self.input[self.state.read_position]
+            self.input[self.read_position]
         }
     }
 
@@ -223,25 +308,25 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while self.state.current_char == ' '
-            || self.state.current_char == '\t'
-            || self.state.current_char == '\n'
-            || self.state.current_char == '\r'
+        while self.current_char == ' '
+            || self.current_char == '\t'
+            || self.current_char == '\n'
+            || self.current_char == '\r'
         {
-            Self::read_char(self.input, &mut self.state);
+            self.read_char();
         }
     }
 
-    fn read_string(&mut self) -> &'a [char] {
-        let position = self.state.position + 1;
+    fn read_string(&mut self) -> (usize, usize) {
+        let start_position = self.position + 1;
         loop {
-            Self::read_char(self.input, &mut self.state);
-            if self.state.current_char == '"' || self.state.current_char == '0' {
+            self.read_char();
+            if self.current_char == '"' || self.current_char == '0' {
                 break;
             }
         }
 
-        &self.input[position..self.state.position]
+        (start_position, self.position)
     }
 }
 
@@ -384,9 +469,13 @@ mod tests {
             );
             // let expected_chars: Vec<char> = expected_literal.chars().collect();
 
-            let actual_string: String = tok.literal.iter().collect();
+            let actual_string: String = lexer.input[tok.start..tok.end].iter().collect();
 
-            assert_eq!(actual_string, *expected_literal, "tests[{}] literal wrong", i);
+            assert_eq!(
+                actual_string, *expected_literal,
+                "tests[{}] literal wrong",
+                i
+            );
         }
     }
 }
