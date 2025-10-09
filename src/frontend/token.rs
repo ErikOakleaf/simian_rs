@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     Illegal,
     EOF,
@@ -44,7 +44,7 @@ pub enum TokenType {
     NotEQ,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token {
     pub token_type: TokenType,
     pub start: usize,
@@ -68,6 +68,10 @@ impl Token {
             line: line,
             column: column,
         }
+    }
+
+    pub fn literal_string(&self, input: &[char]) -> String {
+        input[self.start..self.end].iter().collect()
     }
 
     pub fn lookup_identifier(ident: &[char]) -> TokenType {
