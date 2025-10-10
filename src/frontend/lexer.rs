@@ -1,5 +1,15 @@
 use crate::frontend::token::{Token, TokenType};
 
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum LexingError {
+    UnexpectedChar {
+        char: char,
+        line: usize,
+        column: usize,
+    },
+}
+
 pub struct Lexer<'a> {
     input: &'a [char],
     position: usize,
@@ -23,7 +33,7 @@ impl<'a> Lexer<'a> {
         lexer
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Result<Token, LexingError> {
         self.skip_whitespace();
 
         let token = match self.current_char {
@@ -191,13 +201,13 @@ impl<'a> Lexer<'a> {
                 self.read_char();
 
                 if self.current_char != '\'' {
-                    return Token::new(
+                    return Ok(Token::new(
                         TokenType::Illegal,
                         self.position,
                         self.position,
                         self.line,
                         self.column,
-                    );
+                    ));
                 }
 
                 token
@@ -209,6 +219,23 @@ impl<'a> Lexer<'a> {
                 self.line,
                 self.column,
             ),
+            '.' => {
+                if self.peek_char() == '.' {
+                    Token::new(
+                        TokenType::DotDot,
+                        self.position,
+                        self.position + 2,
+                        self.line,
+                        self.column,
+                    )
+                } else {
+                    return Err(LexingError::UnexpectedChar {
+                        char: self.peek_char(),
+                        line: self.line,
+                        column: self.column,
+                    });
+                }
+            }
             _ => {
                 if Self::is_letter(self.current_char) {
                     let column = self.column;
@@ -216,15 +243,14 @@ impl<'a> Lexer<'a> {
 
                     let token_type = Token::lookup_identifier(&self.input[start..end]);
 
-                    return Token::new(token_type, start, end, self.line, column);
-
+                    return Ok(Token::new(token_type, start, end, self.line, column));
                 } else if Self::is_digit(self.current_char) {
                     let column = self.column;
-                    let ((start, end), is_float) = self.read_number();
+                    let ((start, end), is_float) = self.read_number()?;
                     if is_float {
-                        return Token::new(TokenType::Float, start, end, self.line, column);
+                        return Ok(Token::new(TokenType::Float, start, end, self.line, column));
                     } else {
-                        return Token::new(TokenType::Int, start, end, self.line, column);
+                        return Ok(Token::new(TokenType::Int, start, end, self.line, column));
                     }
                 } else {
                     Token::new(
@@ -239,7 +265,7 @@ impl<'a> Lexer<'a> {
         };
 
         self.read_char();
-        token
+        Ok(token)
     }
 
     fn read_identifier(&mut self) -> (usize, usize) {
@@ -252,25 +278,29 @@ impl<'a> Lexer<'a> {
         (start_position, self.position)
     }
 
-    fn read_number(&mut self) -> ((usize, usize), bool) {
+    fn read_number(&mut self) -> Result<((usize, usize), bool), LexingError> {
         let start_position = self.position;
 
         let mut dot_seen = false;
 
         while Self::is_digit(self.current_char) || (self.current_char == '.') {
             if self.current_char == '.' {
+                if self.peek_char() == '.' {
+                    break;
+                }
                 if dot_seen {
-                    panic!(
-                        "multiple dots in number: {:?}.xx",
-                        &self.input[start_position..self.position],
-                    );
+                    return Err(LexingError::UnexpectedChar {
+                        char: self.peek_char(),
+                        line: self.line,
+                        column: self.column,
+                    });
                 }
                 dot_seen = true;
             }
             self.read_char();
         }
 
-        ((start_position, self.position), dot_seen)
+        Ok(((start_position, self.position), dot_seen))
     }
 
     fn read_char(&mut self) {
@@ -461,7 +491,7 @@ mod tests {
         ];
 
         for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
-            let tok = lexer.next_token();
+            let tok = lexer.next_token().unwrap();
             assert_eq!(
                 tok.token_type, *expected_type,
                 "tests[{}] token type wrong",
