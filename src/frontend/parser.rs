@@ -24,17 +24,22 @@ pub enum Precedence {
 
 #[allow(dead_code)]
 #[derive(Debug)]
+pub struct ErrorToken {
+    string: String,
+    token_type: TokenType,
+    line: usize,
+    column: usize,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
 pub enum ParseError {
-    UnexpectedToken(Token),
+    UnexpectedToken(ErrorToken),
     ExpectedToken {
         expected: TokenType,
-        got: Token,
+        got: ErrorToken,
     },
-    InvalidInteger {
-        token: Token,
-        source: std::num::ParseIntError,
-    },
-    NoPrefixParseFunction(Token),
+    NoPrefixParseFunction(ErrorToken),
 }
 
 pub struct Parser<'a> {
@@ -241,9 +246,14 @@ impl<'a> Parser<'a> {
             TokenType::LBracket => self.parse_array_literal_expression()?,
             TokenType::LBrace => self.parse_hash_literal_expression()?,
             _ => {
-                return Err(ParseError::NoPrefixParseFunction(
-                    self.current_token.clone(),
-                ));
+                let token = self.current_token.clone();
+                let error_token = ErrorToken {
+                    string: token.literal_string(self.input),
+                    token_type: token.token_type,
+                    line: token.line,
+                    column: token.column,
+                };
+                return Err(ParseError::NoPrefixParseFunction(error_token));
             }
         };
 
@@ -342,7 +352,14 @@ impl<'a> Parser<'a> {
             TokenType::True => true,
             TokenType::False => false,
             _ => {
-                return Err(ParseError::UnexpectedToken(self.current_token.clone()));
+                let token = self.current_token.clone();
+                let error_token = ErrorToken {
+                    string: token.literal_string(self.input),
+                    token_type: token.token_type,
+                    line: token.line,
+                    column: token.column,
+                };
+                return Err(ParseError::UnexpectedToken(error_token));
             }
         };
 
@@ -559,9 +576,17 @@ impl<'a> Parser<'a> {
             self.next_token();
             Ok(())
         } else {
+            let token = self.peek_token.clone();
+            let error_token = ErrorToken {
+                string: token.literal_string(self.input),
+                token_type: token.token_type,
+                line: token.line,
+                column: token.column,
+            };
+
             Err(ParseError::ExpectedToken {
                 expected: expected,
-                got: self.peek_token.clone(),
+                got: error_token,
             })
         }
     }
@@ -628,7 +653,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::frontend::ast::Statement;
+    use crate::frontend::{ast::Statement, printer::print_program};
 
     use super::*;
 
@@ -1041,69 +1066,70 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn test_operator_precedence_parsing() -> Result<(), ParseError> {
-    //     let tests = vec![
-    //         ("-a * b", "((-a) * b)"),
-    //         ("!-a", "(!(-a))"),
-    //         ("a + b + c", "((a + b) + c)"),
-    //         ("a + b - c", "((a + b) - c)"),
-    //         ("a * b * c", "((a * b) * c)"),
-    //         ("a * b / c", "((a * b) / c)"),
-    //         ("a + b / c", "(a + (b / c))"),
-    //         ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
-    //         ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
-    //         ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
-    //         ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
-    //         (
-    //             "3 + 4 * 5 == 3 * 1 + 4 * 5",
-    //             "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
-    //         ),
-    //         (
-    //             "3 + 4 * 5 == 3 * 1 + 4 * 5",
-    //             "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
-    //         ),
-    //         ("true", "true"),
-    //         ("false", "false"),
-    //         ("3 > 5 == false", "((3 > 5) == false)"),
-    //         ("3 < 5 == true", "((3 < 5) == true)"),
-    //         ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
-    //         ("(5 + 5) * 2", "((5 + 5) * 2)"),
-    //         ("2 / (5 + 5)", "(2 / (5 + 5))"),
-    //         ("-(5 + 5)", "(-(5 + 5))"),
-    //         ("!(true == true)", "(!(true == true))"),
-    //         ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
-    //         (
-    //             "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
-    //             "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
-    //         ),
-    //         (
-    //             "add(a + b + c * d / f + g)",
-    //             "add((((a + b) + ((c * d) / f)) + g))",
-    //         ),
-    //         (
-    //             "a * [1, 2, 3, 4][b * c] * d",
-    //             "((a * ([1, 2, 3, 4][(b * c)])) * d)",
-    //         ),
-    //         (
-    //             "add(a * b[2], b[1], 2 * [1, 2][1])",
-    //             "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
-    //         ),
-    //     ];
-    //
-    //     for (input, actual) in tests {
-    //         let program = parse_input(input)?;
-    //         let program_string = format!("{}", program);
-    //
-    //         assert_eq!(
-    //             program_string, actual,
-    //             "precdence is not correct expected {} got {}",
-    //             actual, program_string
-    //         )
-    //     }
-    //
-    //     Ok(())
-    // }
+    #[test]
+    fn test_operator_precedence_parsing() -> Result<(), ParseError> {
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
+        ];
+
+        for (input, actual) in tests {
+            let chars: Vec<char> = input.chars().collect();
+            let program = parse_input(input)?;
+            let program_string = print_program(&program, &chars);
+
+            assert_eq!(
+                actual, program_string,
+                "precdence is not correct expected {} got {}",
+                actual, program_string
+            )
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn test_boolean_expressions() -> Result<(), ParseError> {

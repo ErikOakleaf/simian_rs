@@ -1,14 +1,14 @@
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
 
 pub fn print_program(program: &Program, input: &[char]) -> String {
-    let mut results = Vec::new();
+    let mut results = String::new();
 
     for statement in program.statements.iter() {
         let statement_string = print_statement(statement, input);
-        results.push(statement_string);
+        results.push_str(&statement_string);
     }
 
-    results.join("\n")
+    results
 }
 
 pub fn print_statement(statement: &Statement, input: &[char]) -> String {
@@ -18,7 +18,7 @@ pub fn print_statement(statement: &Statement, input: &[char]) -> String {
             let name_string = let_statement.name.literal_string(input);
 
             format!(
-                "{} {} = {};",
+                "{} {} = {}",
                 statement_string,
                 name_string,
                 print_expression(let_statement.value.as_ref(), input)
@@ -28,20 +28,20 @@ pub fn print_statement(statement: &Statement, input: &[char]) -> String {
             let statement_string = return_statement.token.literal_string(input);
 
             format!(
-                "{} {};",
+                "{} {}",
                 statement_string,
                 print_expression(return_statement.return_value.as_ref(), input)
             )
         }
         Statement::Expression(expression_statement) => {
             format!(
-                "{};",
+                "{}",
                 print_expression(expression_statement.expression.as_ref(), input)
             )
         }
         Statement::Assign(assign_statement) => {
             format!(
-                "{} = {};",
+                "{} = {}",
                 print_expression(assign_statement.target.as_ref(), input),
                 print_expression(assign_statement.value.as_ref(), input)
             )
@@ -70,7 +70,7 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
         Expression::Prefix(prefix_expression) => {
             let prefix = prefix_expression.token.literal_string(input);
             format!(
-                "{}{}",
+                "({}{})",
                 prefix,
                 print_expression(prefix_expression.right.as_ref(), input)
             )
@@ -78,7 +78,7 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
         Expression::Infix(infix_expression) => {
             let infix = infix_expression.token.literal_string(input);
             format!(
-                "{} {} {}",
+                "({} {} {})",
                 print_expression(infix_expression.left.as_ref(), input),
                 infix,
                 print_expression(infix_expression.right.as_ref(), input)
@@ -139,7 +139,7 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
         }
         Expression::Index(index_expression) => {
             format!(
-                "{}[{}]",
+                "({}[{}])",
                 print_expression(index_expression.left.as_ref(), input),
                 print_expression(index_expression.index.as_ref(), input)
             )
@@ -168,11 +168,11 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
     }
 }
 pub fn print_block_statement(block_statement: &BlockStatement, input: &[char]) -> String {
-    let mut result: Vec<String> = Vec::new();
+    let mut result = String::new();
 
     for statement in block_statement.statements.iter() {
-        result.push(print_statement(statement, input)) 
+        result.push_str(&print_statement(statement, input));
     }
 
-    result.join("\n")
+    result
 }
