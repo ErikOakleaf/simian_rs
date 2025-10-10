@@ -265,9 +265,9 @@ impl VM {
                             self.push(Object::Float(*l as f64 + *r))?;
                         }
                         (Object::String(l), Object::String(r)) => {
-                            self.push(Object::String(Rc::new(RefCell::new(
-                                format!("{}{}", l.borrow(), r.borrow()).to_string(),
-                            ))))?;
+                            let mut new_vec = l.borrow().clone();
+                            new_vec.extend_from_slice(&r.borrow());
+                            self.push(Object::String(Rc::new(RefCell::new(new_vec))))?;
                         }
                         _ => {
                             return Err(RuntimeError::TypeMismatch {
@@ -427,7 +427,9 @@ impl VM {
                         let key = match unsafe { self.stack[i].assume_init_read() } {
                             Object::Integer(value) => HashKey::Integer(value),
                             Object::Boolean(value) => HashKey::Boolean(value),
-                            Object::String(value) => HashKey::String(value.borrow().to_string()),
+                            Object::String(value) => {
+                                HashKey::String(value.borrow().iter().collect::<String>())
+                            }
                             other => return Err(RuntimeError::InvalidHashKey(other)),
                         };
                         let value = unsafe { self.stack[i + 1].assume_init_read() };
@@ -466,7 +468,7 @@ impl VM {
                                 Object::Integer(value) => HashKey::Integer(value),
                                 Object::Boolean(value) => HashKey::Boolean(value),
                                 Object::String(value) => {
-                                    HashKey::String(value.borrow().to_string())
+                                    HashKey::String(value.borrow().iter().collect::<String>())
                                 }
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
@@ -493,11 +495,12 @@ impl VM {
                                 }
                             };
 
-                            let string_char = string.borrow().chars().nth(index);
-                            match string_char {
-                                Some(value) => self.push(Object::Char(value))?,
-                                None => self.push(Object::Null)?,
-                            };
+                            let string_ref = string.borrow();
+                            if let Some(&ch) = string_ref.get(index) {
+                                self.push(Object::Char(ch))?;
+                            } else {
+                                self.push(Object::Null)?;
+                            }
                         }
                         other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
@@ -608,7 +611,7 @@ impl VM {
                                 Object::Integer(value) => HashKey::Integer(value),
                                 Object::Boolean(value) => HashKey::Boolean(value),
                                 Object::String(value) => {
-                                    HashKey::String(value.borrow().to_string())
+                                    HashKey::String(value.borrow().iter().collect::<String>())
                                 }
                                 other => {
                                     return Err(RuntimeError::InvalidIndexType {
@@ -1179,15 +1182,15 @@ mod tests {
         let tests = vec![
             VMTestCase {
                 input: "\"monkey\"",
-                expected: Object::String(Rc::new(RefCell::new("monkey".to_string()))),
+                expected: Object::String(Rc::new(RefCell::new("monkey".chars().collect()))),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\"",
-                expected: Object::String(Rc::new(RefCell::new("monkey".to_string()))),
+                expected: Object::String(Rc::new(RefCell::new("monkey".chars().collect()))),
             },
             VMTestCase {
                 input: "\"mon\" + \"key\" + \"banana\"",
-                expected: Object::String(Rc::new(RefCell::new("monkeybanana".to_string()))),
+                expected: Object::String(Rc::new(RefCell::new("monkeybanana".chars().collect()))),
             },
         ];
 
@@ -1606,7 +1609,7 @@ mod tests {
                 input: "let a = { \"hello\": \"world\", \"one\": \"two\"}; remove(a, \"one\"); a;",
                 expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([(
                     HashKey::String("hello".to_string()),
-                    Object::String(Rc::new(RefCell::new("world".to_string()))),
+                    Object::String(Rc::new(RefCell::new("world".chars().collect()))),
                 )])))),
             },
             VMTestCase {
@@ -1648,11 +1651,11 @@ mod tests {
                 expected: Object::Hash(Rc::new(RefCell::new(HashMap::from([
                     (
                         HashKey::String("hello".to_string()),
-                        Object::String(Rc::new(RefCell::new("world".to_string()))),
+                        Object::String(Rc::new(RefCell::new("world".chars().collect()))),
                     ),
                     (
                         HashKey::String("one".to_string()),
-                        Object::String(Rc::new(RefCell::new("two".to_string()))),
+                        Object::String(Rc::new(RefCell::new("two".chars().collect()))),
                     ),
                 ])))),
             },
@@ -1867,7 +1870,7 @@ mod tests {
             },
             VMTestCase {
                 input: "let a = \"hello\"; a = a + \" world\"; a",
-                expected: Object::String(Rc::new(RefCell::new("hello world".to_string()))),
+                expected: Object::String(Rc::new(RefCell::new("hello world".chars().collect()))),
             },
             VMTestCase {
                 input: "let c = fn() {let a = 2; let b = 2; a = 1; b = 1; a + b}; c()",

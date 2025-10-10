@@ -25,10 +25,10 @@ pub enum Precedence {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ErrorToken {
-    string: String,
-    token_type: TokenType,
-    line: usize,
-    column: usize,
+    pub string: String,
+    pub token_type: TokenType,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[allow(dead_code)]

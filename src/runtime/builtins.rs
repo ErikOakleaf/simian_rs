@@ -183,7 +183,7 @@ fn remove_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
             let key = match &args[1] {
                 Object::Integer(integer) => HashKey::Integer(*integer),
                 Object::Boolean(boolean) => HashKey::Boolean(*boolean),
-                Object::String(string_rc) => HashKey::String(string_rc.borrow().clone()),
+                Object::String(string_rc) => HashKey::String(string_rc.borrow().iter().collect::<String>()),
 
                 _ => {
                     return Err(RuntimeError::Other(format!(
@@ -271,7 +271,7 @@ fn insert_builtin(args: &[Object]) -> Result<Object, RuntimeError> {
             let key = match &args[1] {
                 Object::Integer(integer) => HashKey::Integer(*integer),
                 Object::Boolean(boolean) => HashKey::Boolean(*boolean),
-                Object::String(string_rc) => HashKey::String(string_rc.borrow().clone()),
+                Object::String(string_rc) => HashKey::String(string_rc.borrow().iter().collect::<String>()),
 
                 _ => {
                     return Err(RuntimeError::Other(format!(

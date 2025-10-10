@@ -3,13 +3,14 @@ use std::rc::Rc;
 
 use crate::backend::{OPERAND_WIDTHS, Opcode, Symbol, SymbolScope, SymbolTable, make};
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
+use crate::frontend::parser::ErrorToken;
 use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::{CompiledFunction, Object};
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum CompilationError {
-    UnknownOperator(String),
+    UnknownOperator(ErrorToken),
     UnknownSymbol(String),
     Unassignable(Expression),
     DefiningAlreadyExistingSymbol(String),
@@ -270,7 +271,7 @@ impl<'a> Compiler<'a> {
             }
             Expression::String(string_token) => {
                 let string_object = Object::String(Rc::new(RefCell::new(
-                    string_token.literal_string(self.input),
+                    self.input[string_token.start..string_token.end].to_vec()
                 )));
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
@@ -389,7 +390,16 @@ impl<'a> Compiler<'a> {
                     ">" => self.emit(Opcode::GreaterThan, &[]),
                     "==" => self.emit(Opcode::Equal, &[]),
                     "!=" => self.emit(Opcode::NotEqual, &[]),
-                    _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
+                    _ => {
+                        let token = infix_expression.token;
+                        let error_token = ErrorToken {
+                            string: operator,
+                            token_type: token.token_type,
+                            column: token.column,
+                            line: token.line,
+                        };
+                        return Err(CompilationError::UnknownOperator(error_token));
+                    }
                 };
             }
             Expression::Prefix(prefix_expression) => {
@@ -400,7 +410,16 @@ impl<'a> Compiler<'a> {
                 match operator.as_str() {
                     "-" => self.emit(Opcode::Minus, &[]),
                     "!" => self.emit(Opcode::Bang, &[]),
-                    _ => return Err(CompilationError::UnknownOperator(operator.to_string())),
+                    _ => {
+                        let token = prefix_expression.token;
+                        let error_token = ErrorToken {
+                            string: operator,
+                            token_type: token.token_type,
+                            column: token.column,
+                            line: token.line,
+                        };
+                        return Err(CompilationError::UnknownOperator(error_token));
+                    }
                 };
             }
             Expression::If(if_expression) => {
@@ -1012,7 +1031,7 @@ mod tests {
             CompilerTestCase {
                 input: "\"monkey\"",
                 expected_constants: vec![Object::String(Rc::new(RefCell::new(
-                    "monkey".to_string(),
+                    "monkey".chars().collect(),
                 )))],
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
@@ -1022,8 +1041,8 @@ mod tests {
             CompilerTestCase {
                 input: "\"mon\" + \"key\"",
                 expected_constants: vec![
-                    Object::String(Rc::new(RefCell::new("mon".to_string()))),
-                    Object::String(Rc::new(RefCell::new("key".to_string()))),
+                    Object::String(Rc::new(RefCell::new("mon".chars().collect()))),
+                    Object::String(Rc::new(RefCell::new("key".chars().collect()))),
                 ],
                 expected_instructions: make_instructions(vec![
                     (Opcode::LoadConstant, &[&[0, 0]]),
