@@ -145,6 +145,26 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
                 print_expression(index_expression.index.as_ref(), input)
             )
         }
+        Expression::Slice(slice_expression) => {
+            let start_str = slice_expression
+                .start
+                .as_ref()
+                .map(|s| print_expression(s.as_ref(), input))
+                .unwrap_or_else(|| String::new());
+
+            let end_str = slice_expression
+                .end
+                .as_ref()
+                .map(|e| print_expression(e.as_ref(), input))
+                .unwrap_or_else(|| String::new());
+
+            format!(
+                "({}[{}..{}])",
+                print_expression(slice_expression.collection.as_ref(), input),
+                start_str,
+                end_str
+            )
+        }
         Expression::Array(array_literal_expression) => {
             let elements: Vec<String> = array_literal_expression
                 .elements

@@ -29,6 +29,7 @@ pub enum Expression {
     Array(ArrayLiteralExpression),
     Hash(HashLiteralExpression),
     Index(IndexExpression),
+    Slice(SliceExpression),
 }
 
 // Statements
@@ -133,6 +134,14 @@ pub struct IndexExpression {
     pub token: Token,
     pub left: Box<Expression>,
     pub index: Box<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SliceExpression {
+    pub token: Token,
+    pub collection: Box<Expression>,
+    pub start: Option<Box<Expression>>,
+    pub end: Option<Box<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

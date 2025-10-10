@@ -4,7 +4,7 @@ use crate::frontend::{
         CallExpression, Expression, ExpressionStatement, FloatLiteralExpression,
         FunctionLiteralExpression, HashLiteralExpression, IfExpression, IndexExpression,
         InfixExpression, IntegerLiteralExpression, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statement, WhileStatement,
+        ReturnStatement, SliceExpression, Statement, WhileStatement,
     },
     lexer::{Lexer, LexingError},
     token::{Token, TokenType},
@@ -66,7 +66,12 @@ impl<'a> Parser<'a> {
 
     #[inline(always)]
     pub fn next_token(&mut self) -> Result<(), ParseError> {
-        self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token().map_err(|e| ParseError::LexingError(e))?);
+        self.current_token = std::mem::replace(
+            &mut self.peek_token,
+            self.lexer
+                .next_token()
+                .map_err(|e| ParseError::LexingError(e))?,
+        );
         Ok(())
     }
 
@@ -280,7 +285,7 @@ impl<'a> Parser<'a> {
                 }
                 TokenType::LBracket => {
                     self.next_token()?;
-                    self.parse_index_expression(left_expression)?
+                    self.parse_indexable_expression(left_expression)?
                 }
                 _ => {
                     return Ok(left_expression);
@@ -554,21 +559,63 @@ impl<'a> Parser<'a> {
         Ok(Expression::Hash(hash_literal_expression))
     }
 
-    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParseError> {
+    fn parse_indexable_expression(&mut self, left: Expression) -> Result<Expression, ParseError> {
         let token = self.current_token.clone();
-
         self.next_token()?;
 
-        let index = self.parse_expression(Precedence::Lowest)?;
+        // if slice starts with dots ie [..x] or [..]
 
-        self.expect_peek(TokenType::RBracket)?;
+        if self.current_token.token_type == TokenType::DotDot {
+            self.next_token()?;
 
-        let index_expression = IndexExpression {
-            token: token,
-            left: Box::new(left),
-            index: Box::new(index),
-        };
-        Ok(Expression::Index(index_expression))
+            let end = if self.current_token.token_type != TokenType::RBracket {
+                Some(Box::new(self.parse_expression(Precedence::Lowest)?))
+            } else {
+                None
+            };
+
+            self.expect_peek(TokenType::RBracket)?;
+
+            let slice_expression = SliceExpression {
+                token: token,
+                collection: Box::new(left),
+                start: None,
+                end: end,
+            };
+            return Ok(Expression::Slice(slice_expression));
+        }
+
+        let start = Some(Box::new(self.parse_expression(Precedence::Lowest)?));
+
+        if self.peek_token.token_type == TokenType::DotDot {
+            self.next_token()?;
+
+            let end = if self.peek_token.token_type != TokenType::RBracket {
+                self.next_token()?;
+                Some(Box::new(self.parse_expression(Precedence::Lowest)?))
+            } else {
+                None
+            };
+
+            self.expect_peek(TokenType::RBracket)?;
+
+            let slice_expression = SliceExpression {
+                token: token,
+                collection: Box::new(left),
+                start,
+                end,
+            };
+            Ok(Expression::Slice(slice_expression))
+        } else {
+            self.expect_peek(TokenType::RBracket)?;
+
+            let index_expression = IndexExpression {
+                token: token,
+                left: Box::new(left),
+                index: start.unwrap(),
+            };
+            Ok(Expression::Index(index_expression))
+        }
     }
 
     // Helper functions
@@ -1580,6 +1627,24 @@ mod tests {
                     "+",
                     ExpectedLiteral::Int(1),
                 );
+            }
+            _ => panic!("Expression is not string expression"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parsing_slice_expression() -> Result<(), ParseError> {
+        let input = "myArray[1..5]";
+
+        let program = parse_input(input)?;
+
+        let expression = get_statement_expression(&program.statements[0]);
+        match expression {
+            Expression::Slice(slice_expression) => {
+                test_identifier(&slice_expression.collection, input, "myArray");
+                test_integer_literal(slice_expression.start.as_ref().unwrap(), input, 1);
+                test_integer_literal(slice_expression.end.as_ref().unwrap(), input, 5);
             }
             _ => panic!("Expression is not string expression"),
         }
