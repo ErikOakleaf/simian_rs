@@ -221,12 +221,13 @@ impl<'a> Lexer<'a> {
             ),
             '.' => {
                 if self.peek_char() == '.' {
+                    self.read_char();
                     Token::new(
                         TokenType::DotDot,
-                        self.position,
-                        self.position + 2,
+                        self.position - 1,
+                        self.position + 1,
                         self.line,
-                        self.column,
+                        self.column - 1,
                     )
                 } else {
                     return Err(LexingError::UnexpectedChar {
@@ -392,6 +393,7 @@ mod tests {
                     5.82283
                     \"🐒🐵\"
                     '🐒'
+                    ..
                     ";
 
         let chars: Vec<char> = input.chars().collect();
@@ -487,6 +489,7 @@ mod tests {
             (TokenType::Float, "5.82283"),
             (TokenType::String, "🐒🐵"),
             (TokenType::Char, "🐒"),
+            (TokenType::DotDot, ".."),
             (TokenType::EOF, ""),
         ];
 
