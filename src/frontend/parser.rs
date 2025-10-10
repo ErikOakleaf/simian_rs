@@ -63,18 +63,6 @@ impl<'a> Parser<'a> {
         self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
 
-    #[inline(always)]
-    pub fn current_literal(&self) -> &'a [char] {
-        &self.input[self.current_token.start..self.current_token.end]
-    }
-
-    #[inline(always)]
-    pub fn current_literal_string(&self) -> String {
-        self.input[self.current_token.start..self.current_token.end]
-            .iter()
-            .collect()
-    }
-
     // Parsing functions
 
     pub fn parse_program(&mut self) -> Result<Program, ParseError> {
@@ -249,7 +237,7 @@ impl<'a> Parser<'a> {
             TokenType::If => self.parse_if_expression()?,
             TokenType::Function => self.parse_function_literal_expression()?,
             TokenType::String => Expression::String(self.current_token.clone()),
-            TokenType::Char => Expression::Char(self.input[self.current_token.start]),
+            TokenType::Char => Expression::Char(self.current_token),
             TokenType::LBracket => self.parse_array_literal_expression()?,
             TokenType::LBrace => self.parse_hash_literal_expression()?,
             _ => {
@@ -951,7 +939,16 @@ mod tests {
 
         let expression = get_statement_expression(&program.statements[0]);
 
-        assert_eq!(expression, &Expression::Char('y'));
+        assert_eq!(
+            expression,
+            &Expression::Char(Token {
+                token_type: TokenType::Char,
+                start: 1,
+                end: 2,
+                line: 1,
+                column: 2
+            })
+        );
 
         Ok(())
     }

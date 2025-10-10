@@ -64,6 +64,9 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
         Expression::IntegerLiteral(integer_literal_expression) => {
             integer_literal_expression.token.literal_string(input)
         }
+        Expression::FloatLiteral(float_literal_expression) => {
+            float_literal_expression.token.literal_string(input)
+        }
         Expression::Prefix(prefix_expression) => {
             let prefix = prefix_expression.token.literal_string(input);
             format!(
@@ -84,6 +87,12 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
         Expression::Boolean(boolean_literal_expression) => {
             boolean_literal_expression.token.literal_string(input)
         }
+        Expression::String(string_token) => {
+            format!("\"{}\"", string_token.literal_string(input))
+        }
+        Expression::Char(char_token) => {
+            format!("'{}'", char_token.literal_string(input))
+        }
         Expression::If(if_expression) => {
             let mut result = String::new();
 
@@ -93,12 +102,77 @@ pub fn print_expression(expression: &Expression, input: &[char]) -> String {
                 print_block_statement(&if_expression.consequence, input),
             ));
 
-            if let Some(alternative) = if_expression.alternative {
-                result.push_str(&format!("else {}", print_block_statement(&alternative, input)));
+            if let Some(alternative) = &if_expression.alternative {
+                result.push_str(&format!(
+                    "else {}",
+                    print_block_statement(&alternative, input)
+                ));
             }
 
             result
         }
+        Expression::Function(function_literal_expression) => {
+            let params: Vec<String> = function_literal_expression
+                .parameters
+                .iter()
+                .map(|token| format!("{}", token.literal_string(input)))
+                .collect();
+
+            format!(
+                "fn ({}), {}",
+                params.join(", "),
+                print_block_statement(&function_literal_expression.body, input)
+            )
+        }
+        Expression::Call(call_expression) => {
+            let arguments: Vec<String> = call_expression
+                .arguments
+                .iter()
+                .map(|expression| print_expression(expression, input))
+                .collect();
+
+            format!(
+                "{}({})",
+                print_expression(call_expression.function.as_ref(), input),
+                arguments.join(", ")
+            )
+        }
+        Expression::Index(index_expression) => {
+            format!(
+                "{}[{}]",
+                print_expression(index_expression.left.as_ref(), input),
+                print_expression(index_expression.index.as_ref(), input)
+            )
+        }
+        Expression::Array(array_literal_expression) => {
+            let elements: Vec<String> = array_literal_expression
+                .elements
+                .iter()
+                .map(|element| print_expression(element, input))
+                .collect();
+
+            format!("[{}]", elements.join(", "))
+        }
+        Expression::Hash(hash_literal_expression) => {
+            let mut parts = Vec::new();
+            for (k, v) in &hash_literal_expression.pairs {
+                parts.push(format!(
+                    "{} : {}",
+                    print_expression(k, input),
+                    print_expression(v, input)
+                ));
+            }
+
+            format!("{{ {} }}", parts.join(", "))
+        }
     }
 }
-pub fn print_block_statement(block_statement: &BlockStatement, input: &[char]) -> String {}
+pub fn print_block_statement(block_statement: &BlockStatement, input: &[char]) -> String {
+    let mut result: Vec<String> = Vec::new();
+
+    for statement in block_statement.statements.iter() {
+        result.push(print_statement(statement, input)) 
+    }
+
+    result.join("\n")
+}

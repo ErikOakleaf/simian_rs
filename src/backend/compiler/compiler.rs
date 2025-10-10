@@ -275,8 +275,8 @@ impl<'a> Compiler<'a> {
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
             }
-            Expression::Char(char_value) => {
-                let char_object = Object::Char(*char_value);
+            Expression::Char(token) => {
+                let char_object = Object::Char(self.input[token.start]);
                 let index = self.add_constant(char_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
             }
@@ -702,7 +702,7 @@ fn read_operand(opcode: Opcode, instructions: &[u8]) -> (Box<[usize]>, usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{frontend::ast::Program, frontend::lexer::Lexer, frontend::parser::Parser};
+    use crate::{frontend::ast::Program, frontend::parser::Parser};
 
     use super::*;
 

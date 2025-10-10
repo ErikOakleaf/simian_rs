@@ -1,5 +1,4 @@
 use crate::frontend::token::Token;
-use std::fmt;
 
 // Enums
 
@@ -26,7 +25,7 @@ pub enum Expression {
     Function(FunctionLiteralExpression),
     Call(CallExpression),
     String(Token),
-    Char(char),
+    Char(Token),
     Array(ArrayLiteralExpression),
     Hash(HashLiteralExpression),
     Index(IndexExpression),
@@ -159,37 +158,3 @@ impl PartialEq for HashLiteralExpression {
 pub struct Program {
     pub statements: Vec<Statement>,
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::frontend::ast::Statement;
-//     use crate::frontend::token::TokenType;
-//
-//     use super::*;
-//
-//     #[test]
-//     pub fn test_display() {
-//         let program = Program {
-//             statements: vec![Statement::Let(LetStatement {
-//                 token: Token {
-//                     token_type: TokenType::Let,
-//                     literal: "let".to_string(),
-//                 },
-//                 name: IdentifierExpression {
-//                     token: Token {
-//                         token_type: TokenType::Ident,
-//                         literal: "myVar".to_string(),
-//                     },
-//                 },
-//                 value: Box::new(Expression::Identifier(IdentifierExpression {
-//                     token: Token {
-//                         token_type: TokenType::Ident,
-//                         literal: "anotherVar".to_string(),
-//                     },
-//                 })),
-//             })],
-//         };
-//
-//         assert_eq!(format!("{}", program), "let myVar = anotherVar;");
-//     }
-// }

@@ -1,7 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use simian_rs::backend::compiler::Compiler;
-use simian_rs::frontend::Lexer;
 use simian_rs::frontend::parser::Parser;
 
 use simian_rs::runtime::{Object, vm::VM};

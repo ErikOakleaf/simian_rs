@@ -818,10 +818,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::{
-        frontend::ast::Program, frontend::lexer::Lexer, frontend::parser::Parser,
-        runtime::object::HashKey,
-    };
+    use crate::{frontend::ast::Program, frontend::parser::Parser, runtime::object::HashKey};
 
     #[derive(Debug)]
     struct VMTestCase {
@@ -840,7 +837,7 @@ mod tests {
     fn run_vm_tests(tests: &[VMTestCase]) -> Result<(), RuntimeError> {
         for test in tests {
             let program = parse_input(test.input);
-            let chars : Vec<char> = test.input.chars().collect();
+            let chars: Vec<char> = test.input.chars().collect();
             let mut compiler = Compiler::new(&chars);
             compiler
                 .compile_program(&program)
@@ -1461,7 +1458,7 @@ mod tests {
 
         for (input, expected) in tests {
             let program = parse_input(input);
-            let chars:Vec<char> = input.chars().collect();
+            let chars: Vec<char> = input.chars().collect();
             let mut compiler = Compiler::new(&chars);
             compiler
                 .compile_program(&program)

@@ -1,6 +1,5 @@
 use crate::backend::SymbolTable;
 use crate::backend::compiler::Compiler;
-use crate::frontend::Lexer;
 use crate::frontend::parser::Parser;
 use crate::runtime::builtins::BUILTINS;
 use crate::runtime::object::Object;

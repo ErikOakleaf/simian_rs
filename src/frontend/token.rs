@@ -1,5 +1,3 @@
-use std::fmt;
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     Illegal,
