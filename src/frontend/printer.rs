@@ -1,5 +1,6 @@
 use crate::frontend::ast::{BlockStatement, Expression, Program, Statement};
 
+#[allow(dead_code)]
 pub fn print_program(program: &Program, input: &[char]) -> String {
     let mut results = String::new();
 
