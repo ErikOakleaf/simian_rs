@@ -623,6 +623,35 @@ impl VM {
 
                             hash.borrow_mut().insert(key, value);
                         }
+                        Object::String(string) => {
+                            let index = match index_object {
+                                Object::Integer(value) => value as usize,
+                                other => {
+                                    return Err(RuntimeError::InvalidIndexType {
+                                        indexable: container.clone(),
+                                        index: other,
+                                    });
+                                }
+                            };
+
+                            let new_char = match value {
+                                Object::Char(new_char) => new_char,
+                                _ => {
+                                    return Err(RuntimeError::TypeMismatch {
+                                        left: Object::String(string.clone()),
+                                        opcode: Opcode::AssignIndexable,
+                                        right: value.clone(),
+                                    });
+                                }
+                            };
+
+                            let mut string_borrow = string.borrow_mut();
+                            if index > string_borrow.len() {
+                                return Err(RuntimeError::Other("index out of bonuds".to_string()));
+                            }
+
+                            string_borrow[index] = new_char;
+                        }
                         other => return Err(RuntimeError::NotIndexable(other.clone())),
                     }
                 }
@@ -1887,6 +1916,14 @@ mod tests {
             VMTestCase {
                 input: "let c = fn() { let h = {true: 10}; h[true] = 99; h[true] }; c()",
                 expected: Object::Integer(99),
+            },
+            VMTestCase {
+                input: "let a = \"hello world\"; a[3] = 'Q'; a[3]",
+                expected: Object::Char('Q'),
+            },
+            VMTestCase {
+                input: "let a = \"hello world\"; a[5] = '🐒'; a[5]",
+                expected: Object::Char('🐒'),
             },
             VMTestCase {
                 input: "let a = 10; let f = fn() { let b = 20; a = 5; b = 1; a + b }; f()",
