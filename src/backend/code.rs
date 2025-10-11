@@ -35,10 +35,7 @@ pub enum Opcode {
     CurrentClosure = 0x1D,
     AssignIndexable = 0x1E,
     AssignFree = 0x1F,
-    Slice = 0x20,     // [x..y]
-    SliceTo = 0x21,   // [..y]
-    SliceFrom = 0x22, // [x..]
-    SliceFull = 0x23, // [..]
+    Slice = 0x20,
 }
 
 impl Opcode {
@@ -77,9 +74,6 @@ impl Opcode {
             0x1E => Opcode::AssignIndexable,
             0x1F => Opcode::AssignFree,
             0x20 => Opcode::Slice,
-            0x21 => Opcode::SliceTo,
-            0x22 => Opcode::SliceFrom,
-            0x23 => Opcode::SliceFull,
             _ => unreachable!("unsupported opcode {}", value),
         }
     }
@@ -121,9 +115,6 @@ impl fmt::Display for Opcode {
             Opcode::AssignIndexable => "AssignIndexable",
             Opcode::AssignFree => "AssignFree",
             Opcode::Slice => "Slice",
-            Opcode::SliceTo => "SliceTo",
-            Opcode::SliceFrom => "SliceFrom",
-            Opcode::SliceFull => "SliceFull",
         };
         write!(f, "{}", name)
     }
@@ -135,14 +126,14 @@ pub struct OperandInfo {
     pub widths: &'static [usize],
 }
 
-const fn build_operand_widths() -> [OperandInfo; 36] {
+const fn build_operand_widths() -> [OperandInfo; 33] {
     let empty_width: &[usize] = &[];
     let default_operand = OperandInfo {
         amount: 0,
         widths: empty_width,
     };
 
-    let mut table: [OperandInfo; 36] = [default_operand; 36];
+    let mut table: [OperandInfo; 33] = [default_operand; 33];
 
     table[Opcode::LoadConstant as usize] = OperandInfo {
         amount: 1,
@@ -273,25 +264,13 @@ const fn build_operand_widths() -> [OperandInfo; 36] {
         widths: &[1],
     };
     table[Opcode::Slice as usize] = OperandInfo {
-        amount: 2,
-        widths: &[2, 2],
-    };
-    table[Opcode::SliceTo as usize] = OperandInfo {
-        amount: 1,
-        widths: &[1],
-    };
-    table[Opcode::SliceFrom as usize] = OperandInfo {
-        amount: 1,
-        widths: &[1],
-    };
-    table[Opcode::SliceFull as usize] = OperandInfo {
         amount: 0,
-        widths: &[],
+        widths: &[0],
     };
     table
 }
 
-pub static OPERAND_WIDTHS: [OperandInfo; 36] = build_operand_widths();
+pub static OPERAND_WIDTHS: [OperandInfo; 33] = build_operand_widths();
 
 pub fn make(buffer: &mut Vec<u8>, opcode: Opcode, operands: &[&[u8]]) {
     let expected_amount_operands = OPERAND_WIDTHS[opcode as usize].amount;

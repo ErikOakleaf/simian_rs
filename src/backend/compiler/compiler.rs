@@ -271,7 +271,7 @@ impl<'a> Compiler<'a> {
             }
             Expression::String(string_token) => {
                 let string_object = Object::String(Rc::new(RefCell::new(
-                    self.input[string_token.start..string_token.end].to_vec()
+                    self.input[string_token.start..string_token.end].to_vec(),
                 )));
                 let index = self.add_constant(string_object).to_be_bytes();
                 self.emit(Opcode::LoadConstant, &[&index]);
@@ -458,7 +458,25 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(index_expression.index.as_ref())?;
                 self.emit(Opcode::Index, &[]);
             }
-            _ => {}
+            Expression::Slice(slice_expression) => {
+                self.compile_expression(slice_expression.collection.as_ref())?;
+
+                if let Some(expression) = &slice_expression.start {
+                    self.compile_expression(expression.as_ref())?;
+                } else {
+                    let constant = self.add_constant(Object::Integer(0));
+                    self.emit(Opcode::LoadConstant, &[&constant.to_be_bytes()]);
+                }
+
+                if let Some(expression) = &slice_expression.end {
+                    self.compile_expression(expression.as_ref())?;
+                } else {
+                    let constant = self.add_constant(Object::Integer(-1));
+                    self.emit(Opcode::LoadConstant, &[&constant.to_be_bytes()]);
+                }
+
+                self.emit(Opcode::Slice, &[]);
+            }
         };
 
         Ok(())
@@ -1216,6 +1234,32 @@ mod tests {
                 ]),
             },
         ];
+
+        run_compiler_tests(tests);
+    }
+
+    #[test]
+    fn test_slice_expressions() {
+        let tests = vec![CompilerTestCase {
+            input: "[1, 2, 3][1..2]",
+            expected_constants: vec![
+                Object::Integer(1),
+                Object::Integer(2),
+                Object::Integer(3),
+                Object::Integer(1),
+                Object::Integer(2),
+            ],
+            expected_instructions: make_instructions(vec![
+                (Opcode::LoadConstant, &[&[0, 0]]),
+                (Opcode::LoadConstant, &[&[0, 1]]),
+                (Opcode::LoadConstant, &[&[0, 2]]),
+                (Opcode::Array, &[&[0, 3]]),
+                (Opcode::LoadConstant, &[&[0, 3]]),
+                (Opcode::LoadConstant, &[&[0, 4]]),
+                (Opcode::Slice, &[]),
+                (Opcode::Pop, &[]),
+            ]),
+        }];
 
         run_compiler_tests(tests);
     }
